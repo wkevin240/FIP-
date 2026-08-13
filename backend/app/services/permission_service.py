@@ -32,6 +32,9 @@ class PermissionService:
                 "bank_reconciliation:create",
                 "bank_reconciliation:read",
                 "bank_reconciliation:match",
+                "vat:create",
+                "vat:read",
+                "vat:update",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -43,6 +46,7 @@ class PermissionService:
                 "journal_entry:read",
                 "financial_report:read",
                 "bank_reconciliation:read",
+                "vat:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -56,6 +60,7 @@ class PermissionService:
                 "audit:read",
                 "financial_report:read",
                 "bank_reconciliation:read",
+                "vat:read",
             }
         ),
     }
