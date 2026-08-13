@@ -16,16 +16,24 @@ class UserService:
         email = str(data.email).lower()
         if await self.repository.get_by_email(email):
             raise ValueError("Email already exists")
-        user = User(email=email, full_name=data.full_name, hashed_password=get_password_hash(data.password))
+        user = User(
+            email=email,
+            full_name=data.full_name,
+            hashed_password=get_password_hash(data.password),
+        )
         await self.repository.create(user)
         await self.session.commit()
         await self.session.refresh(user)
         return user
 
-    async def add_membership(self, user_id: str, organization_id: str, role: str) -> OrganizationMembership:
+    async def add_membership(
+        self, user_id: str, organization_id: str, role: str
+    ) -> OrganizationMembership:
         if await self.repository.get_membership(user_id, organization_id):
             raise ValueError("User is already a member of this organization")
-        membership = OrganizationMembership(user_id=user_id, organization_id=organization_id, role=role)
+        membership = OrganizationMembership(
+            user_id=user_id, organization_id=organization_id, role=role
+        )
         self.session.add(membership)
         await self.session.commit()
         await self.session.refresh(membership)
@@ -33,7 +41,11 @@ class UserService:
 
     async def authenticate(self, data: LoginRequest) -> str:
         user = await self.repository.get_by_email(str(data.email))
-        if user is None or not user.is_active or not verify_password(data.password, user.hashed_password):
+        if (
+            user is None
+            or not user.is_active
+            or not verify_password(data.password, user.hashed_password)
+        ):
             raise ValueError("Invalid credentials")
         membership = await self.repository.get_membership(user.id, data.organization_id)
         if membership is None or not membership.is_active:

@@ -10,12 +10,16 @@ class UserRepository:
         self.session = session
 
     async def get_by_email(self, email: str) -> User | None:
-        return await self.session.scalar(select(User).where(User.email == email.lower()))
+        return await self.session.scalar(
+            select(User).where(User.email == email.lower())
+        )
 
     async def get_by_id(self, user_id: str) -> User | None:
         return await self.session.scalar(select(User).where(User.id == user_id))
 
-    async def get_membership(self, user_id: str, organization_id: str) -> OrganizationMembership | None:
+    async def get_membership(
+        self, user_id: str, organization_id: str
+    ) -> OrganizationMembership | None:
         return await self.session.scalar(
             select(OrganizationMembership).where(
                 OrganizationMembership.user_id == user_id,
