@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées et la clôture contrôlée des périodes. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes et le reporting financier de base. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -62,6 +62,7 @@ L’API expose alors les ressources suivantes :
 | Journaux comptables | `/api/v1/accounting/journals` |
 | Écritures comptables | `/api/v1/accounting/journal-entries` |
 | Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
+| Bilan et compte de résultat | `/api/v1/accounting/reports` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -76,6 +77,12 @@ L’écriture est d’abord créée au statut `DRAFT`. L’opération `POST /api
 Avant toute clôture, `GET /api/v1/accounting/period-closings/periods/{fiscal_period_id}/preview` calcule le nombre d’écritures et de lignes comptabilisées, les totaux débit/crédit et une empreinte SHA-256 déterministe. La clôture via `POST /api/v1/accounting/period-closings/periods/{fiscal_period_id}` est réservée à la permission `fiscal_period:close`.
 
 La fermeture s’exécute dans une transaction avec verrouillage de la période. Elle refuse les périodes non ouvertes, tout brouillon résiduel et toute écriture comptabilisée individuellement déséquilibrée. À succès, elle passe la période à `CLOSED`, enregistre les agrégats et l’empreinte de contrôle dans un registre unique, puis empêche l’ajout ou la comptabilisation concurrente d’écritures.
+
+## Reporting financier
+
+Le bilan est disponible via `GET /api/v1/accounting/reports/balance-sheet?as_of_date=YYYY-MM-DD`. Il agrège uniquement les lignes d’écritures `POSTED` jusqu’à la date demandée. Les actifs sont présentés selon `débit − crédit`, tandis que les passifs et capitaux propres suivent `crédit − débit`. Le résultat courant, calculé comme produits moins charges, est inclus dans les capitaux propres ; le rapport est refusé si l’égalité **Actif = Passif + Capitaux propres** n’est pas respectée.
+
+Le compte de résultat est disponible via `GET /api/v1/accounting/reports/income-statement?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`. Il limite strictement les mouvements à l’intervalle inclusif fourni et calcule le résultat net comme **Produits − Charges**. Les deux routes exigent la permission `financial_report:read`.
 
 ## Qualité et sécurité
 
@@ -106,4 +113,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les rapports comptables et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapports par période clôturée et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.

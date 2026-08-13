@@ -6,6 +6,7 @@ from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.journal_entries import router as journal_entries_router
 from app.api.v1.accounting.journals import router as journals_router
+from app.api.v1.accounting.reporting import router as reporting_router
 
 api_router = APIRouter()
 api_router.include_router(
@@ -28,6 +29,11 @@ api_router.include_router(
 )
 api_router.include_router(
     journals_router, prefix="/accounting/journals", tags=["Accounting - Journals"]
+)
+api_router.include_router(
+    reporting_router,
+    prefix="/accounting/reports",
+    tags=["Accounting - Financial Reporting"],
 )
 api_router.include_router(
     journal_entries_router,
