@@ -14,6 +14,10 @@ from app.models.inventory.product import Product
 from app.models.inventory.stock_balance import StockBalance
 from app.models.inventory.stock_movement import StockMovement
 from app.models.inventory.warehouse import Warehouse
+from app.models.invoicing.credit_note import CreditNote
+from app.models.invoicing.invoice import Invoice
+from app.models.invoicing.invoice_line import InvoiceLine
+from app.models.invoicing.payment import Payment
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.permission import Permission
@@ -24,13 +28,17 @@ __all__ = [
     "Account",
     "BankReconciliation",
     "BankTransaction",
+    "CreditNote",
     "FiscalPeriod",
     "FiscalYear",
+    "Invoice",
+    "InvoiceLine",
     "Journal",
     "JournalEntry",
     "JournalEntryLine",
     "Organization",
     "OrganizationMembership",
+    "Payment",
     "PeriodClosing",
     "Permission",
     "Product",

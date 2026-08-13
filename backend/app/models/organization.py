@@ -31,3 +31,6 @@ class Organization(Base):
     warehouses = relationship("Warehouse", back_populates="organization")
     stock_balances = relationship("StockBalance", back_populates="organization")
     stock_movements = relationship("StockMovement", back_populates="organization")
+    invoices = relationship("Invoice", back_populates="organization")
+    credit_notes = relationship("CreditNote", back_populates="organization")
+    payments = relationship("Payment", back_populates="organization")

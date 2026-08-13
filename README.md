@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA et le premier vertical Inventaire. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, le premier vertical Inventaire et le premier vertical Facturation. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -68,6 +68,9 @@ L’API expose alors les ressources suivantes :
 | Produits Inventaire | `/api/v1/inventory/products` |
 | Entrepôts Inventaire | `/api/v1/inventory/warehouses` |
 | Mouvements et soldes de stock | `/api/v1/inventory/stock` |
+| Factures commerciales | `/api/v1/invoicing/invoices` |
+| Avoirs commerciaux | `/api/v1/invoicing/credit-notes` |
+| Règlements de facture | `/api/v1/invoicing/payments` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -113,6 +116,16 @@ Chaque mouvement est append-only et alimente un solde unique par couple **produi
 
 Les permissions `inventory_product:*`, `inventory_warehouse:*` et `inventory_stock:*` séparent les référentiels, les consultations et les opérations physiques. Ce premier périmètre ne génère pas encore d’écritures comptables automatiques, ne gère pas les lots ou numéros de série et applique une valorisation au coût moyen pondéré plutôt qu’une méthode FIFO.
 
+## Gestion Facturation
+
+Le module Facturation gère les factures commerciales tenant-scopées sous `/api/v1/invoicing/invoices`. Une facture contient au moins une ligne, un numéro unique par organisation, un client figé, une date et une échéance optionnelle. Chaque ligne peut référencer un produit actif et un taux TVA actif à la date de facture ; elle préserve toutefois sa description, son prix, son taux et ses montants calculés pour garantir la traçabilité historique.
+
+Les lignes calculent le sous-total comme **quantité × prix unitaire**, puis la TVA selon le taux applicable, avec des montants `Decimal` arrondis au centime par `ROUND_HALF_UP`. Les contrôles de base vérifient que **total de ligne = sous-total + TVA**, que **total de facture = sous-total + TVA**, et que **paiements + avoirs ≤ total de facture**. Les quantités portent trois décimales ; les prix, montants et taux conservent les précisions cohérentes avec les modules Inventaire et TVA.
+
+Une facture débute au statut `DRAFT`. Seul un brouillon peut être modifié ou émis par `POST /api/v1/invoicing/invoices/{invoice_id}/issue`. Après émission, les règlements sous `/api/v1/invoicing/payments` et les avoirs sous `/api/v1/invoicing/credit-notes` sont plafonnés au solde exigible et verrouillent la facture pendant leur application. Le cycle de vie évolue vers `ISSUED`, `PARTIALLY_PAID`, `PAID` ou `CANCELLED` lorsqu’un avoir couvre intégralement une facture non encaissée.
+
+Les permissions `invoice:create`, `invoice:read`, `invoice:update`, `invoice:issue`, `payment:create`, `payment:read`, `credit_note:create` et `credit_note:read` séparent la consultation, l’émission et les opérations de règlement. Ce premier périmètre ne génère pas encore automatiquement les écritures comptables, les sorties de stock ni les factures électroniques, et n’intègre aucun prestataire de paiement externe ; ces intégrations restent explicitement à construire.
+
 ## Qualité et sécurité
 
 Exécutez les contrôles avant chaque proposition de changement :
@@ -142,4 +155,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la facturation, la trésorerie, la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. L’évolution Inventaire comprendra ensuite l’intégration comptable automatique, les lots, les numéros de série et des méthodes de valorisation complémentaires.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la trésorerie, la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Inventaire et Facturation comprendront ensuite les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
