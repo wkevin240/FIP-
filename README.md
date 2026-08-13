@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les premiers verticaux Inventaire, Facturation et Trésorerie. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie et Paie. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -74,6 +74,10 @@ L’API expose alors les ressources suivantes :
 | Profils de comptes bancaires Trésorerie et positions | `/api/v1/treasury/bank-accounts` |
 | Transactions de relevé Trésorerie et candidats | `/api/v1/treasury/transactions` |
 | Validation de rapprochement Trésorerie | `/api/v1/treasury/reconciliation` |
+| Salariés et contrats Paie | `/api/v1/payroll/employees` |
+| Règles datées et profils comptables Paie | `/api/v1/payroll/configuration` |
+| Périodes, entrées, bulletins et comptabilisation Paie | `/api/v1/payroll/periods` |
+| Corrections contrôlées de bulletins | `/api/v1/payroll/slips/{payroll_slip_id}/corrections` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -129,6 +133,16 @@ Une facture débute au statut `DRAFT`. Seul un brouillon peut être modifié ou 
 
 Les permissions `invoice:create`, `invoice:read`, `invoice:update`, `invoice:issue`, `payment:create`, `payment:read`, `credit_note:create` et `credit_note:read` séparent la consultation, l’émission et les opérations de règlement. Ce premier périmètre ne génère pas encore automatiquement les écritures comptables, les sorties de stock ni les factures électroniques, et n’intègre aucun prestataire de paiement externe ; ces intégrations restent explicitement à construire.
 
+## Gestion Paie
+
+Le module Paie couvre les salariés et contrats datés, les éléments variables, les jeux de règles réglementaires versionnés par date d’effet, les profils comptables, les périodes et les bulletins. Les paramètres de retenues, cotisations, plafonds, abattements et tranches progressives sont enregistrés au niveau organisation et versionnés : **aucun taux réglementaire n’est codé en dur dans le moteur de calcul**. Cette conception permet d’appliquer une nouvelle réglementation à partir d’une date donnée, tout en conservant les paramètres et lignes de calcul ayant produit chaque bulletin historique.
+
+Une période suit strictement le cycle `DRAFT → CALCULATED → VALIDATED → LOCKED → POSTED`. Seul un brouillon peut recevoir une entrée variable ; une transition ne peut être ni sautée ni inversée. Le moteur calcule le brut, les cotisations salarié et employeur éventuellement plafonnées, l’assiette fiscale annuelle, l’impôt progressif, les retenues diverses et le net à payer exclusivement avec `Decimal` et `ROUND_HALF_UP`. Chaque bulletin conserve des lignes de calcul figées et les totaux de période sont contrôlés au niveau de la base de données.
+
+La comptabilisation `POST /api/v1/payroll/periods/{payroll_period_id}/post` exige une période de paie verrouillée, un exercice fiscal ouvert, un journal actif et des comptes actifs de la même organisation. Elle délègue la création et la comptabilisation de l’écriture équilibrée au module Accounting : charges salariales et patronales au débit, puis dettes envers salariés, administrations fiscales, organismes sociaux et autres retenues au crédit. Toute opération sensible est append-only dans `payroll_audit_events`, avec auteur, horodatage, objet, état avant/après et motif. Après validation, une correction ne peut être demandée que par le mécanisme explicite de correction ; elle ne modifie jamais silencieusement un bulletin validé ou comptabilisé.
+
+Les permissions `payroll_employee:*`, `payroll_contract:*`, `payroll_rule_set:*`, `payroll_period:*`, `payroll_slip:read`, `payroll_correction:create` et `payroll_audit:read` séparent la configuration, la saisie, le calcul, la validation, le verrouillage, la comptabilisation, les corrections et la consultation. La CI exécute la suite rapide SQLite et, dans un job distinct, applique toutes les migrations sur PostgreSQL puis exécute les tests d’intégration Paie contre le moteur cible.
+
 ## Gestion Trésorerie
 
 Le module Trésorerie introduit un **profil bancaire opérationnel** sous `/api/v1/treasury/bank-accounts`, sans dupliquer les comptes bancaires ni les rapprochements du domaine Comptabilité. Chaque profil appartient à une organisation et référence un unique compte comptable actif de type `ASSET`. Le numéro de compte bancaire et le compte comptable associé sont tous deux uniques dans l’organisation. Le profil conserve l’établissement, la devise, le solde et la date d’ouverture, et peut être désactivé sans effacer son historique.
@@ -158,7 +172,7 @@ poetry run pip-audit --local --strict
 poetry check
 ```
 
-Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
+Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Un job PostgreSQL séparé applique la chaîne Alembic complète puis lance les tests d’intégration du module Paie sur le moteur cible. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
 
 ## Contribution
 
@@ -168,4 +182,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Inventaire et Facturation comprendront ensuite les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. Les prochains domaines métier sont les immobilisations puis l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.

@@ -20,6 +20,20 @@ from app.models.invoicing.invoice_line import InvoiceLine
 from app.models.invoicing.payment import Payment
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
+from app.models.payroll import (
+    Employee,
+    EmploymentContract,
+    PayrollAccountingProfile,
+    PayrollAuditEvent,
+    PayrollContributionRule,
+    PayrollCorrection,
+    PayrollInput,
+    PayrollPeriod,
+    PayrollRuleSet,
+    PayrollSlip,
+    PayrollSlipLine,
+    PayrollTaxBracket,
+)
 from app.models.permission import Permission
 from app.models.role import Role
 from app.models.treasury.bank_account import TreasuryBankAccount
@@ -30,6 +44,8 @@ __all__ = [
     "BankReconciliation",
     "BankTransaction",
     "CreditNote",
+    "Employee",
+    "EmploymentContract",
     "FiscalPeriod",
     "FiscalYear",
     "Invoice",
@@ -40,6 +56,16 @@ __all__ = [
     "Organization",
     "OrganizationMembership",
     "Payment",
+    "PayrollAccountingProfile",
+    "PayrollAuditEvent",
+    "PayrollContributionRule",
+    "PayrollCorrection",
+    "PayrollInput",
+    "PayrollPeriod",
+    "PayrollRuleSet",
+    "PayrollSlip",
+    "PayrollSlipLine",
+    "PayrollTaxBracket",
     "PeriodClosing",
     "Permission",
     "Product",
