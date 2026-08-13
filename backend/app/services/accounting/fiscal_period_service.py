@@ -15,11 +15,29 @@ class FiscalPeriodService:
         self.year_repository = FiscalYearRepository(session)
 
     async def create_fiscal_period(self, organization_id: str, data: FiscalPeriodCreate) -> FiscalPeriod:
-        FiscalPeriodRules.validate_dates(data.start_date, data.end_date)
-        fiscal_year = await self.year_repository.get_by_id(organization_id, data.fiscal_year_id)
-        if fiscal_year is None:
-            raise HTTPException(status_code=404, detail="Fiscal year not found")
-        FiscalPeriodRules.validate_within_year(data.start_date, data.end_date, fiscal_year.start_date, fiscal_year.end_date)
+        try:
+            FiscalPeriodRules.validate_dates(data.start_date, data.end_date)
+            fiscal_year = await self.year_repository.get_by_id(organization_id, data.fiscal_year_id)
+            if fiscal_year is None:
+                raise HTTPException(status_code=404, detail="Fiscal year not found")
+            FiscalPeriodRules.validate_within_year(
+                data.start_date,
+                data.end_date,
+                fiscal_year.start_date,
+                fiscal_year.end_date,
+            )
+            existing_periods = await self.repository.list_by_fiscal_year(organization_id, data.fiscal_year_id)
+            FiscalPeriodRules.check_overlap(
+                data.start_date,
+                data.end_date,
+                [
+                    {"name": period.name, "start_date": period.start_date, "end_date": period.end_date}
+                    for period in existing_periods
+                ],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
         period = await self.repository.create(organization_id, data)
         await self.session.commit()
         await self.session.refresh(period)
