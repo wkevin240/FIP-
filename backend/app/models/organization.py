@@ -11,7 +11,9 @@ class Organization(Base):
     is_active = Column(Boolean, default=True, nullable=False)
 
     memberships = relationship(
-        "OrganizationMembership", back_populates="organization", cascade="all, delete-orphan"
+        "OrganizationMembership",
+        back_populates="organization",
+        cascade="all, delete-orphan",
     )
     accounts = relationship("Account", back_populates="organization")
     fiscal_years = relationship("FiscalYear", back_populates="organization")

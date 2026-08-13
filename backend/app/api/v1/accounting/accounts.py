@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, status
-from typing import List
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.api.dependencies import CurrentTenant, get_current_tenant, require_permission
+from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.accounting.account import AccountCreate, AccountUpdate, AccountResponse
+from app.schemas.accounting.account import AccountCreate, AccountResponse, AccountUpdate
 from app.services.accounting.account_service import AccountService
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -23,14 +21,16 @@ async def create_account(
     return await service.create_account(tenant.organization_id, account_in)
 
 
-@router.get("/", response_model=List[AccountResponse])
+@router.get("/", response_model=list[AccountResponse])
 async def read_accounts(
     skip: int = 0,
     limit: int = 100,
     service: AccountService = Depends(get_account_service),
     tenant: CurrentTenant = Depends(require_permission("account:read")),
 ):
-    return await service.get_all_accounts(tenant.organization_id, skip=skip, limit=limit)
+    return await service.get_all_accounts(
+        tenant.organization_id, skip=skip, limit=limit
+    )
 
 
 @router.get("/{account_id}", response_model=AccountResponse)

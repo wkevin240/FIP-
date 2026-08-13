@@ -11,22 +11,36 @@ class AccountRepository:
 
     async def get_by_id(self, organization_id: str, account_id: str) -> Account | None:
         return await self.session.scalar(
-            select(Account).where(Account.organization_id == organization_id, Account.id == account_id)
+            select(Account).where(
+                Account.organization_id == organization_id, Account.id == account_id
+            )
         )
 
     async def get_by_code(self, organization_id: str, code: str) -> Account | None:
         return await self.session.scalar(
-            select(Account).where(Account.organization_id == organization_id, Account.code == code)
+            select(Account).where(
+                Account.organization_id == organization_id, Account.code == code
+            )
         )
 
-    async def list(self, organization_id: str, skip: int = 0, limit: int = 100) -> list[Account]:
+    async def list(
+        self, organization_id: str, skip: int = 0, limit: int = 100
+    ) -> list[Account]:
         result = await self.session.scalars(
-            select(Account).where(Account.organization_id == organization_id).order_by(Account.code).offset(skip).limit(limit)
+            select(Account)
+            .where(Account.organization_id == organization_id)
+            .order_by(Account.code)
+            .offset(skip)
+            .limit(limit)
         )
         return list(result)
 
-    async def create(self, organization_id: str, data: AccountCreate, level: int, path: str) -> Account:
-        account = Account(**data.model_dump(), organization_id=organization_id, level=level, path=path)
+    async def create(
+        self, organization_id: str, data: AccountCreate, level: int, path: str
+    ) -> Account:
+        account = Account(
+            **data.model_dump(), organization_id=organization_id, level=level, path=path
+        )
         self.session.add(account)
         await self.session.flush()
         return account

@@ -22,10 +22,7 @@ jobs:
         run: pip install poetry
 
       - name: Install dependencies
-        run: poetry install --no-interaction --no-root
-
-      - name: Install pip-audit
-        run: pip install pip-audit
+        run: poetry sync --no-interaction --no-root
 
       - name: Audit installed dependencies
-        run: poetry run pip-audit
+        run: poetry run pip-audit --local --strict

@@ -29,13 +29,19 @@ async def get_current_tenant(
     session: AsyncSession = Depends(get_db),
 ) -> CurrentTenant:
     if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
     try:
         payload = decode_access_token(credentials.credentials)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
+        ) from exc
 
-    user = await session.scalar(select(User).where(User.id == payload["sub"], User.is_active.is_(True)))
+    user = await session.scalar(
+        select(User).where(User.id == payload["sub"], User.is_active.is_(True))
+    )
     membership = await session.scalar(
         select(OrganizationMembership).where(
             OrganizationMembership.user_id == payload["sub"],
@@ -44,14 +50,24 @@ async def get_current_tenant(
         )
     )
     if user is None or membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied")
-    return CurrentTenant(user.id, membership.organization_id, membership.role, user.is_superuser)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied"
+        )
+    return CurrentTenant(
+        user.id, membership.organization_id, membership.role, user.is_superuser
+    )
 
 
 def require_permission(permission: str):
-    async def dependency(tenant: CurrentTenant = Depends(get_current_tenant)) -> CurrentTenant:
-        if not PermissionService.role_allows(tenant.role, permission, tenant.is_superuser):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+    async def dependency(
+        tenant: CurrentTenant = Depends(get_current_tenant),
+    ) -> CurrentTenant:
+        if not PermissionService.role_allows(
+            tenant.role, permission, tenant.is_superuser
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+            )
         return tenant
 
     return dependency
