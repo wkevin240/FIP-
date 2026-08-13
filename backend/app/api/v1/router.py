@@ -17,6 +17,9 @@ from app.api.v1.inventory.warehouses import router as warehouses_router
 from app.api.v1.invoicing.credit_notes import router as credit_notes_router
 from app.api.v1.invoicing.invoices import router as invoices_router
 from app.api.v1.invoicing.payments import router as payments_router
+from app.api.v1.payroll.configuration import router as payroll_configuration_router
+from app.api.v1.payroll.employees import router as payroll_employees_router
+from app.api.v1.payroll.payroll import router as payroll_router
 from app.api.v1.treasury.bank_accounts import router as treasury_bank_accounts_router
 from app.api.v1.treasury.reconciliation import router as treasury_reconciliation_router
 from app.api.v1.treasury.transactions import router as treasury_transactions_router
@@ -82,6 +85,17 @@ api_router.include_router(
 )
 api_router.include_router(
     payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
+)
+api_router.include_router(
+    payroll_employees_router, prefix="/payroll/employees", tags=["Payroll - Employees"]
+)
+api_router.include_router(
+    payroll_configuration_router,
+    prefix="/payroll/configuration",
+    tags=["Payroll - Configuration"],
+)
+api_router.include_router(
+    payroll_router, prefix="/payroll", tags=["Payroll - Operations"]
 )
 api_router.include_router(
     treasury_bank_accounts_router,

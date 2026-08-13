@@ -37,3 +37,12 @@ class Organization(Base):
     treasury_bank_accounts = relationship(
         "TreasuryBankAccount", back_populates="organization"
     )
+    payroll_employees = relationship("Employee", back_populates="organization")
+    payroll_contracts = relationship(
+        "EmploymentContract", back_populates="organization"
+    )
+    payroll_rule_sets = relationship("PayrollRuleSet", back_populates="organization")
+    payroll_accounting_profiles = relationship(
+        "PayrollAccountingProfile", back_populates="organization"
+    )
+    payroll_periods = relationship("PayrollPeriod", back_populates="organization")
