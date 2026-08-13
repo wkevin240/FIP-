@@ -31,4 +31,10 @@ class Account(Base):
     path = Column(String(500), nullable=False, default="/")
 
     organization = relationship("Organization", back_populates="accounts")
-    parent = relationship("Account", remote_side="Account.id", backref="children")
+    parent = relationship(
+        "Account",
+        remote_side="Account.id",
+        foreign_keys=[parent_id],
+        backref="children",
+    )
+    collective_account = relationship("Account", foreign_keys=[collective_account_id])
