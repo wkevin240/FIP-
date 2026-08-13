@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes et le reporting financier de base. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base et le rapprochement bancaire. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -63,6 +63,7 @@ L’API expose alors les ressources suivantes :
 | Écritures comptables | `/api/v1/accounting/journal-entries` |
 | Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
 | Bilan et compte de résultat | `/api/v1/accounting/reports` |
+| Rapprochement bancaire | `/api/v1/accounting/bank-reconciliation` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -83,6 +84,12 @@ La fermeture s’exécute dans une transaction avec verrouillage de la période.
 Le bilan est disponible via `GET /api/v1/accounting/reports/balance-sheet?as_of_date=YYYY-MM-DD`. Il agrège uniquement les lignes d’écritures `POSTED` jusqu’à la date demandée. Les actifs sont présentés selon `débit − crédit`, tandis que les passifs et capitaux propres suivent `crédit − débit`. Le résultat courant, calculé comme produits moins charges, est inclus dans les capitaux propres ; le rapport est refusé si l’égalité **Actif = Passif + Capitaux propres** n’est pas respectée.
 
 Le compte de résultat est disponible via `GET /api/v1/accounting/reports/income-statement?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`. Il limite strictement les mouvements à l’intervalle inclusif fourni et calcule le résultat net comme **Produits − Charges**. Les deux routes exigent la permission `financial_report:read`.
+
+## Rapprochement bancaire
+
+Les lignes de relevé bancaires sont enregistrées par `POST /api/v1/accounting/bank-reconciliation/transactions`, avec un identifiant externe unique par organisation et compte bancaire. Les suggestions de correspondance proviennent de `GET /api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/candidates` : elles ne retiennent que les écritures `POSTED` non déjà rapprochées, dans la fenêtre de date demandée, dont le mouvement sur le compte bancaire a le même sens et le même montant.
+
+La validation par `POST /api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/match` verrouille la ligne bancaire et l’écriture concernée. Elle refuse tout écart de montant, toute différence de sens, toute écriture non comptabilisée et tout double rapprochement. Le registre conserve l’auteur, l’horodatage, le montant absolu validé et la méthode employée. Les permissions `bank_reconciliation:create`, `bank_reconciliation:read` et `bank_reconciliation:match` séparent l’import, la lecture et la validation.
 
 ## Qualité et sécurité
 
@@ -113,4 +120,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapports par période clôturée et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.

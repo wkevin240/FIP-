@@ -29,6 +29,9 @@ class PermissionService:
                 "journal_entry:update",
                 "journal_entry:post",
                 "financial_report:read",
+                "bank_reconciliation:create",
+                "bank_reconciliation:read",
+                "bank_reconciliation:match",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -39,6 +42,7 @@ class PermissionService:
                 "journal:read",
                 "journal_entry:read",
                 "financial_report:read",
+                "bank_reconciliation:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -51,6 +55,7 @@ class PermissionService:
                 "journal_entry:read",
                 "audit:read",
                 "financial_report:read",
+                "bank_reconciliation:read",
             }
         ),
     }

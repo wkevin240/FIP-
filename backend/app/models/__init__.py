@@ -1,6 +1,8 @@
 """Import mapped models so Alembic can discover their metadata."""
 
 from app.models.accounting.account import Account
+from app.models.accounting.bank_reconciliation import BankReconciliation
+from app.models.accounting.bank_transaction import BankTransaction
 from app.models.accounting.closing import PeriodClosing
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
@@ -15,6 +17,8 @@ from app.models.user import User
 
 __all__ = [
     "Account",
+    "BankReconciliation",
+    "BankTransaction",
     "FiscalPeriod",
     "FiscalYear",
     "Journal",

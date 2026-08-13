@@ -58,3 +58,6 @@ class JournalEntry(Base):
         cascade="all, delete-orphan",
         order_by="JournalEntryLine.line_number",
     )
+    bank_reconciliation = relationship(
+        "BankReconciliation", back_populates="journal_entry", uselist=False
+    )
