@@ -10,6 +10,10 @@ from app.models.accounting.journal import Journal
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
 from app.models.accounting.vat import VATEntry, VATRate
+from app.models.inventory.product import Product
+from app.models.inventory.stock_balance import StockBalance
+from app.models.inventory.stock_movement import StockMovement
+from app.models.inventory.warehouse import Warehouse
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.permission import Permission
@@ -29,8 +33,12 @@ __all__ = [
     "OrganizationMembership",
     "PeriodClosing",
     "Permission",
+    "Product",
     "Role",
+    "StockBalance",
+    "StockMovement",
     "User",
     "VATEntry",
     "VATRate",
+    "Warehouse",
 ]

@@ -35,6 +35,17 @@ class PermissionService:
                 "vat:create",
                 "vat:read",
                 "vat:update",
+                "inventory_product:create",
+                "inventory_product:read",
+                "inventory_product:update",
+                "inventory_warehouse:create",
+                "inventory_warehouse:read",
+                "inventory_warehouse:update",
+                "inventory_stock:receive",
+                "inventory_stock:issue",
+                "inventory_stock:adjust",
+                "inventory_stock:transfer",
+                "inventory_stock:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -47,6 +58,9 @@ class PermissionService:
                 "financial_report:read",
                 "bank_reconciliation:read",
                 "vat:read",
+                "inventory_product:read",
+                "inventory_warehouse:read",
+                "inventory_stock:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -61,6 +75,9 @@ class PermissionService:
                 "financial_report:read",
                 "bank_reconciliation:read",
                 "vat:read",
+                "inventory_product:read",
+                "inventory_warehouse:read",
+                "inventory_stock:read",
             }
         ),
     }

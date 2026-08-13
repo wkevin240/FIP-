@@ -23,8 +23,14 @@ def test_journal_and_entry_routes_are_published() -> None:
         "/api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/match"
         in paths
     )
+    assert "/api/v1/inventory/products/" in paths
+    assert "/api/v1/inventory/warehouses/" in paths
+    assert "/api/v1/inventory/stock/receipts" in paths
+    assert "/api/v1/inventory/stock/transfers" in paths
     assert "post" in paths["/api/v1/accounting/journals/"]
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
     assert (
         "post" in paths["/api/v1/accounting/period-closings/periods/{fiscal_period_id}"]
     )
+    assert "post" in paths["/api/v1/inventory/products/"]
+    assert "post" in paths["/api/v1/inventory/stock/receipts"]

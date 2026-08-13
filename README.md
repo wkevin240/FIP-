@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire et la gestion TVA. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA et le premier vertical Inventaire. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -65,6 +65,9 @@ L’API expose alors les ressources suivantes :
 | Bilan et compte de résultat | `/api/v1/accounting/reports` |
 | Rapprochement bancaire | `/api/v1/accounting/bank-reconciliation` |
 | Gestion TVA | `/api/v1/accounting/vat` |
+| Produits Inventaire | `/api/v1/inventory/products` |
+| Entrepôts Inventaire | `/api/v1/inventory/warehouses` |
+| Mouvements et soldes de stock | `/api/v1/inventory/stock` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -100,6 +103,16 @@ Les opérations de calcul et d’enregistrement emploient exclusivement `Decimal
 
 La synthèse déclarative est disponible via `GET /api/v1/accounting/vat/declaration?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`. Elle agrège les montants de TVA collectée et déductible sur l’intervalle inclusif et calcule le solde comme **TVA collectée − TVA déductible**. Les permissions `vat:create`, `vat:read` et `vat:update` séparent respectivement l’enregistrement, la consultation et l’administration des taux.
 
+## Gestion Inventaire
+
+Le module Inventaire expose deux référentiels tenant-scopés : les produits sous `/api/v1/inventory/products` et les entrepôts sous `/api/v1/inventory/warehouses`. Les SKU Produit et les codes Entrepôt sont uniques dans leur organisation. Un produit ou entrepôt désactivé reste consultable pour préserver l’historique, mais ne peut plus être utilisé pour une nouvelle opération de stock.
+
+Les opérations de stock sont disponibles sous `/api/v1/inventory/stock` : réceptions (`POST /receipts`), sorties (`POST /issues`), ajustements (`POST /adjustments`), transferts (`POST /transfers`), soldes courants (`GET /balances`) et historique (`GET /movements`). Les quantités sont stockées avec trois décimales, les coûts unitaires avec quatre décimales et les valeurs avec deux décimales. Tous les calculs emploient `Decimal`; les valeurs sont arrondies selon `ROUND_HALF_UP` au niveau de leur précision métier.
+
+Chaque mouvement est append-only et alimente un solde unique par couple **produit–entrepôt**. La réception recalcule le coût moyen pondéré, tandis que les sorties, ajustements sortants et transferts consomment ce coût moyen. Les soldes ne peuvent jamais devenir négatifs. Les transferts créent exactement deux mouvements corrélés, `TRANSFER_OUT` et `TRANSFER_IN`, reliés par un même identifiant de transfert ; la source et la destination doivent être différentes. Les soldes concernés sont verrouillés transactionnellement et dans un ordre déterministe afin de prévenir les pertes de mise à jour et les interblocages.
+
+Les permissions `inventory_product:*`, `inventory_warehouse:*` et `inventory_stock:*` séparent les référentiels, les consultations et les opérations physiques. Ce premier périmètre ne génère pas encore d’écritures comptables automatiques, ne gère pas les lots ou numéros de série et applique une valorisation au coût moyen pondéré plutôt qu’une méthode FIFO.
+
 ## Qualité et sécurité
 
 Exécutez les contrôles avant chaque proposition de changement :
@@ -129,4 +142,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines d’inventaire, de facturation, de trésorerie, de paie, d’immobilisations et d’audit seront ajoutés progressivement, chacun avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la facturation, la trésorerie, la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. L’évolution Inventaire comprendra ensuite l’intégration comptable automatique, les lots, les numéros de série et des méthodes de valorisation complémentaires.

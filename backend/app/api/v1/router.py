@@ -11,6 +11,9 @@ from app.api.v1.accounting.journal_entries import router as journal_entries_rout
 from app.api.v1.accounting.journals import router as journals_router
 from app.api.v1.accounting.reporting import router as reporting_router
 from app.api.v1.accounting.vat import router as vat_router
+from app.api.v1.inventory.products import router as products_router
+from app.api.v1.inventory.stock import router as stock_router
+from app.api.v1.inventory.warehouses import router as warehouses_router
 
 api_router = APIRouter()
 api_router.include_router(
@@ -51,4 +54,15 @@ api_router.include_router(
     journal_entries_router,
     prefix="/accounting/journal-entries",
     tags=["Accounting - Journal Entries"],
+)
+api_router.include_router(
+    products_router, prefix="/inventory/products", tags=["Inventory - Products"]
+)
+api_router.include_router(
+    warehouses_router,
+    prefix="/inventory/warehouses",
+    tags=["Inventory - Warehouses"],
+)
+api_router.include_router(
+    stock_router, prefix="/inventory/stock", tags=["Inventory - Stock"]
 )
