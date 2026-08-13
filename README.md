@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base et le rapprochement bancaire. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire et la gestion TVA. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -64,6 +64,7 @@ L’API expose alors les ressources suivantes :
 | Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
 | Bilan et compte de résultat | `/api/v1/accounting/reports` |
 | Rapprochement bancaire | `/api/v1/accounting/bank-reconciliation` |
+| Gestion TVA | `/api/v1/accounting/vat` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -90,6 +91,14 @@ Le compte de résultat est disponible via `GET /api/v1/accounting/reports/income
 Les lignes de relevé bancaires sont enregistrées par `POST /api/v1/accounting/bank-reconciliation/transactions`, avec un identifiant externe unique par organisation et compte bancaire. Les suggestions de correspondance proviennent de `GET /api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/candidates` : elles ne retiennent que les écritures `POSTED` non déjà rapprochées, dans la fenêtre de date demandée, dont le mouvement sur le compte bancaire a le même sens et le même montant.
 
 La validation par `POST /api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/match` verrouille la ligne bancaire et l’écriture concernée. Elle refuse tout écart de montant, toute différence de sens, toute écriture non comptabilisée et tout double rapprochement. Le registre conserve l’auteur, l’horodatage, le montant absolu validé et la méthode employée. Les permissions `bank_reconciliation:create`, `bank_reconciliation:read` et `bank_reconciliation:match` séparent l’import, la lecture et la validation.
+
+## Gestion TVA
+
+Le référentiel de taux TVA est géré sous `/api/v1/accounting/vat/rates`. Chaque taux est propre à une organisation, daté par `effective_from` et éventuellement `effective_to`, et possède un code unique pour sa date d’effet. Les taux sont bornés entre **0,00 %** et **100,00 %**. Les comptes de TVA déductible et collectée, lorsqu’ils sont configurés, doivent être respectivement des comptes actifs de type `ASSET` et `LIABILITY` appartenant à la même organisation.
+
+Les opérations de calcul et d’enregistrement emploient exclusivement `Decimal`. Le montant de TVA est calculé avec la formule `montant taxable × taux / 100`, puis arrondi au centime selon la règle `ROUND_HALF_UP`. Une écriture TVA (`POST /api/v1/accounting/vat/entries`) ne peut être rattachée qu’à une écriture comptable `POSTED`, à la même date, et une écriture comptable ne peut porter qu’un seul enregistrement TVA. Le taux doit être actif à la date fiscale ; les écritures d’achat utilisent la direction `INPUT`, tandis que les écritures de vente utilisent `OUTPUT`.
+
+La synthèse déclarative est disponible via `GET /api/v1/accounting/vat/declaration?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`. Elle agrège les montants de TVA collectée et déductible sur l’intervalle inclusif et calcule le solde comme **TVA collectée − TVA déductible**. Les permissions `vat:create`, `vat:read` et `vat:update` séparent respectivement l’enregistrement, la consultation et l’administration des taux.
 
 ## Qualité et sécurité
 
@@ -120,4 +129,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines d’inventaire, de facturation, de trésorerie, de paie, d’immobilisations et d’audit seront ajoutés progressivement, chacun avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée.

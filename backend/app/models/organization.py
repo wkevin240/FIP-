@@ -25,3 +25,5 @@ class Organization(Base):
     bank_reconciliations = relationship(
         "BankReconciliation", back_populates="organization"
     )
+    vat_rates = relationship("VATRate", back_populates="organization")
+    vat_entries = relationship("VATEntry", back_populates="organization")

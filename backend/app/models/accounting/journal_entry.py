@@ -61,3 +61,4 @@ class JournalEntry(Base):
     bank_reconciliation = relationship(
         "BankReconciliation", back_populates="journal_entry", uselist=False
     )
+    vat_entry = relationship("VATEntry", back_populates="journal_entry", uselist=False)

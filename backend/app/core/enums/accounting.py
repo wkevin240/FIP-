@@ -25,3 +25,8 @@ class JournalEntryStatus(str, Enum):
     DRAFT = "DRAFT"
     POSTED = "POSTED"
     VOIDED = "VOIDED"
+
+
+class VATDirection(str, Enum):
+    INPUT = "INPUT"
+    OUTPUT = "OUTPUT"
