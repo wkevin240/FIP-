@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités actuellement exposées concernent le référentiel comptable, les exercices fiscaux et les périodes fiscales. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, ainsi que la création et la comptabilisation d’écritures équilibrées. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -59,8 +59,16 @@ L’API expose alors les ressources suivantes :
 | Comptes comptables | `/api/v1/accounting/accounts` |
 | Exercices fiscaux | `/api/v1/accounting/fiscal-years` |
 | Périodes fiscales | `/api/v1/accounting/fiscal-periods` |
+| Journaux comptables | `/api/v1/accounting/journals` |
+| Écritures comptables | `/api/v1/accounting/journal-entries` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
+
+## Journaux et écritures équilibrées
+
+Un journal est créé au sein d’une organisation, avec un code unique. Une écriture doit être rattachée à un journal actif et à une période fiscale ouverte. Elle comporte au minimum deux lignes ; chaque ligne est exclusivement au débit ou au crédit, et le total des débits doit être exactement égal au total des crédits.
+
+L’écriture est d’abord créée au statut `DRAFT`. L’opération `POST /api/v1/accounting/journal-entries/{journal_entry_id}/post` effectue une seconde vérification des comptes, de la période et de l’équilibre, puis la passe au statut `POSTED`. Une écriture déjà comptabilisée ne peut pas être comptabilisée une seconde fois.
 
 ## Qualité et sécurité
 
@@ -91,4 +99,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La priorité est d’achever un premier vertical comptable vérifiable de bout en bout : référentiel de comptes, journaux, écritures équilibrées, périodes clôturées et rapports. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle validé par des tests d’intégration et des migrations de base de données.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, la clôture des périodes, les rapports et les migrations validées sur PostgreSQL. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.
