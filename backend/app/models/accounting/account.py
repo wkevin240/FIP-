@@ -38,3 +38,4 @@ class Account(Base):
         backref="children",
     )
     collective_account = relationship("Account", foreign_keys=[collective_account_id])
+    bank_transactions = relationship("BankTransaction", back_populates="bank_account")

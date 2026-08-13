@@ -21,3 +21,7 @@ class Organization(Base):
     journals = relationship("Journal", back_populates="organization")
     journal_entries = relationship("JournalEntry", back_populates="organization")
     period_closings = relationship("PeriodClosing", back_populates="organization")
+    bank_transactions = relationship("BankTransaction", back_populates="organization")
+    bank_reconciliations = relationship(
+        "BankReconciliation", back_populates="organization"
+    )
