@@ -27,3 +27,7 @@ class Organization(Base):
     )
     vat_rates = relationship("VATRate", back_populates="organization")
     vat_entries = relationship("VATEntry", back_populates="organization")
+    products = relationship("Product", back_populates="organization")
+    warehouses = relationship("Warehouse", back_populates="organization")
+    stock_balances = relationship("StockBalance", back_populates="organization")
+    stock_movements = relationship("StockMovement", back_populates="organization")
