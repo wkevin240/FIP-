@@ -20,6 +20,7 @@ class PermissionService:
                 "fiscal_period:create",
                 "fiscal_period:read",
                 "fiscal_period:update",
+                "fiscal_period:close",
                 "journal:create",
                 "journal:read",
                 "journal:update",

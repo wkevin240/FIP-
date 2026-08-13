@@ -42,3 +42,6 @@ class FiscalPeriod(Base):
     fiscal_year = relationship("FiscalYear", back_populates="periods")
     organization = relationship("Organization", back_populates="fiscal_periods")
     journal_entries = relationship("JournalEntry", back_populates="fiscal_period")
+    closing = relationship(
+        "PeriodClosing", back_populates="fiscal_period", uselist=False
+    )

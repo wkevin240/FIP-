@@ -10,14 +10,15 @@ class FiscalPeriodRepository:
         self.session = session
 
     async def get_by_id(
-        self, organization_id: str, period_id: str
+        self, organization_id: str, period_id: str, for_update: bool = False
     ) -> FiscalPeriod | None:
-        return await self.session.scalar(
-            select(FiscalPeriod).where(
-                FiscalPeriod.organization_id == organization_id,
-                FiscalPeriod.id == period_id,
-            )
+        query = select(FiscalPeriod).where(
+            FiscalPeriod.organization_id == organization_id,
+            FiscalPeriod.id == period_id,
         )
+        if for_update:
+            query = query.with_for_update()
+        return await self.session.scalar(query)
 
     async def list_by_fiscal_year(
         self, organization_id: str, fiscal_year_id: str

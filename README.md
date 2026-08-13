@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, ainsi que la création et la comptabilisation d’écritures équilibrées. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées et la clôture contrôlée des périodes. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -61,6 +61,7 @@ L’API expose alors les ressources suivantes :
 | Périodes fiscales | `/api/v1/accounting/fiscal-periods` |
 | Journaux comptables | `/api/v1/accounting/journals` |
 | Écritures comptables | `/api/v1/accounting/journal-entries` |
+| Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -69,6 +70,12 @@ Les routes métier requièrent une authentification et les permissions associée
 Un journal est créé au sein d’une organisation, avec un code unique. Une écriture doit être rattachée à un journal actif et à une période fiscale ouverte. Elle comporte au minimum deux lignes ; chaque ligne est exclusivement au débit ou au crédit, et le total des débits doit être exactement égal au total des crédits.
 
 L’écriture est d’abord créée au statut `DRAFT`. L’opération `POST /api/v1/accounting/journal-entries/{journal_entry_id}/post` effectue une seconde vérification des comptes, de la période et de l’équilibre, puis la passe au statut `POSTED`. Une écriture déjà comptabilisée ne peut pas être comptabilisée une seconde fois.
+
+## Clôture de période
+
+Avant toute clôture, `GET /api/v1/accounting/period-closings/periods/{fiscal_period_id}/preview` calcule le nombre d’écritures et de lignes comptabilisées, les totaux débit/crédit et une empreinte SHA-256 déterministe. La clôture via `POST /api/v1/accounting/period-closings/periods/{fiscal_period_id}` est réservée à la permission `fiscal_period:close`.
+
+La fermeture s’exécute dans une transaction avec verrouillage de la période. Elle refuse les périodes non ouvertes, tout brouillon résiduel et toute écriture comptabilisée individuellement déséquilibrée. À succès, elle passe la période à `CLOSED`, enregistre les agrégats et l’empreinte de contrôle dans un registre unique, puis empêche l’ajout ou la comptabilisation concurrente d’écritures.
 
 ## Qualité et sécurité
 
@@ -99,4 +106,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, la clôture des périodes, les rapports et les migrations validées sur PostgreSQL. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les rapports comptables et l’exécution des migrations sur un environnement PostgreSQL intégré. Les domaines de stock, paie, trésorerie, immobilisations et facturation seront ajoutés une fois ce socle consolidé par des tests d’intégration complets.

@@ -49,7 +49,7 @@ class JournalEntryService:
             )
 
         period = await self.period_repository.get_by_id(
-            organization_id, data.fiscal_period_id
+            organization_id, data.fiscal_period_id, for_update=True
         )
         if period is None:
             raise HTTPException(
@@ -105,7 +105,7 @@ class JournalEntryService:
             )
 
         period = await self.period_repository.get_by_id(
-            organization_id, entry.fiscal_period_id
+            organization_id, entry.fiscal_period_id, for_update=True
         )
         if period is None or period.status != FiscalPeriodStatus.OPEN:
             raise HTTPException(
