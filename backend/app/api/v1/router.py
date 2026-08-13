@@ -14,6 +14,9 @@ from app.api.v1.accounting.vat import router as vat_router
 from app.api.v1.inventory.products import router as products_router
 from app.api.v1.inventory.stock import router as stock_router
 from app.api.v1.inventory.warehouses import router as warehouses_router
+from app.api.v1.invoicing.credit_notes import router as credit_notes_router
+from app.api.v1.invoicing.invoices import router as invoices_router
+from app.api.v1.invoicing.payments import router as payments_router
 
 api_router = APIRouter()
 api_router.include_router(
@@ -65,4 +68,15 @@ api_router.include_router(
 )
 api_router.include_router(
     stock_router, prefix="/inventory/stock", tags=["Inventory - Stock"]
+)
+api_router.include_router(
+    invoices_router, prefix="/invoicing/invoices", tags=["Invoicing - Invoices"]
+)
+api_router.include_router(
+    credit_notes_router,
+    prefix="/invoicing/credit-notes",
+    tags=["Invoicing - Credit Notes"],
+)
+api_router.include_router(
+    payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
 )

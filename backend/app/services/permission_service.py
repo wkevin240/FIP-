@@ -46,6 +46,14 @@ class PermissionService:
                 "inventory_stock:adjust",
                 "inventory_stock:transfer",
                 "inventory_stock:read",
+                "invoice:create",
+                "invoice:read",
+                "invoice:update",
+                "invoice:issue",
+                "credit_note:create",
+                "credit_note:read",
+                "payment:create",
+                "payment:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -61,6 +69,9 @@ class PermissionService:
                 "inventory_product:read",
                 "inventory_warehouse:read",
                 "inventory_stock:read",
+                "invoice:read",
+                "credit_note:read",
+                "payment:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -78,6 +89,9 @@ class PermissionService:
                 "inventory_product:read",
                 "inventory_warehouse:read",
                 "inventory_stock:read",
+                "invoice:read",
+                "credit_note:read",
+                "payment:read",
             }
         ),
     }
