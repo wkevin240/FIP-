@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, le premier vertical Inventaire et le premier vertical Facturation. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les premiers verticaux Inventaire, Facturation et Trésorerie. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -71,6 +71,9 @@ L’API expose alors les ressources suivantes :
 | Factures commerciales | `/api/v1/invoicing/invoices` |
 | Avoirs commerciaux | `/api/v1/invoicing/credit-notes` |
 | Règlements de facture | `/api/v1/invoicing/payments` |
+| Profils de comptes bancaires Trésorerie et positions | `/api/v1/treasury/bank-accounts` |
+| Transactions de relevé Trésorerie et candidats | `/api/v1/treasury/transactions` |
+| Validation de rapprochement Trésorerie | `/api/v1/treasury/reconciliation` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -126,6 +129,16 @@ Une facture débute au statut `DRAFT`. Seul un brouillon peut être modifié ou 
 
 Les permissions `invoice:create`, `invoice:read`, `invoice:update`, `invoice:issue`, `payment:create`, `payment:read`, `credit_note:create` et `credit_note:read` séparent la consultation, l’émission et les opérations de règlement. Ce premier périmètre ne génère pas encore automatiquement les écritures comptables, les sorties de stock ni les factures électroniques, et n’intègre aucun prestataire de paiement externe ; ces intégrations restent explicitement à construire.
 
+## Gestion Trésorerie
+
+Le module Trésorerie introduit un **profil bancaire opérationnel** sous `/api/v1/treasury/bank-accounts`, sans dupliquer les comptes bancaires ni les rapprochements du domaine Comptabilité. Chaque profil appartient à une organisation et référence un unique compte comptable actif de type `ASSET`. Le numéro de compte bancaire et le compte comptable associé sont tous deux uniques dans l’organisation. Le profil conserve l’établissement, la devise, le solde et la date d’ouverture, et peut être désactivé sans effacer son historique.
+
+La position disponible via `GET /api/v1/treasury/bank-accounts/{treasury_bank_account_id}/position` compare deux bases calculées en `Decimal` : le solde relevé, égal au solde d’ouverture augmenté des transactions bancaires depuis la date d’ouverture, et le solde grand livre, égal au solde d’ouverture augmenté des mouvements `débit − crédit` d’écritures `POSTED` sur le compte associé. La réponse expose l’écart de rapprochement, le montant des transactions encore non rapprochées et leur nombre afin de rendre les différences traçables.
+
+Les opérations de relevé et de rapprochement restent la **source de vérité unique** du domaine comptable, dans les ressources existantes de transactions et rapprochements bancaires. Les façades Trésorerie importent une transaction avec `POST /api/v1/treasury/transactions/`, la consultent par profil avec `GET /api/v1/treasury/transactions/bank-accounts/{treasury_bank_account_id}`, proposent les écritures candidates et valident le rapprochement sous `/api/v1/treasury/reconciliation`. Elles imposent un profil actif, filtrent toute donnée par organisation, compte comptable et date d’ouverture, et refusent l’utilisation d’une transaction appartenant à un autre profil bancaire.
+
+Les permissions `treasury_bank_account:create`, `treasury_bank_account:read`, `treasury_bank_account:update`, `treasury_position:read`, `treasury_transaction:create`, `treasury_transaction:read`, `treasury_reconciliation:read` et `treasury_reconciliation:match` séparent la configuration, la consultation de position, l’import et la validation. Ce premier périmètre ne fournit pas encore de prévision de trésorerie, de rapprochement partiel ni d’import de fichiers de relevé normalisés ; ces capacités restent des évolutions distinctes.
+
 ## Qualité et sécurité
 
 Exécutez les contrôles avant chaque proposition de changement :
@@ -155,4 +168,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la trésorerie, la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Inventaire et Facturation comprendront ensuite les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter ce vertical par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels, les imports de relevés au format bancaire et l’exécution des migrations sur un environnement PostgreSQL intégré. Les prochains domaines sont la paie, les immobilisations et l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Inventaire et Facturation comprendront ensuite les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.

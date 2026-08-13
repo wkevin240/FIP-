@@ -54,6 +54,14 @@ class PermissionService:
                 "credit_note:read",
                 "payment:create",
                 "payment:read",
+                "treasury_bank_account:create",
+                "treasury_bank_account:read",
+                "treasury_bank_account:update",
+                "treasury_position:read",
+                "treasury_transaction:create",
+                "treasury_transaction:read",
+                "treasury_reconciliation:read",
+                "treasury_reconciliation:match",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -72,6 +80,10 @@ class PermissionService:
                 "invoice:read",
                 "credit_note:read",
                 "payment:read",
+                "treasury_bank_account:read",
+                "treasury_position:read",
+                "treasury_transaction:read",
+                "treasury_reconciliation:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -92,6 +104,10 @@ class PermissionService:
                 "invoice:read",
                 "credit_note:read",
                 "payment:read",
+                "treasury_bank_account:read",
+                "treasury_position:read",
+                "treasury_transaction:read",
+                "treasury_reconciliation:read",
             }
         ),
     }

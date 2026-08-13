@@ -34,3 +34,6 @@ class Organization(Base):
     invoices = relationship("Invoice", back_populates="organization")
     credit_notes = relationship("CreditNote", back_populates="organization")
     payments = relationship("Payment", back_populates="organization")
+    treasury_bank_accounts = relationship(
+        "TreasuryBankAccount", back_populates="organization"
+    )
