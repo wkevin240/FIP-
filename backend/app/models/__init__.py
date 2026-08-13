@@ -22,6 +22,7 @@ from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.permission import Permission
 from app.models.role import Role
+from app.models.treasury.bank_account import TreasuryBankAccount
 from app.models.user import User
 
 __all__ = [
@@ -45,6 +46,7 @@ __all__ = [
     "Role",
     "StockBalance",
     "StockMovement",
+    "TreasuryBankAccount",
     "User",
     "VATEntry",
     "VATRate",

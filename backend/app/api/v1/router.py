@@ -17,6 +17,9 @@ from app.api.v1.inventory.warehouses import router as warehouses_router
 from app.api.v1.invoicing.credit_notes import router as credit_notes_router
 from app.api.v1.invoicing.invoices import router as invoices_router
 from app.api.v1.invoicing.payments import router as payments_router
+from app.api.v1.treasury.bank_accounts import router as treasury_bank_accounts_router
+from app.api.v1.treasury.reconciliation import router as treasury_reconciliation_router
+from app.api.v1.treasury.transactions import router as treasury_transactions_router
 
 api_router = APIRouter()
 api_router.include_router(
@@ -79,4 +82,19 @@ api_router.include_router(
 )
 api_router.include_router(
     payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
+)
+api_router.include_router(
+    treasury_bank_accounts_router,
+    prefix="/treasury/bank-accounts",
+    tags=["Treasury - Bank Accounts"],
+)
+api_router.include_router(
+    treasury_transactions_router,
+    prefix="/treasury/transactions",
+    tags=["Treasury - Transactions"],
+)
+api_router.include_router(
+    treasury_reconciliation_router,
+    prefix="/treasury/reconciliation",
+    tags=["Treasury - Reconciliation"],
 )
