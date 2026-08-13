@@ -28,6 +28,7 @@ class PermissionService:
                 "journal_entry:read",
                 "journal_entry:update",
                 "journal_entry:post",
+                "financial_report:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -37,6 +38,7 @@ class PermissionService:
                 "fiscal_period:read",
                 "journal:read",
                 "journal_entry:read",
+                "financial_report:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -48,6 +50,7 @@ class PermissionService:
                 "journal:read",
                 "journal_entry:read",
                 "audit:read",
+                "financial_report:read",
             }
         ),
     }

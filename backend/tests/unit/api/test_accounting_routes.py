@@ -12,6 +12,8 @@ def test_journal_and_entry_routes_are_published() -> None:
         "/api/v1/accounting/period-closings/periods/{fiscal_period_id}/preview" in paths
     )
     assert "/api/v1/accounting/period-closings/periods/{fiscal_period_id}" in paths
+    assert "/api/v1/accounting/reports/balance-sheet" in paths
+    assert "/api/v1/accounting/reports/income-statement" in paths
     assert "post" in paths["/api/v1/accounting/journals/"]
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
     assert (
