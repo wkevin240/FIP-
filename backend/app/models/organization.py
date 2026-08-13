@@ -46,3 +46,10 @@ class Organization(Base):
         "PayrollAccountingProfile", back_populates="organization"
     )
     payroll_periods = relationship("PayrollPeriod", back_populates="organization")
+    fixed_asset_accounting_profiles = relationship(
+        "FixedAssetAccountingProfile", back_populates="organization"
+    )
+    fixed_asset_categories = relationship(
+        "FixedAssetCategory", back_populates="organization"
+    )
+    fixed_assets = relationship("FixedAsset", back_populates="organization")

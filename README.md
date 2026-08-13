@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie et Paie. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie, Paie et Immobilisations. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -78,6 +78,10 @@ L’API expose alors les ressources suivantes :
 | Règles datées et profils comptables Paie | `/api/v1/payroll/configuration` |
 | Périodes, entrées, bulletins et comptabilisation Paie | `/api/v1/payroll/periods` |
 | Corrections contrôlées de bulletins | `/api/v1/payroll/slips/{payroll_slip_id}/corrections` |
+| Profils comptables et catégories Immobilisations | `/api/v1/fixed-assets/configuration` |
+| Registre, acquisition et mise en service | `/api/v1/fixed-assets/assets` |
+| Plans et dotations d’amortissement | `/api/v1/fixed-assets/depreciation` |
+| Cessions et sorties d’immobilisations | `/api/v1/fixed-assets/disposals` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -143,6 +147,16 @@ La comptabilisation `POST /api/v1/payroll/periods/{payroll_period_id}/post` exig
 
 Les permissions `payroll_employee:*`, `payroll_contract:*`, `payroll_rule_set:*`, `payroll_period:*`, `payroll_slip:read`, `payroll_correction:create` et `payroll_audit:read` séparent la configuration, la saisie, le calcul, la validation, le verrouillage, la comptabilisation, les corrections et la consultation. La CI exécute la suite rapide SQLite et, dans un job distinct, applique toutes les migrations sur PostgreSQL puis exécute les tests d’intégration Paie contre le moteur cible.
 
+## Gestion Immobilisations
+
+Le module Immobilisations gère les profils comptables, catégories, actifs, composants et plans d’amortissement sous `/api/v1/fixed-assets`. Chaque actif appartient à une organisation, reçoit un code unique, conserve son coût d’entrée, sa valeur résiduelle, ses dates d’acquisition et de mise en service, et suit le cycle strict `DRAFT → ACQUIRED → IN_SERVICE → DISPOSED`. Les composants possèdent leur propre coût, durée d’utilité, méthode et plan afin de préserver les rythmes de consommation distincts.
+
+Le moteur utilise uniquement `Decimal` avec `ROUND_HALF_UP`. Il génère un échéancier mensuel `MONTHLY_PRORATA_DIE` reproductible à partir de la mise en service, du coût, de la valeur résiduelle et des paramètres figés dans le plan. Les méthodes `STRAIGHT_LINE` et `DECLINING_BALANCE` sont configurables ; le dernier montant est ajusté de manière déterministe afin que le cumul égale exactement la base amortissable et que la valeur nette comptable atteigne, sans la franchir, la valeur résiduelle. Aucun taux, durée ou règle réglementaire n’est codé en dur.
+
+L’acquisition, la dotation et la sortie délèguent leurs écritures équilibrées au moteur Accounting. Elles exigent un journal et des comptes actifs de la même organisation ainsi qu’une période fiscale ouverte. Une sortie fige le coût, l’amortissement cumulé, la valeur nette comptable et le gain ou la perte ; elle est bloquée tant que les dotations échues ne sont pas comptabilisées. Les événements sensibles sont ajoutés au registre append-only `fixed_asset_audit_events`, sans route de modification ni suppression.
+
+Les permissions `fixed_asset_category:*`, `fixed_asset:*`, `fixed_asset_depreciation:*` et `fixed_asset_disposal:create` séparent la configuration, le registre, la dotation et les sorties. Les migrations et les contraintes sont testées sur PostgreSQL en plus des tests unitaires du moteur de calcul et du contrôle OpenAPI.
+
 ## Gestion Trésorerie
 
 Le module Trésorerie introduit un **profil bancaire opérationnel** sous `/api/v1/treasury/bank-accounts`, sans dupliquer les comptes bancaires ni les rapprochements du domaine Comptabilité. Chaque profil appartient à une organisation et référence un unique compte comptable actif de type `ASSET`. Le numéro de compte bancaire et le compte comptable associé sont tous deux uniques dans l’organisation. Le profil conserve l’établissement, la devise, le solde et la date d’ouverture, et peut être désactivé sans effacer son historique.
@@ -172,7 +186,7 @@ poetry run pip-audit --local --strict
 poetry check
 ```
 
-Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Un job PostgreSQL séparé applique la chaîne Alembic complète puis lance les tests d’intégration du module Paie sur le moteur cible. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
+Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Un job PostgreSQL séparé applique la chaîne Alembic complète puis lance les tests d’intégration des modules Paie et Immobilisations contre le moteur cible. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
 
 ## Contribution
 
@@ -182,4 +196,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. Les prochains domaines métier sont les immobilisations puis l’audit ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. Le prochain domaine métier est l’audit transversal ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.

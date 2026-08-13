@@ -79,6 +79,16 @@ class PermissionService:
                 "payroll_period:lock",
                 "payroll_period:post",
                 "payroll_correction:create",
+                "fixed_asset_category:create",
+                "fixed_asset_category:read",
+                "fixed_asset:create",
+                "fixed_asset:read",
+                "fixed_asset:update",
+                "fixed_asset:acquire",
+                "fixed_asset:commission",
+                "fixed_asset_depreciation:read",
+                "fixed_asset_depreciation:post",
+                "fixed_asset_disposal:create",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -107,6 +117,9 @@ class PermissionService:
                 "payroll_period:read",
                 "payroll_slip:read",
                 "payroll_audit:read",
+                "fixed_asset_category:read",
+                "fixed_asset:read",
+                "fixed_asset_depreciation:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -137,6 +150,9 @@ class PermissionService:
                 "payroll_period:read",
                 "payroll_slip:read",
                 "payroll_audit:read",
+                "fixed_asset_category:read",
+                "fixed_asset:read",
+                "fixed_asset_depreciation:read",
             }
         ),
     }
