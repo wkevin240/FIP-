@@ -20,3 +20,4 @@ class Organization(Base):
     fiscal_periods = relationship("FiscalPeriod", back_populates="organization")
     journals = relationship("Journal", back_populates="organization")
     journal_entries = relationship("JournalEntry", back_populates="organization")
+    period_closings = relationship("PeriodClosing", back_populates="organization")
