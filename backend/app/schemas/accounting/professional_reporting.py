@@ -102,6 +102,9 @@ class ReportingReconciliationResponse(BaseModel):
     end_date: date
     trial_balance_is_balanced: bool
     balance_sheet_is_balanced: bool
+    professional_balance_sheet_is_balanced: bool
+    professional_balance_sheet_is_complete: bool
+    unmapped_balance_sheet_account_codes: list[str]
     movement_debit: Decimal
     movement_credit: Decimal
     closing_debit: Decimal

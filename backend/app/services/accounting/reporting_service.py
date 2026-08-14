@@ -377,11 +377,22 @@ class ReportingService:
             organization_id, start_date, end_date
         )
         balance_sheet = await self.balance_sheet(organization_id, end_date)
+        professional_balance_sheet = await self.professional_financial_statement(
+            organization_id, "BALANCE_SHEET", end_date
+        )
+        professional_balance_sheet_is_balanced = bool(
+            professional_balance_sheet.is_balanced
+        )
+        professional_balance_sheet_is_complete = not (
+            professional_balance_sheet.unmapped_account_codes
+        )
         is_consistent = (
             trial.is_opening_balanced
             and trial.is_movement_balanced
             and trial.is_closing_balanced
             and balance_sheet.is_balanced
+            and professional_balance_sheet_is_balanced
+            and professional_balance_sheet_is_complete
         )
         return ReportingReconciliationResponse(
             start_date=start_date,
@@ -392,6 +403,11 @@ class ReportingService:
                 and trial.is_closing_balanced
             ),
             balance_sheet_is_balanced=balance_sheet.is_balanced,
+            professional_balance_sheet_is_balanced=professional_balance_sheet_is_balanced,
+            professional_balance_sheet_is_complete=professional_balance_sheet_is_complete,
+            unmapped_balance_sheet_account_codes=(
+                professional_balance_sheet.unmapped_account_codes
+            ),
             movement_debit=trial.total_movement_debit,
             movement_credit=trial.total_movement_credit,
             closing_debit=trial.total_closing_debit,

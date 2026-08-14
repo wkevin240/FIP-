@@ -323,3 +323,37 @@ async def test_professional_mapping_rejects_cross_tenant_and_incompatible_role(
             "IS-INVALID",
         )
     assert semantic_error.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_rejects_incomplete_professional_balance_sheet_mapping(
+    db_session: AsyncSession,
+) -> None:
+    organization, period, accounts, journal_id = await _create_context(db_session)
+    await _post(
+        db_session,
+        organization.id,
+        period.id,
+        journal_id,
+        "OD-2026-UNMAPPED",
+        date(2026, 1, 10),
+        [
+            JournalEntryLineCreate(
+                account_id=accounts["cash"].id, debit=Decimal("100.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["equity"].id, credit=Decimal("100.00")
+            ),
+        ],
+    )
+
+    reconciliation = await ReportingService(db_session).reconcile_reporting(
+        organization.id, date(2026, 1, 1), date(2026, 1, 31)
+    )
+
+    assert reconciliation.trial_balance_is_balanced is True
+    assert reconciliation.balance_sheet_is_balanced is True
+    assert reconciliation.professional_balance_sheet_is_balanced is True
+    assert reconciliation.professional_balance_sheet_is_complete is False
+    assert reconciliation.unmapped_balance_sheet_account_codes == ["101000", "571000"]
+    assert reconciliation.is_consistent is False
