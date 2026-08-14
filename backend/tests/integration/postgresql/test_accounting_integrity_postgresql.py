@@ -11,19 +11,25 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.models.audit.audit_event import AuditEvent
 from app.models.organization import Organization
 from app.models.user import User
+from app.schemas.accounting.cash_flow import CashFlowAccountMappingCreate
 from app.schemas.accounting.journal import JournalCreate
 from app.schemas.accounting.journal_entry import (
     JournalEntryCreate,
     JournalEntryReversalCreate,
 )
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
+from app.services.accounting.cash_flow_configuration_service import (
+    CashFlowConfigurationService,
+)
+from app.services.accounting.cash_flow_service import CashFlowService
 from app.services.accounting.closing_service import ClosingService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
 from fastapi import HTTPException
-from sqlalchemy import delete, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -721,3 +727,91 @@ async def test_postgresql_cash_flow_mapping_preserves_acl_and_tenant_scope(
         )
         await postgres_session.commit()
     await postgres_session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_postgresql_cash_flow_reconciles_voided_original_with_posted_reversal(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    original = await _create_posted_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    await CashFlowConfigurationService(postgres_session).create(
+        organization.id,
+        "postgres-cash-flow-tester",
+        CashFlowAccountMappingCreate(
+            account_id=debit_account.id,
+            is_cash_account=True,
+        ),
+    )
+    await CashFlowConfigurationService(postgres_session).create(
+        organization.id,
+        "postgres-cash-flow-tester",
+        CashFlowAccountMappingCreate(
+            account_id=credit_account.id,
+            cash_flow_category="OPERATING",
+        ),
+    )
+    await JournalEntryService(postgres_session).reverse_entry(
+        organization.id,
+        original.id,
+        JournalEntryReversalCreate(
+            fiscal_period_id=period.id,
+            entry_date=date(2026, 1, 20),
+            entry_number=f"CF-VOID-{uuid4().hex[:8]}",
+            reason="Cash-flow voided regression",
+        ),
+        actor_user_id="postgres-cash-flow-tester",
+    )
+
+    statement = await CashFlowService(postgres_session).statement(
+        organization.id, date(2026, 1, 1), date(2026, 1, 31)
+    )
+
+    assert statement.operating_cash_flow == Decimal("0.00")
+    assert statement.closing_cash == Decimal("0.00")
+    assert statement.is_reconciled is True
+
+
+@pytest.mark.asyncio
+async def test_postgresql_serializes_concurrent_cash_flow_mapping_creation(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, _, debit_account, _ = await _create_context(postgres_session)
+    organization_id, account_id = organization.id, debit_account.id
+
+    async def create_mapping_once() -> str:
+        engine = create_async_engine(POSTGRES_TEST_DATABASE_URL, echo=False)
+        try:
+            async with AsyncSession(engine, expire_on_commit=False) as session:
+                try:
+                    await CashFlowConfigurationService(session).create(
+                        organization_id,
+                        "postgres-cash-flow-tester",
+                        CashFlowAccountMappingCreate(
+                            account_id=account_id,
+                            is_cash_account=True,
+                        ),
+                    )
+                    return "created"
+                except HTTPException as exc:
+                    await session.rollback()
+                    return str(exc.status_code)
+        finally:
+            await engine.dispose()
+
+    results = await asyncio.gather(create_mapping_once(), create_mapping_once())
+    assert results.count("created") == 1
+    assert results.count("409") == 1
+    audit_events = list(
+        await postgres_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.organization_id == organization_id,
+                AuditEvent.action == "CASH_FLOW_ACCOUNT_MAPPING_CREATED",
+            )
+        )
+    )
+    assert len(audit_events) == 1

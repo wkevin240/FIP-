@@ -30,13 +30,15 @@ class CashFlowRepository:
                 JournalEntry.organization_id == organization_id,
                 JournalEntryLine.organization_id == organization_id,
                 JournalEntryLine.account_id.in_(cash_account_ids),
-                JournalEntry.status == JournalEntryStatus.POSTED,
+                JournalEntry.status.in_(
+                    [JournalEntryStatus.POSTED, JournalEntryStatus.VOIDED]
+                ),
                 JournalEntry.entry_date <= end_date,
             )
         )
         return Decimal(value or 0)
 
-    async def posted_entries_with_cash_activity(
+    async def recognized_entries_with_cash_activity(
         self,
         organization_id: str,
         cash_account_ids: set[str],
@@ -55,7 +57,9 @@ class CashFlowRepository:
                 JournalEntry.organization_id == organization_id,
                 JournalEntryLine.organization_id == organization_id,
                 JournalEntryLine.account_id.in_(cash_account_ids),
-                JournalEntry.status == JournalEntryStatus.POSTED,
+                JournalEntry.status.in_(
+                    [JournalEntryStatus.POSTED, JournalEntryStatus.VOIDED]
+                ),
                 JournalEntry.entry_date >= start_date,
                 JournalEntry.entry_date <= end_date,
             )

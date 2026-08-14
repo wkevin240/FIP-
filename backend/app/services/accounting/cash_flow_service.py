@@ -51,7 +51,7 @@ class CashFlowService:
         opening_cash = await self.repository.cash_balance(
             organization_id, cash_account_ids, start_date - timedelta(days=1)
         )
-        for entry in await self.repository.posted_entries_with_cash_activity(
+        for entry in await self.repository.recognized_entries_with_cash_activity(
             organization_id, cash_account_ids, start_date, end_date
         ):
             cash_delta = sum(

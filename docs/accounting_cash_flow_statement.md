@@ -2,7 +2,7 @@
 
 ## Finalité du lot
 
-Ce lot complète les états professionnels par un tableau de flux de trésorerie construit directement à partir des écritures `POSTED` du moteur Accounting. Il exploite les comptes de trésorerie et les contreparties configurées dans l’organisation, sans modifier le domaine Trésorerie ni importer de relevés externes.
+Ce lot complète les états professionnels par un tableau de flux de trésorerie construit directement à partir des écritures comptables reconnues par le moteur Accounting : les écritures `POSTED` et les originaux `VOIDED` nécessaires à la neutralisation correcte de leurs contre-passations. Il exploite les comptes de trésorerie et les contreparties configurées dans l’organisation, sans modifier le domaine Trésorerie ni importer de relevés externes.
 
 La configuration est tenant-scopée et explicite : un compte actif peut être défini comme compte de trésorerie, ou comme contrepartie classée `OPERATING`, `INVESTING` ou `FINANCING`. Un compte de trésorerie doit être de type `ASSET`. Les comptes non configurés ne sont jamais classés silencieusement.
 
@@ -20,7 +20,7 @@ Pour chaque écriture `POSTED` comprise dans l’intervalle demandé, le moteur 
 | Trésorerie de clôture calculée | Ouverture + flux d’exploitation + investissement + financement + non classés |
 | Réconciliation | Clôture calculée = solde comptable des comptes de trésorerie à `end_date` |
 
-Les calculs utilisent exclusivement `Decimal` et les écritures `VOIDED` ou `DRAFT` sont exclues. L’état retourne les numéros des écritures non classifiées ; `is_complete` vaut `false` tant qu’une configuration empêche une classification unique. Ainsi, un état peut être mathématiquement réconcilié tout en indiquant honnêtement qu’il reste à classer.
+Les calculs utilisent exclusivement `Decimal`. Les brouillons `DRAFT` sont exclus. Lorsqu’une écriture est annulée, l’original `VOIDED` et sa contre-passation `POSTED` sont tous deux pris en compte afin de préserver le mouvement historique net et d’éviter un faux flux inverse. L’état retourne les numéros des écritures non classifiées ; `is_complete` vaut `false` tant qu’une configuration empêche une classification unique. Ainsi, un état peut être mathématiquement réconcilié tout en indiquant honnêtement qu’il reste à classer.
 
 ## API et permissions
 
