@@ -88,7 +88,6 @@ class ClosingService:
             summary = await self._build_summary(
                 organization_id, period, lock_entries=True
             )
-            period.status = FiscalPeriodStatus.CLOSED
             closing = PeriodClosing(
                 organization_id=organization_id,
                 fiscal_period_id=fiscal_period_id,
@@ -101,6 +100,7 @@ class ClosingService:
                 control_hash=summary.control_hash,
             )
             await self.repository.create(closing)
+            period.status = FiscalPeriodStatus.CLOSED
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
@@ -151,8 +151,11 @@ class ClosingService:
                 JournalEntry.id,
             )
         )
-        if lock_entries:
-            query = query.with_for_update()
+        # The fiscal period is locked by close_period(). Posting and creation also
+        # lock that same period, while POSTED entries are immutable in PostgreSQL.
+        # A second row lock on entries is therefore unnecessary and would require
+        # direct UPDATE privileges that the application role intentionally lacks.
+        del lock_entries
         result = await self.session.scalars(query)
         entries = list(result.unique())
 

@@ -64,6 +64,7 @@ class JournalEntryRepository:
 
         for line_number, line_data in enumerate(data.lines, start=1):
             line = JournalEntryLine(
+                organization_id=organization_id,
                 journal_entry_id=entry.id,
                 line_number=line_number,
                 **line_data.model_dump(),

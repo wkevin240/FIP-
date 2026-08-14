@@ -11,7 +11,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.async_database_uri)
+config.set_main_option("sqlalchemy.url", settings.async_migration_database_uri)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -42,7 +42,7 @@ def run_migrations_online() -> None:
 
 if context.is_offline_mode():
     context.configure(
-        url=settings.async_database_uri,
+        url=settings.async_migration_database_uri,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

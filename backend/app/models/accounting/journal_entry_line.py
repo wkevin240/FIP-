@@ -4,6 +4,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Numeric,
     String,
@@ -15,7 +16,7 @@ from app.db.base import Base
 
 
 class JournalEntryLine(Base):
-    """One debit or credit line of a journal entry."""
+    """One debit or credit line of a tenant-scoped journal entry."""
 
     __tablename__ = "journal_entry_lines"
     __table_args__ = (
@@ -32,8 +33,26 @@ class JournalEntryLine(Base):
             "(debit = 0 AND credit > 0) OR (credit = 0 AND debit > 0)",
             name="ck_journal_entry_line_single_side_amount",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "journal_entry_id"],
+            ["journal_entries.organization_id", "journal_entries.id"],
+            name="fk_journal_entry_lines_organization_entry",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "account_id"],
+            ["accounts.organization_id", "accounts.id"],
+            name="fk_journal_entry_lines_organization_account",
+            ondelete="RESTRICT",
+        ),
     )
 
+    organization_id = Column(
+        String,
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     journal_entry_id = Column(
         String,
         ForeignKey("journal_entries.id", ondelete="CASCADE"),
@@ -51,5 +70,7 @@ class JournalEntryLine(Base):
     debit = Column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
     credit = Column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
 
-    journal_entry = relationship("JournalEntry", back_populates="lines")
-    account = relationship("Account")
+    journal_entry = relationship(
+        "JournalEntry", back_populates="lines", foreign_keys=[journal_entry_id]
+    )
+    account = relationship("Account", foreign_keys=[account_id])

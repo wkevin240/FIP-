@@ -207,6 +207,7 @@ async def test_invalid_posted_entry_blocks_period_closing(
     db_session.add_all(
         [
             JournalEntryLine(
+                organization_id=organization.id,
                 journal_entry_id=invalid_entry.id,
                 account_id=debit_account.id,
                 line_number=1,
@@ -214,6 +215,7 @@ async def test_invalid_posted_entry_blocks_period_closing(
                 credit=Decimal("0.00"),
             ),
             JournalEntryLine(
+                organization_id=organization.id,
                 journal_entry_id=invalid_entry.id,
                 account_id=credit_account.id,
                 line_number=2,

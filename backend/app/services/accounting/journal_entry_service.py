@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from app.core.config import settings
 from app.core.enums.accounting import FiscalPeriodStatus, JournalEntryStatus
 from app.domain.accounting.journal_entry.rules import JournalEntryRules
 from app.models.accounting.account import Account
@@ -10,7 +11,7 @@ from app.repositories.accounting.journal_repository import JournalRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,8 +159,23 @@ class JournalEntryService:
                 detail="All entry accounts must exist and be active",
             )
 
-        entry.status = JournalEntryStatus.POSTED
-        entry.posted_at = datetime.now(timezone.utc)
+        if self.session.bind and self.session.bind.dialect.name == "postgresql":
+            if not settings.ACCOUNTING_POSTING_TOKEN:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Accounting posting authorization is not configured",
+                )
+            await self.session.execute(
+                text("SELECT set_config('fip.posting_token', :posting_token, true)"),
+                {"posting_token": settings.ACCOUNTING_POSTING_TOKEN},
+            )
+            await self.session.execute(
+                text("SELECT post_journal_entry(:entry_id)"), {"entry_id": entry.id}
+            )
+            await self.session.refresh(entry)
+        else:
+            entry.status = JournalEntryStatus.POSTED
+            entry.posted_at = datetime.now(timezone.utc)
         await self.audit.record(
             organization_id=organization_id,
             actor_user_id=actor_user_id,

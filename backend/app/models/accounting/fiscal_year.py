@@ -19,6 +19,9 @@ class FiscalYear(Base):
         UniqueConstraint(
             "organization_id", "name", name="uq_fiscal_year_organization_name"
         ),
+        UniqueConstraint(
+            "organization_id", "id", name="uq_fiscal_years_organization_id_id"
+        ),
         CheckConstraint("end_date > start_date", name="ck_fiscal_year_dates"),
     )
 
@@ -37,5 +40,8 @@ class FiscalYear(Base):
 
     organization = relationship("Organization", back_populates="fiscal_years")
     periods = relationship(
-        "FiscalPeriod", back_populates="fiscal_year", cascade="all, delete-orphan"
+        "FiscalPeriod",
+        back_populates="fiscal_year",
+        cascade="all, delete-orphan",
+        foreign_keys="FiscalPeriod.fiscal_year_id",
     )
