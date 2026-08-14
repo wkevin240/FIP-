@@ -10,7 +10,7 @@ from app.repositories.accounting.journal_repository import JournalRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,6 +158,11 @@ class JournalEntryService:
                 detail="All entry accounts must exist and be active",
             )
 
+        if self.session.bind and self.session.bind.dialect.name == "postgresql":
+            await self.session.execute(
+                text("SELECT set_config('fip.posting_entry_id', :entry_id, true)"),
+                {"entry_id": entry.id},
+            )
         entry.status = JournalEntryStatus.POSTED
         entry.posted_at = datetime.now(timezone.utc)
         await self.audit.record(

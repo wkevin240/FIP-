@@ -92,11 +92,13 @@ Un journal est créé au sein d’une organisation, avec un code unique. Une éc
 
 L’écriture est d’abord créée au statut `DRAFT`. L’opération `POST /api/v1/accounting/journal-entries/{journal_entry_id}/post` effectue une seconde vérification des comptes, de la période et de l’équilibre, puis la passe au statut `POSTED`. Une écriture déjà comptabilisée ne peut pas être comptabilisée une seconde fois.
 
+Le lot P0 ajoute une défense structurelle PostgreSQL : journal, période, écriture, ligne et compte doivent appartenir à la même `organization_id`; une référence inter-organisation est refusée par des clés étrangères composites. Toute écriture `POSTED` ou `VOIDED`, ainsi que ses lignes, est immuable et non supprimable au niveau PostgreSQL. Les écritures sont créées `DRAFT` et la transition autorisée vers `POSTED` reste contrôlée par le service comptable, la période ouverte et l’équilibre des lignes. Les tests PostgreSQL réels vérifient ces refus et le fonctionnement inchangé du flux `DRAFT → POSTED`.
+
 ## Clôture de période
 
 Avant toute clôture, `GET /api/v1/accounting/period-closings/periods/{fiscal_period_id}/preview` calcule le nombre d’écritures et de lignes comptabilisées, les totaux débit/crédit et une empreinte SHA-256 déterministe. La clôture via `POST /api/v1/accounting/period-closings/periods/{fiscal_period_id}` est réservée à la permission `fiscal_period:close`.
 
-La fermeture s’exécute dans une transaction avec verrouillage de la période. Elle refuse les périodes non ouvertes, tout brouillon résiduel et toute écriture comptabilisée individuellement déséquilibrée. À succès, elle passe la période à `CLOSED`, enregistre les agrégats et l’empreinte de contrôle dans un registre unique, puis empêche l’ajout ou la comptabilisation concurrente d’écritures.
+La fermeture s’exécute dans une transaction avec verrouillage de la période. Elle refuse les périodes non ouvertes, tout brouillon résiduel et toute écriture comptabilisée individuellement déséquilibrée. À succès, elle persiste d’abord les agrégats et l’empreinte de contrôle dans un registre unique, puis passe la période à `CLOSED`. PostgreSQL impose que les périodes soient créées ouvertes dans un exercice ouvert, ne se chevauchent pas pour un même exercice et ne puissent devenir `CLOSED` qu’après la persistance de ce registre de clôture.
 
 ## Reporting financier
 

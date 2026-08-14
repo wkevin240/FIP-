@@ -14,6 +14,9 @@ class Journal(Base):
         UniqueConstraint(
             "organization_id", "code", name="uq_journal_organization_code"
         ),
+        UniqueConstraint(
+            "organization_id", "id", name="uq_journals_organization_id_id"
+        ),
     )
 
     organization_id = Column(
@@ -30,4 +33,6 @@ class Journal(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     organization = relationship("Organization", back_populates="journals")
-    entries = relationship("JournalEntry", back_populates="journal")
+    entries = relationship(
+        "JournalEntry", back_populates="journal", foreign_keys="JournalEntry.journal_id"
+    )

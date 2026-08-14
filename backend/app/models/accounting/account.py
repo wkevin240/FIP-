@@ -10,6 +10,9 @@ class Account(Base):
         UniqueConstraint(
             "organization_id", "code", name="uq_account_organization_code"
         ),
+        UniqueConstraint(
+            "organization_id", "id", name="uq_accounts_organization_id_id"
+        ),
     )
 
     organization_id = Column(

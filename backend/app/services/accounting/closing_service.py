@@ -88,7 +88,6 @@ class ClosingService:
             summary = await self._build_summary(
                 organization_id, period, lock_entries=True
             )
-            period.status = FiscalPeriodStatus.CLOSED
             closing = PeriodClosing(
                 organization_id=organization_id,
                 fiscal_period_id=fiscal_period_id,
@@ -101,6 +100,7 @@ class ClosingService:
                 control_hash=summary.control_hash,
             )
             await self.repository.create(closing)
+            period.status = FiscalPeriodStatus.CLOSED
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
