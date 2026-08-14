@@ -23,7 +23,9 @@ async def create_journal_entry(
     service: JournalEntryService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("journal_entry:create")),
 ) -> JournalEntryResponse:
-    return await service.create_entry(tenant.organization_id, data)
+    return await service.create_entry(
+        tenant.organization_id, data, actor_user_id=tenant.user_id
+    )
 
 
 @router.get("/", response_model=list[JournalEntryResponse])
@@ -51,4 +53,6 @@ async def post_journal_entry(
     service: JournalEntryService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("journal_entry:post")),
 ) -> JournalEntryResponse:
-    return await service.post_entry(tenant.organization_id, journal_entry_id)
+    return await service.post_entry(
+        tenant.organization_id, journal_entry_id, actor_user_id=tenant.user_id
+    )

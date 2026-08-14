@@ -16,6 +16,7 @@ from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,6 +107,15 @@ async def test_balanced_entry_can_be_created_and_posted(
 
     assert posted_entry.status == JournalEntryStatus.POSTED
     assert posted_entry.posted_at is not None
+
+    audit_events = await AuditService(db_session).list_events(
+        organization.id, 0, 100, transaction_id=entry.id
+    )
+    assert [event.action for event in reversed(audit_events)] == [
+        "JOURNAL_ENTRY_CREATED",
+        "JOURNAL_ENTRY_POSTED",
+    ]
+    assert audit_events[0].previous_hash == audit_events[1].event_hash
 
 
 @pytest.mark.asyncio

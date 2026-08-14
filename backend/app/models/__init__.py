@@ -10,6 +10,7 @@ from app.models.accounting.journal import Journal
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
 from app.models.accounting.vat import VATEntry, VATRate
+from app.models.audit import AuditEvent, AuditSequence
 from app.models.fixed_assets import (
     DepreciationPlan,
     DepreciationScheduleLine,
@@ -51,6 +52,8 @@ from app.models.user import User
 
 __all__ = [
     "Account",
+    "AuditEvent",
+    "AuditSequence",
     "BankReconciliation",
     "BankTransaction",
     "CreditNote",

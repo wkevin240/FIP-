@@ -18,7 +18,9 @@ async def create_account(
     service: AccountService = Depends(get_account_service),
     tenant: CurrentTenant = Depends(require_permission("account:create")),
 ):
-    return await service.create_account(tenant.organization_id, account_in)
+    return await service.create_account(
+        tenant.organization_id, account_in, actor_user_id=tenant.user_id
+    )
 
 
 @router.get("/", response_model=list[AccountResponse])
@@ -49,7 +51,9 @@ async def update_account(
     service: AccountService = Depends(get_account_service),
     tenant: CurrentTenant = Depends(require_permission("account:update")),
 ):
-    return await service.update_account(tenant.organization_id, account_id, account_in)
+    return await service.update_account(
+        tenant.organization_id, account_id, account_in, actor_user_id=tenant.user_id
+    )
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -11,6 +11,7 @@ from app.api.v1.accounting.journal_entries import router as journal_entries_rout
 from app.api.v1.accounting.journals import router as journals_router
 from app.api.v1.accounting.reporting import router as reporting_router
 from app.api.v1.accounting.vat import router as vat_router
+from app.api.v1.audit.events import router as audit_events_router
 from app.api.v1.fixed_assets.assets import router as fixed_assets_router
 from app.api.v1.fixed_assets.configuration import (
     router as fixed_assets_configuration_router,
@@ -33,6 +34,7 @@ from app.api.v1.treasury.reconciliation import router as treasury_reconciliation
 from app.api.v1.treasury.transactions import router as treasury_transactions_router
 
 api_router = APIRouter()
+api_router.include_router(audit_events_router, prefix="/audit", tags=["Audit"])
 api_router.include_router(
     accounts_router, prefix="/accounting/accounts", tags=["Accounting - Accounts"]
 )
