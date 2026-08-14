@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie, Paie, Immobilisations et Audit transversal. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base et professionnel SYSCOHADA, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie, Paie, Immobilisations et Audit transversal. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -62,7 +62,8 @@ L’API expose alors les ressources suivantes :
 | Journaux comptables | `/api/v1/accounting/journals` |
 | Écritures comptables | `/api/v1/accounting/journal-entries` |
 | Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
-| Bilan et compte de résultat | `/api/v1/accounting/reports` |
+| Bilan, compte de résultat, balance, grand livre et comparatifs | `/api/v1/accounting/reports` |
+| Mapping SYSCOHADA, balance professionnelle, états, réconciliation et export CSV | `/api/v1/accounting/professional-reports` |
 | Rapprochement bancaire | `/api/v1/accounting/bank-reconciliation` |
 | Gestion TVA | `/api/v1/accounting/vat` |
 | Produits Inventaire | `/api/v1/inventory/products` |
@@ -107,6 +108,12 @@ La fermeture s’exécute dans une transaction avec verrouillage de la période.
 Le bilan est disponible via `GET /api/v1/accounting/reports/balance-sheet?as_of_date=YYYY-MM-DD`. Il agrège uniquement les lignes d’écritures `POSTED` jusqu’à la date demandée. Les actifs sont présentés selon `débit − crédit`, tandis que les passifs et capitaux propres suivent `crédit − débit`. Le résultat courant, calculé comme produits moins charges, est inclus dans les capitaux propres ; le rapport est refusé si l’égalité **Actif = Passif + Capitaux propres** n’est pas respectée.
 
 Le compte de résultat est disponible via `GET /api/v1/accounting/reports/income-statement?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`. Il limite strictement les mouvements à l’intervalle inclusif fourni et calcule le résultat net comme **Produits − Charges**. Les deux routes exigent la permission `financial_report:read`.
+
+## Reporting professionnel OHADA/SYSCOHADA
+
+Le socle professionnel sous `/api/v1/accounting/professional-reports` ajoute une balance générale par soldes d’ouverture, mouvements et clôture, un mapping de présentation tenant-scopé du référentiel `SYSCOHADA`, des états groupés, une réconciliation de lecture et un export CSV audité. Tous les calculs reposent exclusivement sur les écritures `POSTED` et utilisent `Decimal` ; les soldes d’ouverture, les mouvements et les soldes de clôture sont chacun contrôlés à l’égalité **débit = crédit**.
+
+La création d’un mapping exige un compte actif de la même organisation et la permission `professional_reporting:configure`. PostgreSQL impose la référence tenant-scopée au compte par clé étrangère composite. La lecture, la réconciliation et l’export exigent `professional_reporting:read`; la configuration et l’export produisent des événements dans le journal Audit. La documentation détaillée, les invariants et les limites du périmètre sont disponibles dans [`docs/accounting_professional_reporting_ohada.md`](docs/accounting_professional_reporting_ohada.md).
 
 ## Rapprochement bancaire
 
@@ -209,4 +216,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. La prochaine priorité métier est le durcissement du moteur Accounting : contre-passations contrôlées, corrections et immutabilité des écritures `POSTED`, balance générale, grand livre et soldes comparatifs. Suivront les rapprochements partiels/groupés, les imports bancaires normalisés, les états OHADA/SYSCOHADA, la validation PostgreSQL complète et le durcissement sécurité/production avant tout pipeline de déploiement. Chaque évolution sera ajoutée progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. La prochaine priorité métier est le durcissement du moteur Accounting : contre-passations contrôlées, corrections et immutabilité des écritures `POSTED`, balance générale, grand livre et soldes comparatifs. Suivront les rapprochements partiels/groupés, les imports bancaires normalisés, l’extension des états OHADA/SYSCOHADA (flux de trésorerie, notes annexes et liasse), la validation PostgreSQL complète et le durcissement sécurité/production avant tout pipeline de déploiement. Chaque évolution sera ajoutée progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.

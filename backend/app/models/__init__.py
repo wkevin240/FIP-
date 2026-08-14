@@ -4,6 +4,7 @@ from app.models.accounting.account import Account
 from app.models.accounting.bank_reconciliation import BankReconciliation
 from app.models.accounting.bank_transaction import BankTransaction
 from app.models.accounting.closing import PeriodClosing
+from app.models.accounting.financial_statement_mapping import FinancialStatementMapping
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal import Journal
@@ -61,6 +62,7 @@ __all__ = [
     "DepreciationScheduleLine",
     "Employee",
     "EmploymentContract",
+    "FinancialStatementMapping",
     "FiscalPeriod",
     "FiscalYear",
     "FixedAsset",

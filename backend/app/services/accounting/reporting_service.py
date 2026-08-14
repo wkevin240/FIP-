@@ -1,8 +1,20 @@
-from datetime import date
+import csv
+from datetime import date, timedelta
 from decimal import Decimal
+from io import StringIO
 
 from app.domain.accounting.reporting.rules import FinancialReportingRules
+from app.repositories.accounting.financial_statement_mapping_repository import (
+    FinancialStatementMappingRepository,
+)
 from app.repositories.accounting.reporting_repository import ReportingRepository
+from app.schemas.accounting.professional_reporting import (
+    ProfessionalFinancialStatementLine,
+    ProfessionalFinancialStatementResponse,
+    ProfessionalTrialBalanceLine,
+    ProfessionalTrialBalanceResponse,
+    ReportingReconciliationResponse,
+)
 from app.schemas.accounting.reporting import (
     BalanceSheetResponse,
     ComparativeBalanceLine,
@@ -14,13 +26,17 @@ from app.schemas.accounting.reporting import (
     TrialBalanceLine,
     TrialBalanceResponse,
 )
+from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ReportingService:
     def __init__(self, session: AsyncSession) -> None:
+        self.session = session
         self.repository = ReportingRepository(session)
+        self.mappings = FinancialStatementMappingRepository(session)
+        self.audit = AuditService(session)
 
     async def balance_sheet(
         self, organization_id: str, as_of_date: date
@@ -152,6 +168,287 @@ class ReportingService:
             is_balanced=total_debit == total_credit,
         )
 
+    async def professional_trial_balance(
+        self, organization_id: str, start_date: date, end_date: date
+    ) -> ProfessionalTrialBalanceResponse:
+        """Return opening, movement and closing balances from POSTED entries only."""
+        self._validate_range(start_date, end_date)
+        opening_end = start_date - timedelta(days=1)
+        opening_rows = await self.repository.account_movements(
+            organization_id, end_date=opening_end
+        )
+        movement_rows = await self.repository.account_movements(
+            organization_id, start_date, end_date
+        )
+        opening = {
+            account.id: (account, debit, credit)
+            for account, debit, credit in opening_rows
+        }
+        movement = {
+            account.id: (account, debit, credit)
+            for account, debit, credit in movement_rows
+        }
+        lines: list[ProfessionalTrialBalanceLine] = []
+        totals = [Decimal("0.00") for _ in range(6)]
+        for account_id in sorted(
+            set(opening) | set(movement),
+            key=lambda item: (opening.get(item) or movement[item])[0].code,
+        ):
+            account = (opening.get(account_id) or movement[account_id])[0]
+            opening_debit_raw = opening.get(
+                account_id, (account, Decimal("0.00"), Decimal("0.00"))
+            )[1]
+            opening_credit_raw = opening.get(
+                account_id, (account, Decimal("0.00"), Decimal("0.00"))
+            )[2]
+            movement_debit = movement.get(
+                account_id, (account, Decimal("0.00"), Decimal("0.00"))
+            )[1]
+            movement_credit = movement.get(
+                account_id, (account, Decimal("0.00"), Decimal("0.00"))
+            )[2]
+            opening_debit, opening_credit = self._normal_balance_sides(
+                account.account_type, opening_debit_raw, opening_credit_raw
+            )
+            closing_debit, closing_credit = self._normal_balance_sides(
+                account.account_type,
+                opening_debit_raw + movement_debit,
+                opening_credit_raw + movement_credit,
+            )
+            values = (
+                opening_debit,
+                opening_credit,
+                movement_debit,
+                movement_credit,
+                closing_debit,
+                closing_credit,
+            )
+            totals = [
+                total + value for total, value in zip(totals, values, strict=True)
+            ]
+            lines.append(
+                ProfessionalTrialBalanceLine(
+                    account_id=account.id,
+                    code=account.code,
+                    name=account.name,
+                    account_type=account.account_type,
+                    opening_debit=opening_debit,
+                    opening_credit=opening_credit,
+                    movement_debit=movement_debit,
+                    movement_credit=movement_credit,
+                    closing_debit=closing_debit,
+                    closing_credit=closing_credit,
+                )
+            )
+        return ProfessionalTrialBalanceResponse(
+            start_date=start_date,
+            end_date=end_date,
+            lines=lines,
+            total_opening_debit=totals[0],
+            total_opening_credit=totals[1],
+            total_movement_debit=totals[2],
+            total_movement_credit=totals[3],
+            total_closing_debit=totals[4],
+            total_closing_credit=totals[5],
+            is_opening_balanced=totals[0] == totals[1],
+            is_movement_balanced=totals[2] == totals[3],
+            is_closing_balanced=totals[4] == totals[5],
+        )
+
+    async def professional_financial_statement(
+        self,
+        organization_id: str,
+        statement_code: str,
+        end_date: date,
+        start_date: date | None = None,
+        framework: str = "SYSCOHADA",
+    ) -> ProfessionalFinancialStatementResponse:
+        if statement_code not in {"BALANCE_SHEET", "INCOME_STATEMENT"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Unsupported professional financial statement",
+            )
+        if statement_code == "INCOME_STATEMENT" and start_date is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Income statement requires a start date",
+            )
+        if start_date is not None:
+            self._validate_range(start_date, end_date)
+        movements = await self.repository.account_movements(
+            organization_id,
+            start_date if statement_code == "INCOME_STATEMENT" else None,
+            end_date,
+        )
+        mappings = await self.mappings.list_active(
+            organization_id, framework, statement_code
+        )
+        mapping_by_account = {mapping.account_id: mapping for mapping in mappings}
+        grouped: dict[tuple[str, str, str, str, str, int], Decimal] = {}
+        unmapped_account_codes: list[str] = []
+        relevant_types = (
+            FinancialReportingRules.BALANCE_SHEET_TYPES
+            | FinancialReportingRules.INCOME_STATEMENT_TYPES
+            if statement_code == "BALANCE_SHEET"
+            else FinancialReportingRules.INCOME_STATEMENT_TYPES
+        )
+        for account, debit, credit in movements:
+            if account.account_type not in relevant_types:
+                continue
+            mapping = mapping_by_account.get(account.id)
+            if mapping is None:
+                unmapped_account_codes.append(account.code)
+                continue
+            balance = FinancialReportingRules.balance_for_account(
+                account.account_type, debit, credit
+            )
+            if statement_code == "BALANCE_SHEET" and account.account_type == "EXPENSE":
+                balance = -balance
+            key = (
+                mapping.presentation_role,
+                mapping.section_code,
+                mapping.section_label,
+                mapping.line_code,
+                mapping.line_label,
+                mapping.display_order,
+            )
+            grouped[key] = grouped.get(key, Decimal("0.00")) + balance
+        lines = [
+            ProfessionalFinancialStatementLine(
+                presentation_role=key[0],
+                section_code=key[1],
+                section_label=key[2],
+                line_code=key[3],
+                line_label=key[4],
+                display_order=key[5],
+                balance=balance,
+            )
+            for key, balance in sorted(
+                grouped.items(), key=lambda item: (item[0][5], item[0][1], item[0][3])
+            )
+        ]
+        total_assets = sum(
+            (line.balance for line in lines if line.presentation_role == "ASSETS"),
+            Decimal("0.00"),
+        )
+        total_liabilities_and_equity = sum(
+            (
+                line.balance
+                for line in lines
+                if line.presentation_role == "LIABILITIES_EQUITY"
+            ),
+            Decimal("0.00"),
+        )
+        total_revenue = sum(
+            (line.balance for line in lines if line.presentation_role == "REVENUE"),
+            Decimal("0.00"),
+        )
+        total_expense = sum(
+            (line.balance for line in lines if line.presentation_role == "EXPENSE"),
+            Decimal("0.00"),
+        )
+        is_balance_sheet = statement_code == "BALANCE_SHEET"
+        net_result = None if is_balance_sheet else total_revenue - total_expense
+        return ProfessionalFinancialStatementResponse(
+            framework=framework,
+            statement_code=statement_code,
+            start_date=start_date,
+            end_date=end_date,
+            lines=lines,
+            total=total_assets if is_balance_sheet else net_result or Decimal("0.00"),
+            total_assets=total_assets if is_balance_sheet else None,
+            total_liabilities_and_equity=(
+                total_liabilities_and_equity if is_balance_sheet else None
+            ),
+            net_result=net_result,
+            is_balanced=(
+                total_assets == total_liabilities_and_equity
+                if is_balance_sheet
+                else None
+            ),
+            unmapped_account_codes=sorted(set(unmapped_account_codes)),
+        )
+
+    async def reconcile_reporting(
+        self, organization_id: str, start_date: date, end_date: date
+    ) -> ReportingReconciliationResponse:
+        self._validate_range(start_date, end_date)
+        trial = await self.professional_trial_balance(
+            organization_id, start_date, end_date
+        )
+        balance_sheet = await self.balance_sheet(organization_id, end_date)
+        is_consistent = (
+            trial.is_opening_balanced
+            and trial.is_movement_balanced
+            and trial.is_closing_balanced
+            and balance_sheet.is_balanced
+        )
+        return ReportingReconciliationResponse(
+            start_date=start_date,
+            end_date=end_date,
+            trial_balance_is_balanced=(
+                trial.is_opening_balanced
+                and trial.is_movement_balanced
+                and trial.is_closing_balanced
+            ),
+            balance_sheet_is_balanced=balance_sheet.is_balanced,
+            movement_debit=trial.total_movement_debit,
+            movement_credit=trial.total_movement_credit,
+            closing_debit=trial.total_closing_debit,
+            closing_credit=trial.total_closing_credit,
+            is_consistent=is_consistent,
+        )
+
+    async def export_professional_trial_balance_csv(
+        self,
+        organization_id: str,
+        actor_user_id: str,
+        start_date: date,
+        end_date: date,
+    ) -> str:
+        report = await self.professional_trial_balance(
+            organization_id, start_date, end_date
+        )
+        output = StringIO(newline="")
+        writer = csv.writer(output, lineterminator="\n")
+        writer.writerow(
+            [
+                "account_code",
+                "account_name",
+                "account_type",
+                "opening_debit",
+                "opening_credit",
+                "movement_debit",
+                "movement_credit",
+                "closing_debit",
+                "closing_credit",
+            ]
+        )
+        for line in report.lines:
+            writer.writerow(
+                [
+                    line.code,
+                    line.name,
+                    line.account_type,
+                    str(line.opening_debit),
+                    str(line.opening_credit),
+                    str(line.movement_debit),
+                    str(line.movement_credit),
+                    str(line.closing_debit),
+                    str(line.closing_credit),
+                ]
+            )
+        await self.audit.record(
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            action="PROFESSIONAL_TRIAL_BALANCE_EXPORTED",
+            resource_type="ProfessionalTrialBalance",
+            resource_id=f"{start_date.isoformat()}:{end_date.isoformat()}",
+            context={"format": "csv", "line_count": len(report.lines)},
+        )
+        await self.session.commit()
+        return output.getvalue()
+
     async def general_ledger(
         self,
         organization_id: str,
@@ -258,6 +555,24 @@ class ReportingService:
             previous_start_date=previous_start_date,
             previous_end_date=previous_end_date,
             lines=lines,
+        )
+
+    @staticmethod
+    def _normal_balance_sides(
+        account_type: str, debit: Decimal, credit: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        balance = FinancialReportingRules.balance_for_account(
+            account_type, debit, credit
+        )
+        debit_nature = account_type in {"ASSET", "EXPENSE"}
+        if balance >= 0:
+            return (
+                (balance, Decimal("0.00"))
+                if debit_nature
+                else (Decimal("0.00"), balance)
+            )
+        return (
+            (Decimal("0.00"), -balance) if debit_nature else (-balance, Decimal("0.00"))
         )
 
     @staticmethod
