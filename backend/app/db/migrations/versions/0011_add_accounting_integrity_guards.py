@@ -5,6 +5,7 @@ Revises: 0010_add_transversal_audit
 Create Date: 2026-08-14
 """
 
+import os
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -15,8 +16,65 @@ down_revision: str | None = "0010_add_transversal_audit"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+APPLICATION_ROLE = "fip_user"
+ACCOUNTING_OWNER_ROLE = "fip_accounting_owner"
+
 
 def upgrade() -> None:
+    posting_token = os.environ.get("ACCOUNTING_POSTING_TOKEN")
+    if not posting_token:
+        raise RuntimeError(
+            "ACCOUNTING_POSTING_TOKEN must be configured before applying "
+            "the accounting integrity migration"
+        )
+
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_roles WHERE rolname = '{ACCOUNTING_OWNER_ROLE}'
+            ) THEN
+                CREATE ROLE {ACCOUNTING_OWNER_ROLE}
+                    NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
+            END IF;
+        END;
+        $$;
+        """
+    )
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+    op.create_table(
+        "accounting_security_credentials",
+        sa.Column("credential_key", sa.String(length=64), nullable=False),
+        sa.Column("secret_hash", sa.String(length=64), nullable=False),
+        sa.CheckConstraint(
+            "credential_key <> ''", name="ck_accounting_security_credential_key"
+        ),
+        sa.CheckConstraint(
+            "length(secret_hash) = 64", name="ck_accounting_security_secret_hash"
+        ),
+        sa.PrimaryKeyConstraint("credential_key"),
+    )
+    op.execute(
+        sa.text(
+            "INSERT INTO accounting_security_credentials "
+            "(credential_key, secret_hash) "
+            "VALUES ('posting', encode(digest(:posting_token, 'sha256'), 'hex'))"
+        ).bindparams(posting_token=posting_token)
+    )
+
+    for table_name in (
+        "accounts",
+        "fiscal_years",
+        "fiscal_periods",
+        "journals",
+        "journal_entries",
+        "journal_entry_lines",
+        "period_closings",
+        "accounting_security_credentials",
+    ):
+        op.execute(f"ALTER TABLE {table_name} OWNER TO {ACCOUNTING_OWNER_ROLE}")
+
     op.add_column(
         "journal_entry_lines",
         sa.Column("organization_id", sa.String(), nullable=True),
@@ -196,8 +254,8 @@ def upgrade() -> None:
                 IF NEW.status <> 'POSTED' THEN
                     RAISE EXCEPTION 'draft journal entries can only transition to POSTED';
                 END IF;
-                IF current_setting('fip.posting_entry_id', true) IS DISTINCT FROM NEW.id THEN
-                    RAISE EXCEPTION 'journal entry posting must use the authorized accounting service';
+                IF current_user <> 'fip_accounting_owner' THEN
+                    RAISE EXCEPTION 'journal entry posting must use the authorized accounting procedure';
                 END IF;
                 IF NEW.posted_at IS NULL THEN
                     RAISE EXCEPTION 'posted journal entries require posted_at';
@@ -264,9 +322,82 @@ def upgrade() -> None:
         FOR EACH ROW EXECUTE FUNCTION enforce_journal_entry_line_integrity();
         """
     )
+    op.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
+    op.execute(f"REVOKE CREATE ON SCHEMA public FROM {APPLICATION_ROLE}")
+    op.execute(
+        """
+        CREATE FUNCTION post_journal_entry(target_entry_id text)
+        RETURNS void
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = pg_catalog, public
+        AS $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM public.accounting_security_credentials
+                WHERE credential_key = 'posting'
+                  AND secret_hash = encode(
+                      digest(current_setting('fip.posting_token', true), 'sha256'),
+                      'hex'
+                  )
+            ) THEN
+                RAISE EXCEPTION 'journal entry posting authorization failed';
+            END IF;
+
+            UPDATE public.journal_entries
+            SET status = 'POSTED', posted_at = CURRENT_TIMESTAMP
+            WHERE id = target_entry_id AND status = 'DRAFT';
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'draft journal entry not found';
+            END IF;
+        END;
+        $$;
+        """
+    )
+    op.execute(
+        f"ALTER FUNCTION post_journal_entry(text) OWNER TO {ACCOUNTING_OWNER_ROLE}"
+    )
+
+    op.execute(
+        f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APPLICATION_ROLE}"
+    )
+    op.execute(
+        f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {APPLICATION_ROLE}"
+    )
+    for table_name in ("journal_entries", "journal_entry_lines"):
+        op.execute(f"REVOKE ALL ON TABLE {table_name} FROM {APPLICATION_ROLE}")
+        op.execute(f"GRANT SELECT, INSERT ON TABLE {table_name} TO {APPLICATION_ROLE}")
+    for table_name in ("accounts", "fiscal_years", "fiscal_periods", "journals"):
+        op.execute(f"REVOKE ALL ON TABLE {table_name} FROM {APPLICATION_ROLE}")
+        op.execute(
+            f"GRANT SELECT, INSERT, UPDATE ON TABLE {table_name} TO {APPLICATION_ROLE}"
+        )
+    op.execute(f"REVOKE ALL ON TABLE period_closings FROM {APPLICATION_ROLE}")
+    op.execute(f"GRANT SELECT, INSERT ON TABLE period_closings TO {APPLICATION_ROLE}")
+    op.execute(
+        f"REVOKE ALL ON TABLE accounting_security_credentials FROM {APPLICATION_ROLE}"
+    )
+    op.execute("REVOKE ALL ON FUNCTION post_journal_entry(text) FROM PUBLIC")
+    op.execute(
+        f"GRANT EXECUTE ON FUNCTION post_journal_entry(text) TO {APPLICATION_ROLE}"
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP FUNCTION IF EXISTS post_journal_entry(text)")
+    op.execute("DROP TABLE IF EXISTS accounting_security_credentials")
+    for table_name in (
+        "accounts",
+        "fiscal_years",
+        "fiscal_periods",
+        "journals",
+        "journal_entries",
+        "journal_entry_lines",
+        "period_closings",
+    ):
+        op.execute(f"ALTER TABLE {table_name} OWNER TO {APPLICATION_ROLE}")
     op.execute(
         "DROP TRIGGER IF EXISTS trg_journal_entry_lines_integrity ON journal_entry_lines"
     )

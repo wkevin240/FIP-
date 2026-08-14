@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "fip_password"
     POSTGRES_DB: str = "fip_db"
     POSTGRES_PORT: str = "5432"
+    POSTGRES_MIGRATION_USER: str | None = None
+    POSTGRES_MIGRATION_PASSWORD: str | None = None
+
+    # Accounting database authorization
+    ACCOUNTING_POSTING_TOKEN: str | None = None
 
     # Security
     SECRET_KEY: str = "super-secret-key-change-this-in-production"
@@ -23,6 +28,12 @@ class Settings(BaseSettings):
     @property
     def async_database_uri(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def async_migration_database_uri(self) -> str:
+        migration_user = self.POSTGRES_MIGRATION_USER or self.POSTGRES_USER
+        migration_password = self.POSTGRES_MIGRATION_PASSWORD or self.POSTGRES_PASSWORD
+        return f"postgresql+asyncpg://{migration_user}:{migration_password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

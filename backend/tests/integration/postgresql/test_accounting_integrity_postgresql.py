@@ -18,7 +18,7 @@ from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
 from app.services.accounting.closing_service import ClosingService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
-from sqlalchemy import delete, update
+from sqlalchemy import delete, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -84,7 +84,7 @@ async def _create_context(
     return organization, period, debit_account, credit_account
 
 
-async def _create_posted_entry(
+async def _create_draft_entry(
     session: AsyncSession,
     organization: Organization,
     period: FiscalPeriod,
@@ -118,7 +118,20 @@ async def _create_posted_entry(
         ),
         actor_user_id="postgres-integrity-tester",
     )
-    return await service.post_entry(
+    return entry
+
+
+async def _create_posted_entry(
+    session: AsyncSession,
+    organization: Organization,
+    period: FiscalPeriod,
+    debit_account: Account,
+    credit_account: Account,
+) -> JournalEntry:
+    entry = await _create_draft_entry(
+        session, organization, period, debit_account, credit_account
+    )
+    return await JournalEntryService(session).post_entry(
         organization.id,
         entry.id,
         actor_user_id="postgres-integrity-tester",
@@ -154,7 +167,10 @@ async def test_postgresql_rejects_mutations_of_posted_entries_and_lines(
     )
 
     for operation in forbidden_operations:
-        with pytest.raises(DBAPIError, match="immutable|authorized accounting service"):
+        with pytest.raises(
+            DBAPIError,
+            match="immutable|authorized accounting procedure|permission denied",
+        ):
             await postgres_session.execute(operation)
             await postgres_session.commit()
         await postgres_session.rollback()
@@ -167,6 +183,115 @@ async def test_postgresql_rejects_mutations_of_posted_entries_and_lines(
     assert len(refreshed.lines) == 2
     assert sum(line.debit for line in refreshed.lines) == Decimal("100.00")
     assert sum(line.credit for line in refreshed.lines) == Decimal("100.00")
+
+
+@pytest.mark.asyncio
+async def test_postgresql_rejects_forged_posting_session_and_all_posted_mutations(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    draft_entry = await _create_draft_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    organization_id = organization.id
+    period_id = period.id
+    debit_account_id = debit_account.id
+    draft_entry_id = draft_entry.id
+
+    with pytest.raises(DBAPIError, match="permission denied"):
+        await postgres_session.execute(
+            update(JournalEntry)
+            .where(JournalEntry.id == draft_entry_id)
+            .values(status="POSTED")
+        )
+        await postgres_session.commit()
+    await postgres_session.rollback()
+
+    await postgres_session.execute(
+        text("SELECT set_config('fip.posting_entry_id', :entry_id, true)"),
+        {"entry_id": draft_entry_id},
+    )
+    with pytest.raises(DBAPIError, match="permission denied"):
+        await postgres_session.execute(
+            update(JournalEntry)
+            .where(JournalEntry.id == draft_entry_id)
+            .values(status="POSTED")
+        )
+        await postgres_session.commit()
+    await postgres_session.rollback()
+
+    await postgres_session.execute(
+        text("SELECT set_config('fip.posting_entry_id', :entry_id, true)"),
+        {"entry_id": draft_entry_id},
+    )
+    with pytest.raises(DBAPIError, match="authorization failed"):
+        await postgres_session.execute(
+            text("SELECT post_journal_entry(:entry_id)"),
+            {"entry_id": draft_entry_id},
+        )
+    await postgres_session.rollback()
+
+    await postgres_session.execute(
+        text("SELECT set_config('fip.posting_token', 'forged-token', true)")
+    )
+    with pytest.raises(DBAPIError, match="authorization failed"):
+        await postgres_session.execute(
+            text("SELECT post_journal_entry(:entry_id)"),
+            {"entry_id": draft_entry_id},
+        )
+    await postgres_session.rollback()
+
+    posted_entry = await JournalEntryService(postgres_session).post_entry(
+        organization_id,
+        draft_entry_id,
+        actor_user_id="postgres-integrity-tester",
+    )
+    posted_entry_id = posted_entry.id
+    posted_line_id = posted_entry.lines[0].id
+
+    forbidden_operations = (
+        update(JournalEntry)
+        .where(JournalEntry.id == posted_entry_id)
+        .values(organization_id="forged-organization"),
+        update(JournalEntry)
+        .where(JournalEntry.id == posted_entry_id)
+        .values(journal_id="forged-journal"),
+        update(JournalEntry)
+        .where(JournalEntry.id == posted_entry_id)
+        .values(fiscal_period_id="forged-period"),
+        update(JournalEntryLine)
+        .where(JournalEntryLine.id == posted_line_id)
+        .values(account_id="forged-account"),
+        delete(JournalEntryLine).where(JournalEntryLine.id == posted_line_id),
+        delete(JournalEntry).where(JournalEntry.id == posted_entry_id),
+    )
+    for operation in forbidden_operations:
+        with pytest.raises(DBAPIError, match="permission denied|immutable"):
+            await postgres_session.execute(operation)
+            await postgres_session.commit()
+        await postgres_session.rollback()
+
+    posted_line_insert = JournalEntryLine(
+        organization_id=organization_id,
+        journal_entry_id=posted_entry_id,
+        account_id=debit_account_id,
+        line_number=3,
+        debit=Decimal("1.00"),
+        credit=Decimal("0.00"),
+    )
+    postgres_session.add(posted_line_insert)
+    with pytest.raises(DBAPIError, match="immutable"):
+        await postgres_session.commit()
+    await postgres_session.rollback()
+
+    refreshed = await JournalEntryService(postgres_session).get_entry(
+        organization_id, posted_entry_id
+    )
+    assert refreshed.status.value == "POSTED"
+    assert refreshed.fiscal_period_id == period_id
+    assert len(refreshed.lines) == 2
 
 
 @pytest.mark.asyncio

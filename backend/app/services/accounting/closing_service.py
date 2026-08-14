@@ -151,8 +151,11 @@ class ClosingService:
                 JournalEntry.id,
             )
         )
-        if lock_entries:
-            query = query.with_for_update()
+        # The fiscal period is locked by close_period(). Posting and creation also
+        # lock that same period, while POSTED entries are immutable in PostgreSQL.
+        # A second row lock on entries is therefore unnecessary and would require
+        # direct UPDATE privileges that the application role intentionally lacks.
+        del lock_entries
         result = await self.session.scalars(query)
         entries = list(result.unique())
 
