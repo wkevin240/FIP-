@@ -11,6 +11,14 @@ from app.api.v1.accounting.journal_entries import router as journal_entries_rout
 from app.api.v1.accounting.journals import router as journals_router
 from app.api.v1.accounting.reporting import router as reporting_router
 from app.api.v1.accounting.vat import router as vat_router
+from app.api.v1.fixed_assets.assets import router as fixed_assets_router
+from app.api.v1.fixed_assets.configuration import (
+    router as fixed_assets_configuration_router,
+)
+from app.api.v1.fixed_assets.depreciation import (
+    router as fixed_assets_depreciation_router,
+)
+from app.api.v1.fixed_assets.disposal import router as fixed_assets_disposal_router
 from app.api.v1.inventory.products import router as products_router
 from app.api.v1.inventory.stock import router as stock_router
 from app.api.v1.inventory.warehouses import router as warehouses_router
@@ -85,6 +93,24 @@ api_router.include_router(
 )
 api_router.include_router(
     payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
+)
+api_router.include_router(
+    fixed_assets_configuration_router,
+    prefix="/fixed-assets/configuration",
+    tags=["Fixed Assets - Configuration"],
+)
+api_router.include_router(
+    fixed_assets_router, prefix="/fixed-assets/assets", tags=["Fixed Assets - Register"]
+)
+api_router.include_router(
+    fixed_assets_depreciation_router,
+    prefix="/fixed-assets/depreciation",
+    tags=["Fixed Assets - Depreciation"],
+)
+api_router.include_router(
+    fixed_assets_disposal_router,
+    prefix="/fixed-assets/disposals",
+    tags=["Fixed Assets - Disposals"],
 )
 api_router.include_router(
     payroll_employees_router, prefix="/payroll/employees", tags=["Payroll - Employees"]

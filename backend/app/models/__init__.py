@@ -10,6 +10,16 @@ from app.models.accounting.journal import Journal
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
 from app.models.accounting.vat import VATEntry, VATRate
+from app.models.fixed_assets import (
+    DepreciationPlan,
+    DepreciationScheduleLine,
+    FixedAsset,
+    FixedAssetAccountingProfile,
+    FixedAssetAuditEvent,
+    FixedAssetCategory,
+    FixedAssetComponent,
+    FixedAssetDisposal,
+)
 from app.models.inventory.product import Product
 from app.models.inventory.stock_balance import StockBalance
 from app.models.inventory.stock_movement import StockMovement
@@ -44,10 +54,18 @@ __all__ = [
     "BankReconciliation",
     "BankTransaction",
     "CreditNote",
+    "DepreciationPlan",
+    "DepreciationScheduleLine",
     "Employee",
     "EmploymentContract",
     "FiscalPeriod",
     "FiscalYear",
+    "FixedAsset",
+    "FixedAssetAccountingProfile",
+    "FixedAssetAuditEvent",
+    "FixedAssetCategory",
+    "FixedAssetComponent",
+    "FixedAssetDisposal",
     "Invoice",
     "InvoiceLine",
     "Journal",

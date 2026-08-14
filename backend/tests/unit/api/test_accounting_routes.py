@@ -32,6 +32,13 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/invoicing/credit-notes/" in paths
     assert "/api/v1/invoicing/payments/" in paths
     assert "/api/v1/payroll/employees/" in paths
+    assert "/api/v1/fixed-assets/configuration/accounting-profiles" in paths
+    assert "/api/v1/fixed-assets/configuration/categories" in paths
+    assert "/api/v1/fixed-assets/assets/" in paths
+    assert "/api/v1/fixed-assets/assets/{asset_id}/acquire" in paths
+    assert "/api/v1/fixed-assets/assets/{asset_id}/commission" in paths
+    assert "/api/v1/fixed-assets/depreciation/assets/{asset_id}/plans" in paths
+    assert "/api/v1/fixed-assets/disposals/assets/{asset_id}/dispose" in paths
     assert "/api/v1/payroll/configuration/rule-sets" in paths
     assert "/api/v1/payroll/configuration/accounting-profiles" in paths
     assert "/api/v1/payroll/periods" in paths
@@ -58,6 +65,10 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "post" in paths["/api/v1/invoicing/invoices/{invoice_id}/issue"]
     assert "post" in paths["/api/v1/invoicing/payments/"]
     assert "post" in paths["/api/v1/payroll/employees/"]
+    assert "post" in paths["/api/v1/fixed-assets/configuration/categories"]
+    assert "post" in paths["/api/v1/fixed-assets/assets/"]
+    assert "post" in paths["/api/v1/fixed-assets/assets/{asset_id}/acquire"]
+    assert "post" in paths["/api/v1/fixed-assets/assets/{asset_id}/commission"]
     assert "post" in paths["/api/v1/payroll/configuration/rule-sets"]
     assert "post" in paths["/api/v1/payroll/periods"]
     assert "post" in paths["/api/v1/payroll/periods/{payroll_period_id}/calculate"]
