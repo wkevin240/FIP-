@@ -8,6 +8,7 @@ from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRep
 from app.repositories.accounting.journal_entry_repository import JournalEntryRepository
 from app.repositories.accounting.journal_repository import JournalRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
+from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,7 @@ class JournalEntryService:
         self.entry_repository = JournalEntryRepository(session)
         self.journal_repository = JournalRepository(session)
         self.period_repository = FiscalPeriodRepository(session)
+        self.audit = AuditService(session)
 
     async def get_entry(
         self, organization_id: str, journal_entry_id: str
@@ -37,7 +39,10 @@ class JournalEntryService:
         return await self.entry_repository.list(organization_id, skip, min(limit, 100))
 
     async def create_entry(
-        self, organization_id: str, data: JournalEntryCreate
+        self,
+        organization_id: str,
+        data: JournalEntryCreate,
+        actor_user_id: str | None = None,
     ) -> JournalEntry:
         journal = await self.journal_repository.get_by_id(
             organization_id, data.journal_id
@@ -84,6 +89,19 @@ class JournalEntryService:
 
         try:
             entry = await self.entry_repository.create(organization_id, data)
+            await self.audit.record(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                action="JOURNAL_ENTRY_CREATED",
+                resource_type="JournalEntry",
+                resource_id=entry.id,
+                new_value={
+                    "entry_number": entry.entry_number,
+                    "entry_date": str(entry.entry_date),
+                    "status": entry.status,
+                },
+                transaction_id=entry.id,
+            )
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
@@ -95,7 +113,10 @@ class JournalEntryService:
         return await self.get_entry(organization_id, entry.id)
 
     async def post_entry(
-        self, organization_id: str, journal_entry_id: str
+        self,
+        organization_id: str,
+        journal_entry_id: str,
+        actor_user_id: str | None = None,
     ) -> JournalEntry:
         entry = await self.get_entry(organization_id, journal_entry_id)
         if entry.status != JournalEntryStatus.DRAFT:
@@ -139,6 +160,16 @@ class JournalEntryService:
 
         entry.status = JournalEntryStatus.POSTED
         entry.posted_at = datetime.now(timezone.utc)
+        await self.audit.record(
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            action="JOURNAL_ENTRY_POSTED",
+            resource_type="JournalEntry",
+            resource_id=entry.id,
+            previous_value={"status": JournalEntryStatus.DRAFT.value},
+            new_value={"status": JournalEntryStatus.POSTED.value},
+            transaction_id=entry.id,
+        )
         await self.session.commit()
         return await self.get_entry(organization_id, entry.id)
 

@@ -1,4 +1,7 @@
+import json
+
 from app.models.payroll.payroll import PayrollAuditEvent
+from app.repositories.audit.audit_event_repository import AuditEventRepository
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class PayrollAuditRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.transversal_audit = AuditEventRepository(session)
 
     async def append(
         self,
@@ -32,6 +36,19 @@ class PayrollAuditRepository:
         )
         self.session.add(event)
         await self.session.flush()
+        await self.transversal_audit.append(
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            action=action,
+            resource_type=object_type,
+            resource_id=object_id,
+            previous_value=json.loads(previous_value) if previous_value else None,
+            new_value=json.loads(new_value) if new_value else None,
+            context={"payroll_period_id": payroll_period_id, "reason": reason}
+            if payroll_period_id or reason
+            else None,
+            transaction_id=payroll_period_id or object_id,
+        )
         return event
 
     async def list_for_period(

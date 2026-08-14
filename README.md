@@ -2,7 +2,7 @@
 
 FIP est le socle backend d’un système financier modulaire destiné aux flux de comptabilité, inventaire, paie, trésorerie, facturation et audit dans un contexte OHADA. Le projet est développé en Python avec FastAPI, SQLAlchemy asynchrone et PostgreSQL.
 
-> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie, Paie et Immobilisations. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
+> **État actuel.** Cette révision constitue un socle de développement. Les fonctionnalités exposées couvrent le référentiel comptable, les exercices et périodes fiscales, les journaux, les écritures équilibrées, la clôture contrôlée des périodes, le reporting financier de base, le rapprochement bancaire, la gestion TVA, les verticaux Inventaire, Facturation, Trésorerie, Paie, Immobilisations et Audit transversal. Les autres domaines présents dans l’arborescence sont en cours d’implémentation et ne doivent pas être considérés comme livrés.
 
 ## Architecture
 
@@ -82,6 +82,7 @@ L’API expose alors les ressources suivantes :
 | Registre, acquisition et mise en service | `/api/v1/fixed-assets/assets` |
 | Plans et dotations d’amortissement | `/api/v1/fixed-assets/depreciation` |
 | Cessions et sorties d’immobilisations | `/api/v1/fixed-assets/disposals` |
+| Journal Audit et vérification d’intégrité | `/api/v1/audit/events`, `/api/v1/audit/integrity` |
 
 Les routes métier requièrent une authentification et les permissions associées au rôle de l’organisation active.
 
@@ -157,6 +158,14 @@ L’acquisition, la dotation et la sortie délèguent leurs écritures équilibr
 
 Les permissions `fixed_asset_category:*`, `fixed_asset:*`, `fixed_asset_depreciation:*` et `fixed_asset_disposal:create` séparent la configuration, le registre, la dotation et les sorties. Les migrations et les contraintes sont testées sur PostgreSQL en plus des tests unitaires du moteur de calcul et du contrôle OpenAPI.
 
+## Journal Audit transversal
+
+Le journal Audit transversal expose exclusivement des ressources de consultation sous `/api/v1/audit`. Chaque événement est isolé par `organization_id`, ordonné par une séquence strictement croissante, daté avec précision, associé lorsque disponible à son auteur, à son action, à sa ressource, à ses valeurs avant/après, à son contexte et à son identifiant de transaction. La recherche paginée accepte les filtres d’action, de ressource, d’auteur, de transaction et d’intervalle temporel ; aucune route métier ne permet de créer, modifier ou supprimer un événement directement.
+
+Chaque organisation possède une tête de chaîne verrouillée pendant l’ajout. Un événement inclut le hachage SHA-256 de son prédécesseur et son propre hachage calculé sur une représentation canonique des données. L’endpoint `GET /api/v1/audit/integrity` recalcule la séquence et les hachages afin de détecter une rupture. Sur PostgreSQL, les déclencheurs `BEFORE UPDATE` et `BEFORE DELETE` interdisent toute mutation ou suppression directe du registre. Les événements sont écrits dans la même session SQLAlchemy que l’opération métier ; un rollback de cette transaction annule donc également l’événement associé.
+
+Les écritures comptables créées ou comptabilisées, les comptes créés ou modifiés, ainsi que les événements locaux de Paie et Immobilisations alimentent le registre transversal. Les permissions `audit_event:read` et `audit_event:verify` séparent la consultation de la vérification ; elles ne confèrent jamais de capacité de mutation. Les index couvrent les recherches récurrentes par organisation, date, action, ressource, auteur et transaction.
+
 ## Gestion Trésorerie
 
 Le module Trésorerie introduit un **profil bancaire opérationnel** sous `/api/v1/treasury/bank-accounts`, sans dupliquer les comptes bancaires ni les rapprochements du domaine Comptabilité. Chaque profil appartient à une organisation et référence un unique compte comptable actif de type `ASSET`. Le numéro de compte bancaire et le compte comptable associé sont tous deux uniques dans l’organisation. Le profil conserve l’établissement, la devise, le solde et la date d’ouverture, et peut être désactivé sans effacer son historique.
@@ -186,7 +195,7 @@ poetry run pip-audit --local --strict
 poetry check
 ```
 
-Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Un job PostgreSQL séparé applique la chaîne Alembic complète puis lance les tests d’intégration des modules Paie et Immobilisations contre le moteur cible. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
+Les workflows GitHub Actions exécutent ces mêmes contrôles sur les branches principales et les demandes de fusion. Un job PostgreSQL séparé applique la chaîne Alembic complète puis lance les tests d’intégration des modules Paie, Immobilisations et Audit contre le moteur cible. Le fichier `poetry.lock` est versionné afin de garantir la reproductibilité des installations.
 
 ## Contribution
 
@@ -196,4 +205,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. Le prochain domaine métier est l’audit transversal ; chacun sera ajouté progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. La prochaine priorité métier est le durcissement du moteur Accounting : contre-passations contrôlées, corrections et immutabilité des écritures `POSTED`, balance générale, grand livre et soldes comparatifs. Suivront les rapprochements partiels/groupés, les imports bancaires normalisés, les états OHADA/SYSCOHADA, la validation PostgreSQL complète et le durcissement sécurité/production avant tout pipeline de déploiement. Chaque évolution sera ajoutée progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.

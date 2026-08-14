@@ -89,6 +89,8 @@ class PermissionService:
                 "fixed_asset_depreciation:read",
                 "fixed_asset_depreciation:post",
                 "fixed_asset_disposal:create",
+                "audit_event:read",
+                "audit_event:verify",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -120,6 +122,7 @@ class PermissionService:
                 "fixed_asset_category:read",
                 "fixed_asset:read",
                 "fixed_asset_depreciation:read",
+                "audit_event:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -153,6 +156,8 @@ class PermissionService:
                 "fixed_asset_category:read",
                 "fixed_asset:read",
                 "fixed_asset_depreciation:read",
+                "audit_event:read",
+                "audit_event:verify",
             }
         ),
     }
