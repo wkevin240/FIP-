@@ -1,8 +1,11 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.schemas.accounting.journal_entry import (
+    JournalEntryCorrectionCreate,
+    JournalEntryCorrectionResponse,
     JournalEntryCreate,
     JournalEntryResponse,
+    JournalEntryReversalCreate,
 )
 from app.services.accounting.journal_entry_service import JournalEntryService
 from fastapi import APIRouter, Depends, Query, status
@@ -55,4 +58,34 @@ async def post_journal_entry(
 ) -> JournalEntryResponse:
     return await service.post_entry(
         tenant.organization_id, journal_entry_id, actor_user_id=tenant.user_id
+    )
+
+
+@router.post("/{journal_entry_id}/reverse", response_model=list[JournalEntryResponse])
+async def reverse_journal_entry(
+    journal_entry_id: str,
+    data: JournalEntryReversalCreate,
+    service: JournalEntryService = Depends(get_service),
+    tenant: CurrentTenant = Depends(require_permission("journal_entry:reverse")),
+) -> list[JournalEntryResponse]:
+    original, reversal = await service.reverse_entry(
+        tenant.organization_id, journal_entry_id, data, actor_user_id=tenant.user_id
+    )
+    return [original, reversal]
+
+
+@router.post(
+    "/{journal_entry_id}/correct", response_model=JournalEntryCorrectionResponse
+)
+async def correct_journal_entry(
+    journal_entry_id: str,
+    data: JournalEntryCorrectionCreate,
+    service: JournalEntryService = Depends(get_service),
+    tenant: CurrentTenant = Depends(require_permission("journal_entry:correct")),
+) -> JournalEntryCorrectionResponse:
+    original, reversal, correction = await service.correct_entry(
+        tenant.organization_id, journal_entry_id, data, actor_user_id=tenant.user_id
+    )
+    return JournalEntryCorrectionResponse(
+        original=original, reversal=reversal, correction=correction
     )

@@ -13,11 +13,15 @@ from app.models.accounting.journal_entry_line import JournalEntryLine
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.accounting.journal import JournalCreate
-from app.schemas.accounting.journal_entry import JournalEntryCreate
+from app.schemas.accounting.journal_entry import (
+    JournalEntryCreate,
+    JournalEntryReversalCreate,
+)
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
 from app.services.accounting.closing_service import ClosingService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from fastapi import HTTPException
 from sqlalchemy import delete, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -527,3 +531,60 @@ async def test_postgresql_allows_authorized_draft_to_posted_transition(
     assert entry.status.value == "POSTED"
     assert entry.posted_at is not None
     assert all(line.organization_id == organization.id for line in entry.lines)
+
+
+@pytest.mark.asyncio
+async def test_postgresql_allows_one_atomic_reversal_and_rejects_direct_void(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    original = await _create_posted_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    original_id = original.id
+    organization_id = organization.id
+    period_id = period.id
+
+    with pytest.raises(DBAPIError, match="permission denied|immutable"):
+        await postgres_session.execute(
+            update(JournalEntry)
+            .where(JournalEntry.id == original_id)
+            .values(status="VOIDED")
+        )
+        await postgres_session.commit()
+    await postgres_session.rollback()
+
+    original, reversal = await JournalEntryService(postgres_session).reverse_entry(
+        organization_id,
+        original_id,
+        JournalEntryReversalCreate(
+            fiscal_period_id=period_id,
+            entry_date=date(2026, 1, 16),
+            entry_number=f"REV-{uuid4().hex[:8]}",
+            reason="Correction of source document",
+        ),
+        actor_user_id="postgres-integrity-tester",
+    )
+    assert original.status.value == "VOIDED"
+    assert reversal.status.value == "POSTED"
+    assert reversal.reversal_of_id == original_id
+    assert reversal.reversal_reason == "Correction of source document"
+    assert [(line.debit, line.credit) for line in reversal.lines] == [
+        (Decimal("0.00"), Decimal("100.00")),
+        (Decimal("100.00"), Decimal("0.00")),
+    ]
+
+    with pytest.raises(HTTPException, match="Only posted entries can be reversed"):
+        await JournalEntryService(postgres_session).reverse_entry(
+            organization_id,
+            original_id,
+            JournalEntryReversalCreate(
+                fiscal_period_id=period_id,
+                entry_date=date(2026, 1, 17),
+                entry_number=f"REV-{uuid4().hex[:8]}",
+                reason="Duplicate attempt",
+            ),
+            actor_user_id="postgres-integrity-tester",
+        )

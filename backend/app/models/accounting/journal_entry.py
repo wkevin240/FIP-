@@ -15,7 +15,7 @@ from app.db.base import Base
 
 
 class JournalEntry(Base):
-    """A balanced accounting entry recorded in a tenant journal."""
+    """A balanced, tenant-scoped accounting entry with immutable reversal links."""
 
     __tablename__ = "journal_entries"
     __table_args__ = (
@@ -30,6 +30,11 @@ class JournalEntry(Base):
             "id",
             name="uq_journal_entries_organization_id_id",
         ),
+        UniqueConstraint(
+            "organization_id",
+            "reversal_of_id",
+            name="uq_journal_entries_organization_reversal_of",
+        ),
         ForeignKeyConstraint(
             ["organization_id", "journal_id"],
             ["journals.organization_id", "journals.id"],
@@ -40,6 +45,12 @@ class JournalEntry(Base):
             ["organization_id", "fiscal_period_id"],
             ["fiscal_periods.organization_id", "fiscal_periods.id"],
             name="fk_journal_entries_organization_period",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "reversal_of_id"],
+            ["journal_entries.organization_id", "journal_entries.id"],
+            name="fk_journal_entries_organization_reversal_of",
             ondelete="RESTRICT",
         ),
     )
@@ -62,6 +73,10 @@ class JournalEntry(Base):
         nullable=False,
         index=True,
     )
+    reversal_of_id = Column(String, nullable=True, index=True)
+    reversal_reason = Column(String(500), nullable=True)
+    voided_at = Column(DateTime(timezone=True), nullable=True)
+    voided_by_user_id = Column(String, nullable=True)
     entry_number = Column(String(50), nullable=False)
     entry_date = Column(Date, nullable=False, index=True)
     description = Column(String(500), nullable=False)
@@ -82,6 +97,19 @@ class JournalEntry(Base):
         "FiscalPeriod",
         back_populates="journal_entries",
         foreign_keys=[fiscal_period_id],
+    )
+    reversal_of = relationship(
+        "JournalEntry",
+        remote_side="JournalEntry.id",
+        foreign_keys=[reversal_of_id],
+        back_populates="reversal_entry",
+        uselist=False,
+    )
+    reversal_entry = relationship(
+        "JournalEntry",
+        foreign_keys=[reversal_of_id],
+        back_populates="reversal_of",
+        uselist=False,
     )
     lines = relationship(
         "JournalEntryLine",

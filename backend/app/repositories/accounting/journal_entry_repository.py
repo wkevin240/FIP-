@@ -55,10 +55,20 @@ class JournalEntryRepository:
         return list(result.unique())
 
     async def create(
-        self, organization_id: str, data: JournalEntryCreate
+        self,
+        organization_id: str,
+        data: JournalEntryCreate,
+        *,
+        reversal_of_id: str | None = None,
+        reversal_reason: str | None = None,
     ) -> JournalEntry:
         entry_data = data.model_dump(exclude={"lines"})
-        entry = JournalEntry(**entry_data, organization_id=organization_id)
+        entry = JournalEntry(
+            **entry_data,
+            organization_id=organization_id,
+            reversal_of_id=reversal_of_id,
+            reversal_reason=reversal_reason,
+        )
         self.session.add(entry)
         await self.session.flush()
 
