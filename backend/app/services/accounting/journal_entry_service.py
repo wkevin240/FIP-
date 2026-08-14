@@ -202,7 +202,18 @@ class JournalEntryService:
         *,
         commit: bool = True,
     ) -> tuple[JournalEntry, JournalEntry]:
-        original = await self.get_entry(organization_id, journal_entry_id)
+        if self.session.bind and self.session.bind.dialect.name == "postgresql":
+            await self.session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:entry_id))"),
+                {"entry_id": journal_entry_id},
+            )
+        original = await self.entry_repository.get_by_id(
+            organization_id, journal_entry_id
+        )
+        if original is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
+            )
         if original.status != JournalEntryStatus.POSTED:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

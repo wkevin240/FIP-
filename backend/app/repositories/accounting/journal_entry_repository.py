@@ -27,6 +27,20 @@ class JournalEntryRepository:
             )
         )
 
+    async def get_by_id_for_update(
+        self, organization_id: str, journal_entry_id: str
+    ) -> JournalEntry | None:
+        return await self.session.scalar(
+            self._with_lines(
+                select(JournalEntry)
+                .where(
+                    JournalEntry.organization_id == organization_id,
+                    JournalEntry.id == journal_entry_id,
+                )
+                .with_for_update()
+            )
+        )
+
     async def get_by_number(
         self, organization_id: str, journal_id: str, entry_number: str
     ) -> JournalEntry | None:

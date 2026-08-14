@@ -163,7 +163,9 @@ class ReportingService:
     ) -> GeneralLedgerResponse:
         if start_date and end_date:
             self._validate_range(start_date, end_date)
-        running = Decimal("0.00")
+        running = await self.repository.ledger_opening_balance(
+            organization_id, account_id, start_date, skip
+        )
         lines: list[GeneralLedgerLine] = []
         for entry, line in await self.repository.ledger_lines(
             organization_id, account_id, start_date, end_date, skip, limit

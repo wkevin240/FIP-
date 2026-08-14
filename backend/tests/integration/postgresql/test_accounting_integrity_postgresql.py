@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import date
 from decimal import Decimal
@@ -588,3 +589,43 @@ async def test_postgresql_allows_one_atomic_reversal_and_rejects_direct_void(
             ),
             actor_user_id="postgres-integrity-tester",
         )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_serializes_two_concurrent_reversals(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    original = await _create_posted_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    organization_id, period_id, original_id = organization.id, period.id, original.id
+
+    async def reverse_once(sequence: int) -> str:
+        engine = create_async_engine(POSTGRES_TEST_DATABASE_URL, echo=False)
+        try:
+            async with AsyncSession(engine, expire_on_commit=False) as session:
+                try:
+                    await JournalEntryService(session).reverse_entry(
+                        organization_id,
+                        original_id,
+                        JournalEntryReversalCreate(
+                            fiscal_period_id=period_id,
+                            entry_date=date(2026, 1, 18),
+                            entry_number=f"RACE-{sequence}-{uuid4().hex[:6]}",
+                            reason="Concurrent reversal test",
+                        ),
+                        actor_user_id="postgres-integrity-tester",
+                    )
+                    return "reversed"
+                except HTTPException as exc:
+                    await session.rollback()
+                    return str(exc.status_code)
+        finally:
+            await engine.dispose()
+
+    results = await asyncio.gather(reverse_once(1), reverse_once(2))
+    assert results.count("reversed") == 1
+    assert results.count("422") == 1
