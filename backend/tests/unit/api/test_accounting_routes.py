@@ -8,12 +8,17 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/accounting/journals/" in paths
     assert "/api/v1/accounting/journal-entries/" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/post" in paths
+    assert "/api/v1/accounting/journal-entries/{journal_entry_id}/reverse" in paths
+    assert "/api/v1/accounting/journal-entries/{journal_entry_id}/correct" in paths
     assert (
         "/api/v1/accounting/period-closings/periods/{fiscal_period_id}/preview" in paths
     )
     assert "/api/v1/accounting/period-closings/periods/{fiscal_period_id}" in paths
     assert "/api/v1/accounting/reports/balance-sheet" in paths
     assert "/api/v1/accounting/reports/income-statement" in paths
+    assert "/api/v1/accounting/reports/trial-balance" in paths
+    assert "/api/v1/accounting/reports/general-ledger/{account_id}" in paths
+    assert "/api/v1/accounting/reports/comparative-balance" in paths
     assert "/api/v1/accounting/bank-reconciliation/transactions" in paths
     assert (
         "/api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/candidates"
@@ -56,6 +61,12 @@ def test_journal_and_entry_routes_are_published() -> None:
     )
     assert "post" in paths["/api/v1/accounting/journals/"]
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
+    assert (
+        "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/reverse"]
+    )
+    assert (
+        "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/correct"]
+    )
     assert (
         "post" in paths["/api/v1/accounting/period-closings/periods/{fiscal_period_id}"]
     )

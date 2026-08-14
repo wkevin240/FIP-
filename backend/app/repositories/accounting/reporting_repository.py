@@ -40,9 +40,78 @@ class ReportingRepository:
             query = query.where(JournalEntry.entry_date >= start_date)
         if end_date is not None:
             query = query.where(JournalEntry.entry_date <= end_date)
-
         result = await self.session.execute(query)
         return [
             (account, Decimal(debit), Decimal(credit))
             for account, debit, credit in result.all()
         ]
+
+    async def ledger_opening_balance(
+        self,
+        organization_id: str,
+        account_id: str,
+        start_date: date | None,
+        skip: int,
+    ) -> Decimal:
+        movements = (
+            select(
+                JournalEntryLine.debit.label("debit"),
+                JournalEntryLine.credit.label("credit"),
+            )
+            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
+            .where(
+                JournalEntry.organization_id == organization_id,
+                JournalEntryLine.organization_id == organization_id,
+                JournalEntryLine.account_id == account_id,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+            )
+            .order_by(
+                JournalEntry.entry_date,
+                JournalEntry.entry_number,
+                JournalEntryLine.line_number,
+            )
+            .limit(skip)
+        )
+        if start_date is not None:
+            movements = movements.where(JournalEntry.entry_date >= start_date)
+        movements_subquery = movements.subquery()
+        query = select(
+            func.coalesce(
+                func.sum(movements_subquery.c.debit - movements_subquery.c.credit), 0
+            )
+        )
+        return Decimal((await self.session.scalar(query)) or 0)
+
+    async def ledger_lines(
+        self,
+        organization_id: str,
+        account_id: str,
+        start_date: date | None,
+        end_date: date | None,
+        skip: int,
+        limit: int,
+    ) -> list[tuple[JournalEntry, JournalEntryLine]]:
+        query = (
+            select(JournalEntry, JournalEntryLine)
+            .join(
+                JournalEntryLine, JournalEntryLine.journal_entry_id == JournalEntry.id
+            )
+            .where(
+                JournalEntry.organization_id == organization_id,
+                JournalEntryLine.organization_id == organization_id,
+                JournalEntryLine.account_id == account_id,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+            )
+            .order_by(
+                JournalEntry.entry_date,
+                JournalEntry.entry_number,
+                JournalEntryLine.line_number,
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        if start_date is not None:
+            query = query.where(JournalEntry.entry_date >= start_date)
+        if end_date is not None:
+            query = query.where(JournalEntry.entry_date <= end_date)
+        return list((await self.session.execute(query)).all())

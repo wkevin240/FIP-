@@ -25,11 +25,28 @@ class JournalEntryUpdate(BaseModel):
     lines: list[JournalEntryLineCreate] | None = Field(None, min_length=2)
 
 
+class JournalEntryReversalCreate(BaseModel):
+    fiscal_period_id: str
+    entry_date: date
+    entry_number: str = Field(..., min_length=1, max_length=50)
+    reason: str = Field(..., min_length=3, max_length=500)
+    reference: str | None = Field(None, max_length=100)
+
+
+class JournalEntryCorrectionCreate(BaseModel):
+    reversal: JournalEntryReversalCreate
+    correction: JournalEntryCreate
+
+
 class JournalEntryResponse(BaseModel):
     id: str
     organization_id: str
     journal_id: str
     fiscal_period_id: str
+    reversal_of_id: str | None
+    reversal_reason: str | None
+    voided_at: datetime | None
+    voided_by_user_id: str | None
     entry_number: str
     entry_date: date
     description: str
@@ -41,3 +58,9 @@ class JournalEntryResponse(BaseModel):
     lines: list[JournalEntryLineResponse]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class JournalEntryCorrectionResponse(BaseModel):
+    original: JournalEntryResponse
+    reversal: JournalEntryResponse
+    correction: JournalEntryResponse
