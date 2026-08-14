@@ -17,6 +17,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 APPLICATION_ROLE = "fip_user"
+DATABASE_OWNER_ROLE = "fip_database_owner"
 ACCOUNTING_OWNER_ROLE = "fip_accounting_owner"
 
 
@@ -33,6 +34,12 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF NOT EXISTS (
+                SELECT 1 FROM pg_roles WHERE rolname = '{DATABASE_OWNER_ROLE}'
+            ) THEN
+                CREATE ROLE {DATABASE_OWNER_ROLE}
+                    NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
+            END IF;
+            IF NOT EXISTS (
                 SELECT 1 FROM pg_roles WHERE rolname = '{ACCOUNTING_OWNER_ROLE}'
             ) THEN
                 CREATE ROLE {ACCOUNTING_OWNER_ROLE}
@@ -42,6 +49,10 @@ def upgrade() -> None:
         $$;
         """
     )
+    op.execute(
+        f"ALTER DATABASE {op.get_bind().engine.url.database} OWNER TO {DATABASE_OWNER_ROLE}"
+    )
+    op.execute(f"ALTER SCHEMA public OWNER TO {DATABASE_OWNER_ROLE}")
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
     op.create_table(
         "accounting_security_credentials",
@@ -158,7 +169,7 @@ def upgrade() -> None:
                OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
                OR NEW.fiscal_year_id IS DISTINCT FROM OLD.fiscal_year_id THEN
                 SELECT status INTO fiscal_year_status
-                FROM fiscal_years
+                FROM public.fiscal_years
                 WHERE id = NEW.fiscal_year_id
                   AND organization_id = NEW.organization_id
                 FOR UPDATE;
@@ -173,7 +184,7 @@ def upgrade() -> None:
 
             IF EXISTS (
                 SELECT 1
-                FROM fiscal_periods AS existing_period
+                FROM public.fiscal_periods AS existing_period
                 WHERE existing_period.organization_id = NEW.organization_id
                   AND existing_period.fiscal_year_id = NEW.fiscal_year_id
                   AND existing_period.id <> COALESCE(OLD.id, '')
@@ -197,7 +208,7 @@ def upgrade() -> None:
                 IF OLD.status = 'LOCKED' AND NEW.status = 'CLOSED' THEN
                     IF NOT EXISTS (
                         SELECT 1
-                        FROM period_closings
+                        FROM public.period_closings
                         WHERE fiscal_period_id = OLD.id
                           AND organization_id = OLD.organization_id
                     ) THEN
@@ -261,7 +272,7 @@ def upgrade() -> None:
                     RAISE EXCEPTION 'posted journal entries require posted_at';
                 END IF;
                 SELECT status INTO period_status
-                FROM fiscal_periods
+                FROM public.fiscal_periods
                 WHERE id = NEW.fiscal_period_id
                   AND organization_id = NEW.organization_id;
                 IF period_status <> 'OPEN' THEN
@@ -269,7 +280,7 @@ def upgrade() -> None:
                 END IF;
                 SELECT COUNT(*), COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0)
                 INTO line_count, debit_total, credit_total
-                FROM journal_entry_lines
+                FROM public.journal_entry_lines
                 WHERE journal_entry_id = NEW.id
                   AND organization_id = NEW.organization_id;
                 IF line_count < 2 OR debit_total <> credit_total THEN
@@ -300,7 +311,7 @@ def upgrade() -> None:
             parent_status journalentrystatus;
         BEGIN
             SELECT status INTO parent_status
-            FROM journal_entries
+            FROM public.journal_entries
             WHERE id = COALESCE(NEW.journal_entry_id, OLD.journal_entry_id)
               AND organization_id = COALESCE(NEW.organization_id, OLD.organization_id);
 
@@ -324,6 +335,45 @@ def upgrade() -> None:
     )
     op.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
     op.execute(f"REVOKE CREATE ON SCHEMA public FROM {APPLICATION_ROLE}")
+    op.execute(
+        f"REVOKE CREATE ON DATABASE {op.get_bind().engine.url.database} FROM PUBLIC"
+    )
+    op.execute(
+        f"REVOKE CREATE ON DATABASE {op.get_bind().engine.url.database} FROM {APPLICATION_ROLE}"
+    )
+    op.execute(f"REVOKE {DATABASE_OWNER_ROLE} FROM {APPLICATION_ROLE}")
+    op.execute(f"REVOKE {ACCOUNTING_OWNER_ROLE} FROM {APPLICATION_ROLE}")
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF (SELECT pg_get_userbyid(datdba)
+                FROM pg_database
+                WHERE datname = current_database()) = '{APPLICATION_ROLE}' THEN
+                RAISE EXCEPTION 'application role must not own the database';
+            END IF;
+            IF has_database_privilege('{APPLICATION_ROLE}', current_database(), 'CREATE') THEN
+                RAISE EXCEPTION 'application role must not have CREATE on the database';
+            END IF;
+            IF has_schema_privilege('{APPLICATION_ROLE}', 'public', 'CREATE') THEN
+                RAISE EXCEPTION 'application role must not have CREATE on the public schema';
+            END IF;
+            IF EXISTS (
+                SELECT 1
+                FROM pg_auth_members AS membership
+                JOIN pg_roles AS member ON member.oid = membership.member
+                JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+                WHERE member.rolname = '{APPLICATION_ROLE}'
+                  AND granted_role.rolname IN (
+                      '{DATABASE_OWNER_ROLE}', '{ACCOUNTING_OWNER_ROLE}'
+                  )
+            ) THEN
+                RAISE EXCEPTION 'application role must not inherit privileged owner roles';
+            END IF;
+        END;
+        $$;
+        """
+    )
     op.execute(
         """
         CREATE FUNCTION post_journal_entry(target_entry_id text)
@@ -387,6 +437,10 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS post_journal_entry(text)")
+    op.execute(f"ALTER SCHEMA public OWNER TO {APPLICATION_ROLE}")
+    op.execute(
+        f"ALTER DATABASE {op.get_bind().engine.url.database} OWNER TO {APPLICATION_ROLE}"
+    )
     op.execute("DROP TABLE IF EXISTS accounting_security_credentials")
     for table_name in (
         "accounts",

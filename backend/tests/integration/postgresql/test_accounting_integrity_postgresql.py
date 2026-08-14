@@ -295,6 +295,88 @@ async def test_postgresql_rejects_forged_posting_session_and_all_posted_mutation
 
 
 @pytest.mark.asyncio
+async def test_postgresql_rejects_search_path_shadowing_of_posted_lines(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    posted_entry = await _create_posted_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    organization_id = organization.id
+    posted_entry_id = posted_entry.id
+    debit_account_id = debit_account.id
+    controlled_schema = f"p0_probe_{uuid4().hex[:12]}"
+
+    with pytest.raises(DBAPIError, match="permission denied for database"):
+        await postgres_session.execute(
+            text(f"CREATE SCHEMA {controlled_schema} AUTHORIZATION fip_user")
+        )
+    await postgres_session.rollback()
+
+    await postgres_session.execute(
+        text(
+            "CREATE TEMP TABLE journal_entries ("
+            "id text PRIMARY KEY, organization_id text NOT NULL, "
+            "status journalentrystatus NOT NULL)"
+        )
+    )
+    await postgres_session.execute(
+        text(
+            "INSERT INTO journal_entries (id, organization_id, status) "
+            "VALUES (:entry_id, :organization_id, 'DRAFT')"
+        ),
+        {"entry_id": posted_entry_id, "organization_id": organization_id},
+    )
+    await postgres_session.execute(text("SET LOCAL search_path TO pg_temp, public"))
+    postgres_session.add(
+        JournalEntryLine(
+            organization_id=organization_id,
+            journal_entry_id=posted_entry_id,
+            account_id=debit_account_id,
+            line_number=3,
+            debit=Decimal("1.00"),
+            credit=Decimal("0.00"),
+        )
+    )
+    with pytest.raises(DBAPIError, match="immutable"):
+        await postgres_session.commit()
+    await postgres_session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_postgresql_restricts_application_role_ownership_and_create(
+    postgres_session: AsyncSession,
+) -> None:
+    result = await postgres_session.execute(
+        text(
+            "SELECT pg_get_userbyid(datdba), "
+            "has_database_privilege('fip_user', current_database(), 'CREATE'), "
+            "has_schema_privilege('fip_user', 'public', 'CREATE') "
+            "FROM pg_database WHERE datname = current_database()"
+        )
+    )
+    database_owner, database_create, schema_create = result.one()
+    assert database_owner == "fip_database_owner"
+    assert database_create is False
+    assert schema_create is False
+
+    membership_result = await postgres_session.execute(
+        text(
+            "SELECT EXISTS ("
+            "SELECT 1 FROM pg_auth_members AS membership "
+            "JOIN pg_roles AS member ON member.oid = membership.member "
+            "JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid "
+            "WHERE member.rolname = 'fip_user' "
+            "AND granted_role.rolname IN "
+            "('fip_database_owner', 'fip_accounting_owner'))"
+        )
+    )
+    assert membership_result.scalar_one() is False
+
+
+@pytest.mark.asyncio
 async def test_postgresql_rejects_cross_tenant_accounting_references(
     postgres_session: AsyncSession,
 ) -> None:
