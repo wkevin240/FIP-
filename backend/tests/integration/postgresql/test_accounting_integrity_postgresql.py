@@ -676,3 +676,48 @@ async def test_postgresql_professional_reporting_mapping_preserves_acl_and_tenan
         )
         await postgres_session.commit()
     await postgres_session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_postgresql_cash_flow_mapping_preserves_acl_and_tenant_scope(
+    postgres_session: AsyncSession,
+) -> None:
+    _, _, debit_account, _ = await _create_context(postgres_session)
+    other_organization = Organization(name=f"Other cash-flow tenant {uuid4().hex[:12]}")
+    postgres_session.add(other_organization)
+    await postgres_session.commit()
+
+    owner_result = await postgres_session.execute(
+        text(
+            "SELECT tableowner FROM pg_tables "
+            "WHERE schemaname = 'public' "
+            "AND tablename = 'cash_flow_account_mappings'"
+        )
+    )
+    assert owner_result.scalar_one() == "fip_accounting_owner"
+    privilege_result = await postgres_session.execute(
+        text(
+            "SELECT has_table_privilege("
+            "'fip_user', 'public.cash_flow_account_mappings', "
+            "'SELECT,INSERT,UPDATE,DELETE')"
+        )
+    )
+    assert privilege_result.scalar_one() is True
+
+    with pytest.raises(DBAPIError):
+        await postgres_session.execute(
+            text(
+                "INSERT INTO public.cash_flow_account_mappings "
+                "(id, organization_id, account_id, is_cash_account, "
+                "cash_flow_category, is_active, created_at, updated_at) "
+                "VALUES (:id, :organization_id, :account_id, true, NULL, "
+                "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ),
+            {
+                "id": str(uuid4()),
+                "organization_id": other_organization.id,
+                "account_id": debit_account.id,
+            },
+        )
+        await postgres_session.commit()
+    await postgres_session.rollback()

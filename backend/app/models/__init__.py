@@ -3,6 +3,7 @@
 from app.models.accounting.account import Account
 from app.models.accounting.bank_reconciliation import BankReconciliation
 from app.models.accounting.bank_transaction import BankTransaction
+from app.models.accounting.cash_flow_account_mapping import CashFlowAccountMapping
 from app.models.accounting.closing import PeriodClosing
 from app.models.accounting.financial_statement_mapping import FinancialStatementMapping
 from app.models.accounting.fiscal_period import FiscalPeriod
@@ -57,6 +58,7 @@ __all__ = [
     "AuditSequence",
     "BankReconciliation",
     "BankTransaction",
+    "CashFlowAccountMapping",
     "CreditNote",
     "DepreciationPlan",
     "DepreciationScheduleLine",
