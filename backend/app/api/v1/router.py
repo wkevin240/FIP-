@@ -4,6 +4,7 @@ from app.api.v1.accounting.accounts import router as accounts_router
 from app.api.v1.accounting.bank_reconciliation import (
     router as bank_reconciliation_router,
 )
+from app.api.v1.accounting.cash_flow import router as cash_flow_router
 from app.api.v1.accounting.closing import router as closing_router
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
@@ -45,6 +46,11 @@ api_router.include_router(
     bank_reconciliation_router,
     prefix="/accounting/bank-reconciliation",
     tags=["Accounting - Bank Reconciliation"],
+)
+api_router.include_router(
+    cash_flow_router,
+    prefix="/accounting/cash-flow",
+    tags=["Accounting - Cash Flow"],
 )
 api_router.include_router(
     fiscal_years_router,

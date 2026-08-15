@@ -64,6 +64,7 @@ L’API expose alors les ressources suivantes :
 | Prévisualisation et clôture de période | `/api/v1/accounting/period-closings` |
 | Bilan, compte de résultat, balance, grand livre et comparatifs | `/api/v1/accounting/reports` |
 | Mapping SYSCOHADA, balance professionnelle, états, réconciliation et export CSV | `/api/v1/accounting/professional-reports` |
+| Tableau de flux de trésorerie comptable | `/api/v1/accounting/cash-flow` |
 | Rapprochement bancaire | `/api/v1/accounting/bank-reconciliation` |
 | Gestion TVA | `/api/v1/accounting/vat` |
 | Produits Inventaire | `/api/v1/inventory/products` |
@@ -114,6 +115,12 @@ Le compte de résultat est disponible via `GET /api/v1/accounting/reports/income
 Le socle professionnel sous `/api/v1/accounting/professional-reports` ajoute une balance générale par soldes d’ouverture, mouvements et clôture, un mapping de présentation tenant-scopé du référentiel `SYSCOHADA`, des états groupés, une réconciliation de lecture et un export CSV audité. Tous les calculs reposent exclusivement sur les écritures `POSTED` et utilisent `Decimal` ; les soldes d’ouverture, les mouvements et les soldes de clôture sont chacun contrôlés à l’égalité **débit = crédit**.
 
 La création d’un mapping exige un compte actif de la même organisation et la permission `professional_reporting:configure`. PostgreSQL impose la référence tenant-scopée au compte par clé étrangère composite. La lecture, la réconciliation et l’export exigent `professional_reporting:read`; la configuration et l’export produisent des événements dans le journal Audit. La documentation détaillée, les invariants et les limites du périmètre sont disponibles dans [`docs/accounting_professional_reporting_ohada.md`](docs/accounting_professional_reporting_ohada.md).
+
+## Tableau de flux de trésorerie comptable
+
+Le tableau de flux disponible sous `/api/v1/accounting/cash-flow/statement` classe les mouvements de comptes de trésorerie configurés en exploitation, investissement ou financement. Il reconstruit le solde de clôture à partir du solde d’ouverture et des flux comptabilisés, exclusivement en `Decimal` et à partir d’écritures `POSTED`. Une contrepartie non configurée reste explicitement `UNCLASSIFIED` : l’état peut alors être réconcilié tout en étant signalé incomplet, plutôt que de classer arbitrairement l’opération.
+
+La configuration tenant-scopée sous `/api/v1/accounting/cash-flow/mappings` impose un compte de trésorerie actif de type `ASSET`, ou une catégorie de flux valide. Les mappings utilisent une clé étrangère composite `organization_id`–`account_id` et produisent un événement Audit corrélé. Les permissions `cash_flow:configure` et `cash_flow:read` séparent le paramétrage de la consultation. Consultez [`docs/accounting_cash_flow_statement.md`](docs/accounting_cash_flow_statement.md) pour la méthode et les limites explicites.
 
 ## Rapprochement bancaire
 
@@ -216,4 +223,4 @@ Pour les changements de schéma, ajoutez une migration Alembic versionnée et te
 
 ## Roadmap technique
 
-La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. La prochaine priorité métier est le durcissement du moteur Accounting : contre-passations contrôlées, corrections et immutabilité des écritures `POSTED`, balance générale, grand livre et soldes comparatifs. Suivront les rapprochements partiels/groupés, les imports bancaires normalisés, l’extension des états OHADA/SYSCOHADA (flux de trésorerie, notes annexes et liasse), la validation PostgreSQL complète et le durcissement sécurité/production avant tout pipeline de déploiement. Chaque évolution sera ajoutée progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
+La prochaine priorité est de compléter les verticaux livrés par les annulations d’écritures, les soldes comparatifs, les rapprochements partiels et les imports de relevés au format bancaire. La prochaine priorité métier est le durcissement du moteur Accounting : contre-passations contrôlées, corrections et immutabilité des écritures `POSTED`, balance générale, grand livre et soldes comparatifs. Suivront les rapprochements partiels/groupés, les imports bancaires normalisés, l’extension des états OHADA/SYSCOHADA (notes annexes et liasse), la validation PostgreSQL complète et le durcissement sécurité/production avant tout pipeline de déploiement. Chaque évolution sera ajoutée progressivement avec sa migration, ses règles métier, ses tests et sa demande de fusion dédiée. Les évolutions Paie comprendront ensuite l’approbation et l’application des corrections, les exports de bulletins et les déclarations réglementaires paramétrables. Les évolutions Inventaire et Facturation comprendront les écritures comptables automatiques, la gestion des lots, les numéros de série, les factures électroniques et les intégrations de paiement.
