@@ -12,6 +12,9 @@ from app.schemas.accounting.professional_reporting import (
 from app.services.accounting.financial_statement_mapping_service import (
     FinancialStatementMappingService,
 )
+from app.services.accounting.regulatory_reporting_export_service import (
+    RegulatoryReportingExportService,
+)
 from app.services.accounting.reporting_service import ReportingService
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +32,12 @@ async def get_mapping_service(
     session: AsyncSession = Depends(get_db),
 ) -> FinancialStatementMappingService:
     return FinancialStatementMappingService(session)
+
+
+async def get_regulatory_export_service(
+    session: AsyncSession = Depends(get_db),
+) -> RegulatoryReportingExportService:
+    return RegulatoryReportingExportService(session)
 
 
 @router.post(
@@ -84,6 +93,27 @@ async def export_professional_trial_balance(
         headers={
             "Content-Disposition": (
                 "attachment; filename=professional-trial-balance.csv"
+            )
+        },
+    )
+
+
+@router.get("/exports/syscohada-package.json", response_class=Response)
+async def export_syscohada_package(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    service: RegulatoryReportingExportService = Depends(get_regulatory_export_service),
+    tenant: CurrentTenant = Depends(require_permission("professional_reporting:read")),
+) -> Response:
+    content = await service.export_syscohada_package(
+        tenant.organization_id, tenant.user_id, start_date, end_date
+    )
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                "attachment; filename=syscohada-reporting-package.json"
             )
         },
     )

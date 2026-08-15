@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -19,6 +20,9 @@ from app.services.accounting.financial_statement_mapping_service import (
 )
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from app.services.accounting.regulatory_reporting_export_service import (
+    RegulatoryReportingExportService,
+)
 from app.services.accounting.reporting_service import ReportingService
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -291,6 +295,25 @@ async def test_professional_reporting_reconciles_trial_balance_statements_and_au
     )
     assert export_event is not None
 
+    package_content = await RegulatoryReportingExportService(
+        db_session
+    ).export_syscohada_package(
+        organization.id, "reporting-user", date(2026, 1, 15), date(2026, 1, 31)
+    )
+    package = json.loads(package_content)
+    assert package["schema_version"] == "1.0"
+    assert package["framework"] == "SYSCOHADA"
+    assert package["controls"]["is_consistent"] is True
+    assert package["balance_sheet"]["total_assets"] == "1300.00"
+    assert package["income_statement"]["net_result"] == "300.00"
+    package_event = await db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.organization_id == organization.id,
+            AuditEvent.action == "SYSCOHADA_REPORTING_PACKAGE_EXPORTED",
+        )
+    )
+    assert package_event is not None
+
 
 @pytest.mark.asyncio
 async def test_professional_mapping_rejects_cross_tenant_and_incompatible_role(
@@ -357,3 +380,16 @@ async def test_reconciliation_rejects_incomplete_professional_balance_sheet_mapp
     assert reconciliation.professional_balance_sheet_is_complete is False
     assert reconciliation.unmapped_balance_sheet_account_codes == ["101000", "571000"]
     assert reconciliation.is_consistent is False
+
+    with pytest.raises(HTTPException) as export_error:
+        await RegulatoryReportingExportService(db_session).export_syscohada_package(
+            organization.id, "reporting-user", date(2026, 1, 1), date(2026, 1, 31)
+        )
+    assert export_error.value.status_code == 422
+    export_event = await db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.organization_id == organization.id,
+            AuditEvent.action == "SYSCOHADA_REPORTING_PACKAGE_EXPORTED",
+        )
+    )
+    assert export_event is None
