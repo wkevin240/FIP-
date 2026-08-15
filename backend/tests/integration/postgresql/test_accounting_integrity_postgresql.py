@@ -11,6 +11,7 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.models.accounting.vat_declaration import VATDeclaration
 from app.models.audit.audit_event import AuditEvent
 from app.models.organization import Organization
 from app.models.user import User
@@ -817,6 +818,27 @@ async def test_postgresql_serializes_concurrent_cash_flow_mapping_creation(
         )
     )
     assert len(audit_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_vat_declaration_table_preserves_owner_and_acl(
+    postgres_session: AsyncSession,
+) -> None:
+    table_name = VATDeclaration.__tablename__
+    result = await postgres_session.execute(
+        text(
+            "SELECT pg_get_userbyid(c.relowner), "
+            "has_table_privilege('fip_user', 'public.vat_declarations', 'SELECT'), "
+            "has_table_privilege('fip_user', 'public.vat_declarations', 'INSERT'), "
+            "has_table_privilege('fip_user', 'public.vat_declarations', 'UPDATE'), "
+            "has_table_privilege('fip_user', 'public.vat_declarations', 'DELETE') "
+            "FROM pg_class c WHERE c.relname = :table_name"
+        ),
+        {"table_name": table_name},
+    )
+    owner, can_select, can_insert, can_update, can_delete = result.one()
+    assert owner == "fip_accounting_owner"
+    assert (can_select, can_insert, can_update, can_delete) == (True, True, True, True)
 
 
 @pytest.mark.asyncio

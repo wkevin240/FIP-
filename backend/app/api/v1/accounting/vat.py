@@ -5,6 +5,8 @@ from app.db.session import get_db
 from app.schemas.accounting.vat import (
     VATCalculationRequest,
     VATCalculationResponse,
+    VATDeclarationCreate,
+    VATDeclarationResponse,
     VATEntryCreate,
     VATEntryResponse,
     VATRateCreate,
@@ -12,8 +14,9 @@ from app.schemas.accounting.vat import (
     VATRateUpdate,
     VATSummaryResponse,
 )
+from app.services.accounting.vat_declaration_service import VATDeclarationService
 from app.services.accounting.vat_service import VATService
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -21,6 +24,12 @@ router = APIRouter()
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> VATService:
     return VATService(session)
+
+
+async def get_declaration_service(
+    session: AsyncSession = Depends(get_db),
+) -> VATDeclarationService:
+    return VATDeclarationService(session)
 
 
 @router.post(
@@ -70,6 +79,54 @@ async def create_vat_entry(
     tenant: CurrentTenant = Depends(require_permission("vat:create")),
 ) -> VATEntryResponse:
     return await service.create_entry(tenant.organization_id, data)
+
+
+@router.post(
+    "/declarations",
+    response_model=VATDeclarationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_vat_declaration(
+    data: VATDeclarationCreate,
+    service: VATDeclarationService = Depends(get_declaration_service),
+    tenant: CurrentTenant = Depends(require_permission("vat:create")),
+) -> VATDeclarationResponse:
+    return await service.create(tenant.organization_id, tenant.user_id, data)
+
+
+@router.get("/declarations", response_model=list[VATDeclarationResponse])
+async def list_vat_declarations(
+    service: VATDeclarationService = Depends(get_declaration_service),
+    tenant: CurrentTenant = Depends(require_permission("vat:read")),
+) -> list[VATDeclarationResponse]:
+    return await service.list(tenant.organization_id)
+
+
+@router.post(
+    "/declarations/{declaration_id}/submit", response_model=VATDeclarationResponse
+)
+async def submit_vat_declaration(
+    declaration_id: str,
+    service: VATDeclarationService = Depends(get_declaration_service),
+    tenant: CurrentTenant = Depends(require_permission("vat:update")),
+) -> VATDeclarationResponse:
+    return await service.submit(tenant.organization_id, declaration_id, tenant.user_id)
+
+
+@router.get("/declarations/{declaration_id}/export.json", response_class=Response)
+async def export_vat_declaration(
+    declaration_id: str,
+    service: VATDeclarationService = Depends(get_declaration_service),
+    tenant: CurrentTenant = Depends(require_permission("vat:read")),
+) -> Response:
+    content = await service.export_json(
+        tenant.organization_id, declaration_id, tenant.user_id
+    )
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=vat-declaration.json"},
+    )
 
 
 @router.get("/declaration", response_model=VATSummaryResponse)
