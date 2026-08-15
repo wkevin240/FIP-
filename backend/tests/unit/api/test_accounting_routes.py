@@ -26,6 +26,10 @@ def test_journal_and_entry_routes_are_published() -> None:
         "/api/v1/accounting/professional-reports/statements/{statement_code}" in paths
     )
     assert "/api/v1/accounting/professional-reports/reconciliation" in paths
+    assert (
+        "/api/v1/accounting/professional-reports/exports/syscohada-package.json"
+        in paths
+    )
     assert "/api/v1/accounting/cash-flow/mappings" in paths
     assert "/api/v1/accounting/cash-flow/statement" in paths
     assert "/api/v1/accounting/bank-reconciliation/transactions" in paths
@@ -71,6 +75,12 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "post" in paths["/api/v1/accounting/journals/"]
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
     assert "post" in paths["/api/v1/accounting/professional-reports/mappings"]
+    assert (
+        "get"
+        in paths[
+            "/api/v1/accounting/professional-reports/exports/syscohada-package.json"
+        ]
+    )
     assert "post" in paths["/api/v1/accounting/cash-flow/mappings"]
     assert (
         "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/reverse"]
