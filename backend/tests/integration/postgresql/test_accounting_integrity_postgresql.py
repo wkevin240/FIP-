@@ -629,3 +629,50 @@ async def test_postgresql_serializes_two_concurrent_reversals(
     results = await asyncio.gather(reverse_once(1), reverse_once(2))
     assert results.count("reversed") == 1
     assert results.count("422") == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_professional_reporting_mapping_preserves_acl_and_tenant_scope(
+    postgres_session: AsyncSession,
+) -> None:
+    _, _, debit_account, _ = await _create_context(postgres_session)
+    other_organization = Organization(name=f"Other mapping tenant {uuid4().hex[:12]}")
+    postgres_session.add(other_organization)
+    await postgres_session.commit()
+
+    owner_result = await postgres_session.execute(
+        text(
+            "SELECT tableowner FROM pg_tables "
+            "WHERE schemaname = 'public' "
+            "AND tablename = 'financial_statement_mappings'"
+        )
+    )
+    assert owner_result.scalar_one() == "fip_accounting_owner"
+    privilege_result = await postgres_session.execute(
+        text(
+            "SELECT has_table_privilege("
+            "'fip_user', 'public.financial_statement_mappings', "
+            "'SELECT,INSERT,UPDATE,DELETE')"
+        )
+    )
+    assert privilege_result.scalar_one() is True
+
+    with pytest.raises(DBAPIError):
+        await postgres_session.execute(
+            text(
+                "INSERT INTO public.financial_statement_mappings "
+                "(id, organization_id, account_id, framework, statement_code, "
+                "presentation_role, section_code, section_label, line_code, "
+                "line_label, display_order, is_active, created_at, updated_at) "
+                "VALUES (:id, :organization_id, :account_id, 'SYSCOHADA', "
+                "'BALANCE_SHEET', 'ASSETS', 'ASSETS', 'Assets', 'BA-CASH', "
+                "'Cash', 0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ),
+            {
+                "id": str(uuid4()),
+                "organization_id": other_organization.id,
+                "account_id": debit_account.id,
+            },
+        )
+        await postgres_session.commit()
+    await postgres_session.rollback()

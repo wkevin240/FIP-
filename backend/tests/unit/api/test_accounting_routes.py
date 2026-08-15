@@ -19,6 +19,13 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/accounting/reports/trial-balance" in paths
     assert "/api/v1/accounting/reports/general-ledger/{account_id}" in paths
     assert "/api/v1/accounting/reports/comparative-balance" in paths
+    assert "/api/v1/accounting/professional-reports/mappings" in paths
+    assert "/api/v1/accounting/professional-reports/trial-balance" in paths
+    assert "/api/v1/accounting/professional-reports/trial-balance/export.csv" in paths
+    assert (
+        "/api/v1/accounting/professional-reports/statements/{statement_code}" in paths
+    )
+    assert "/api/v1/accounting/professional-reports/reconciliation" in paths
     assert "/api/v1/accounting/bank-reconciliation/transactions" in paths
     assert (
         "/api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/candidates"
@@ -61,6 +68,7 @@ def test_journal_and_entry_routes_are_published() -> None:
     )
     assert "post" in paths["/api/v1/accounting/journals/"]
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
+    assert "post" in paths["/api/v1/accounting/professional-reports/mappings"]
     assert (
         "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/reverse"]
     )
