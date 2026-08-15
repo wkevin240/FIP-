@@ -21,6 +21,7 @@ from app.schemas.accounting.journal_entry import (
     JournalEntryReversalCreate,
 )
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
+from app.schemas.accounting.syscohada_liasse import LiasseReadinessStatus
 from app.services.accounting.cash_flow_configuration_service import (
     CashFlowConfigurationService,
 )
@@ -28,6 +29,7 @@ from app.services.accounting.cash_flow_service import CashFlowService
 from app.services.accounting.closing_service import ClosingService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from app.services.accounting.syscohada_liasse_service import SyscohadaLiasseService
 from fastapi import HTTPException
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -815,3 +817,28 @@ async def test_postgresql_serializes_concurrent_cash_flow_mapping_creation(
         )
     )
     assert len(audit_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_liasse_remains_not_ready_when_only_another_tenant_has_entries(
+    postgres_session: AsyncSession,
+) -> None:
+    organization_a, _, _, _ = await _create_context(postgres_session)
+    organization_b, period_b, debit_account_b, credit_account_b = await _create_context(
+        postgres_session
+    )
+    await _create_posted_entry(
+        postgres_session,
+        organization_b,
+        period_b,
+        debit_account_b,
+        credit_account_b,
+    )
+
+    liasse = await SyscohadaLiasseService(postgres_session).get_liasse(
+        organization_a.id, date(2026, 1, 1), date(2026, 1, 31)
+    )
+
+    assert liasse.readiness.status == LiasseReadinessStatus.NOT_READY
+    assert liasse.readiness.posted_entry_count == 0
+    assert liasse.professional_trial_balance is None
