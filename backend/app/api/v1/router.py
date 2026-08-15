@@ -14,6 +14,7 @@ from app.api.v1.accounting.professional_reporting import (
     router as professional_reporting_router,
 )
 from app.api.v1.accounting.reporting import router as reporting_router
+from app.api.v1.accounting.syscohada_liasse import router as syscohada_liasse_router
 from app.api.v1.accounting.vat import router as vat_router
 from app.api.v1.audit.events import router as audit_events_router
 from app.api.v1.fixed_assets.assets import router as fixed_assets_router
@@ -79,6 +80,11 @@ api_router.include_router(
     professional_reporting_router,
     prefix="/accounting/professional-reports",
     tags=["Accounting - Professional Reporting"],
+)
+api_router.include_router(
+    syscohada_liasse_router,
+    prefix="/accounting/syscohada-liasse",
+    tags=["Accounting - SYSCOHADA Liasse"],
 )
 api_router.include_router(
     vat_router, prefix="/accounting/vat", tags=["Accounting - VAT"]
