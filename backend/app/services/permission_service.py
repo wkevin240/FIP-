@@ -59,6 +59,8 @@ class PermissionService:
                 "invoice:read",
                 "invoice:update",
                 "invoice:issue",
+                "invoice:post",
+                "invoice:accounting:configure",
                 "credit_note:create",
                 "credit_note:read",
                 "payment:create",

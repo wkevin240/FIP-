@@ -28,6 +28,10 @@ from app.models.inventory.product import Product
 from app.models.inventory.stock_balance import StockBalance
 from app.models.inventory.stock_movement import StockMovement
 from app.models.inventory.warehouse import Warehouse
+from app.models.invoicing.accounting import (
+    InvoiceAccountingPosting,
+    InvoiceAccountingProfile,
+)
 from app.models.invoicing.credit_note import CreditNote
 from app.models.invoicing.invoice import Invoice
 from app.models.invoicing.invoice_line import InvoiceLine
@@ -75,6 +79,8 @@ __all__ = [
     "FixedAssetComponent",
     "FixedAssetDisposal",
     "Invoice",
+    "InvoiceAccountingPosting",
+    "InvoiceAccountingProfile",
     "InvoiceLine",
     "Journal",
     "JournalEntry",

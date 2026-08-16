@@ -24,6 +24,9 @@ class Invoice(Base):
         UniqueConstraint(
             "organization_id", "invoice_number", name="uq_invoice_organization_number"
         ),
+        UniqueConstraint(
+            "organization_id", "id", name="uq_invoices_organization_id_id"
+        ),
         CheckConstraint("subtotal >= 0", name="ck_invoice_subtotal_non_negative"),
         CheckConstraint("tax_amount >= 0", name="ck_invoice_tax_non_negative"),
         CheckConstraint("total_amount >= 0", name="ck_invoice_total_non_negative"),
@@ -77,6 +80,12 @@ class Invoice(Base):
     )
     payments = relationship("Payment", back_populates="invoice")
     credit_notes = relationship("CreditNote", back_populates="invoice")
+    accounting_posting = relationship(
+        "InvoiceAccountingPosting",
+        back_populates="invoice",
+        uselist=False,
+        foreign_keys="InvoiceAccountingPosting.source_id",
+    )
 
     @property
     def outstanding_amount(self) -> Decimal:

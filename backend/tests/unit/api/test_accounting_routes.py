@@ -56,6 +56,8 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/inventory/stock/transfers" in paths
     assert "/api/v1/invoicing/invoices/" in paths
     assert "/api/v1/invoicing/invoices/{invoice_id}/issue" in paths
+    assert "/api/v1/invoicing/invoices/accounting-profile" in paths
+    assert "/api/v1/invoicing/invoices/{invoice_id}/post-accounting" in paths
     assert "/api/v1/invoicing/credit-notes/" in paths
     assert "/api/v1/invoicing/payments/" in paths
     assert "/api/v1/payroll/employees/" in paths
@@ -119,6 +121,9 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "post" in paths["/api/v1/inventory/stock/receipts"]
     assert "post" in paths["/api/v1/invoicing/invoices/"]
     assert "post" in paths["/api/v1/invoicing/invoices/{invoice_id}/issue"]
+    assert "get" in paths["/api/v1/invoicing/invoices/accounting-profile"]
+    assert "post" in paths["/api/v1/invoicing/invoices/accounting-profile"]
+    assert "post" in paths["/api/v1/invoicing/invoices/{invoice_id}/post-accounting"]
     assert "post" in paths["/api/v1/invoicing/payments/"]
     assert "post" in paths["/api/v1/payroll/employees/"]
     assert "post" in paths["/api/v1/fixed-assets/configuration/categories"]
