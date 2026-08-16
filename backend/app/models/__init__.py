@@ -24,6 +24,10 @@ from app.models.fixed_assets import (
     FixedAssetComponent,
     FixedAssetDisposal,
 )
+from app.models.inventory.accounting import (
+    InventoryAccountingPosting,
+    InventoryAccountingProfile,
+)
 from app.models.inventory.product import Product
 from app.models.inventory.stock_balance import StockBalance
 from app.models.inventory.stock_movement import StockMovement
@@ -78,6 +82,8 @@ __all__ = [
     "FixedAssetCategory",
     "FixedAssetComponent",
     "FixedAssetDisposal",
+    "InventoryAccountingPosting",
+    "InventoryAccountingProfile",
     "Invoice",
     "InvoiceAccountingPosting",
     "InvoiceAccountingProfile",

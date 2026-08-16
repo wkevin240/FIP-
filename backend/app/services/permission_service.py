@@ -54,6 +54,7 @@ class PermissionService:
                 "inventory_stock:issue",
                 "inventory_stock:adjust",
                 "inventory_stock:transfer",
+                "inventory_stock:accounting:configure",
                 "inventory_stock:read",
                 "invoice:create",
                 "invoice:read",

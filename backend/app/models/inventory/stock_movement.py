@@ -5,6 +5,7 @@ from sqlalchemy import (
     ForeignKey,
     Numeric,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -16,6 +17,9 @@ class StockMovement(Base):
 
     __tablename__ = "stock_movements"
     __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_stock_movements_organization_id_id"
+        ),
         CheckConstraint("quantity > 0", name="ck_stock_movement_quantity_positive"),
         CheckConstraint(
             "unit_cost >= 0", name="ck_stock_movement_unit_cost_non_negative"

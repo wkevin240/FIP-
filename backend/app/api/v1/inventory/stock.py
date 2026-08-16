@@ -2,6 +2,10 @@ from datetime import date
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
+from app.schemas.inventory.accounting import (
+    InventoryAccountingProfileCreate,
+    InventoryAccountingProfileResponse,
+)
 from app.schemas.inventory.stock import (
     StockAdjustmentCreate,
     StockBalanceResponse,
@@ -10,6 +14,9 @@ from app.schemas.inventory.stock import (
     StockReceiptCreate,
     StockTransferCreate,
     StockTransferResponse,
+)
+from app.services.inventory.inventory_accounting_service import (
+    InventoryAccountingService,
 )
 from app.services.inventory.stock_service import StockService
 from fastapi import APIRouter, Depends, Query, status
@@ -22,6 +29,35 @@ async def get_service(session: AsyncSession = Depends(get_db)) -> StockService:
     return StockService(session)
 
 
+async def get_accounting_service(
+    session: AsyncSession = Depends(get_db),
+) -> InventoryAccountingService:
+    return InventoryAccountingService(session)
+
+
+@router.get("/accounting-profile", response_model=InventoryAccountingProfileResponse)
+async def get_inventory_accounting_profile(
+    service: InventoryAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("inventory_stock:read")),
+) -> InventoryAccountingProfileResponse:
+    return await service.get_profile(tenant.organization_id)
+
+
+@router.post(
+    "/accounting-profile",
+    response_model=InventoryAccountingProfileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def configure_inventory_accounting_profile(
+    data: InventoryAccountingProfileCreate,
+    service: InventoryAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("inventory_stock:accounting:configure")
+    ),
+) -> InventoryAccountingProfileResponse:
+    return await service.configure_profile(tenant.organization_id, tenant.user_id, data)
+
+
 @router.post(
     "/receipts",
     response_model=StockMovementResponse,
@@ -32,7 +68,7 @@ async def record_stock_receipt(
     service: StockService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("inventory_stock:receive")),
 ) -> StockMovementResponse:
-    return await service.record_receipt(tenant.organization_id, data)
+    return await service.record_receipt(tenant.organization_id, data, tenant.user_id)
 
 
 @router.post(
@@ -43,7 +79,7 @@ async def record_stock_issue(
     service: StockService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("inventory_stock:issue")),
 ) -> StockMovementResponse:
-    return await service.record_issue(tenant.organization_id, data)
+    return await service.record_issue(tenant.organization_id, data, tenant.user_id)
 
 
 @router.post(
@@ -56,7 +92,7 @@ async def record_stock_adjustment(
     service: StockService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("inventory_stock:adjust")),
 ) -> StockMovementResponse:
-    return await service.record_adjustment(tenant.organization_id, data)
+    return await service.record_adjustment(tenant.organization_id, data, tenant.user_id)
 
 
 @router.post(
