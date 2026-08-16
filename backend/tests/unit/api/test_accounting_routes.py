@@ -38,6 +38,8 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/accounting/syscohada-liasse/export.json" in paths
     assert "/api/v1/accounting/cash-flow/statement" in paths
     assert "/api/v1/accounting/bank-reconciliation/transactions" in paths
+    assert "/api/v1/accounting/bank-reconciliation/automatic/preview" in paths
+    assert "/api/v1/accounting/bank-reconciliation/automatic/apply" in paths
     assert (
         "/api/v1/accounting/bank-reconciliation/transactions/{transaction_id}/candidates"
         in paths
@@ -78,6 +80,8 @@ def test_journal_and_entry_routes_are_published() -> None:
         in paths
     )
     assert "post" in paths["/api/v1/accounting/vat/rates"]
+    assert "post" in paths["/api/v1/accounting/bank-reconciliation/automatic/preview"]
+    assert "post" in paths["/api/v1/accounting/bank-reconciliation/automatic/apply"]
     assert "post" in paths["/api/v1/accounting/vat/declarations"]
     assert "get" in paths["/api/v1/accounting/vat/declarations"]
     assert (

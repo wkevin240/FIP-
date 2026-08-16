@@ -1,11 +1,17 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.schemas.accounting.bank_reconciliation import (
+    AutomaticReconciliationApplyResponse,
+    AutomaticReconciliationPreviewResponse,
+    AutomaticReconciliationRequest,
     BankReconciliationResponse,
     BankTransactionCreate,
     BankTransactionResponse,
     ReconcileBankTransactionRequest,
     ReconciliationCandidate,
+)
+from app.services.accounting.automatic_bank_reconciliation_service import (
+    AutomaticBankReconciliationService,
 )
 from app.services.accounting.bank_reconciliation_service import (
     BankReconciliationService,
@@ -20,6 +26,12 @@ async def get_service(
     session: AsyncSession = Depends(get_db),
 ) -> BankReconciliationService:
     return BankReconciliationService(session)
+
+
+async def get_automatic_service(
+    session: AsyncSession = Depends(get_db),
+) -> AutomaticBankReconciliationService:
+    return AutomaticBankReconciliationService(session)
 
 
 @router.post(
@@ -45,6 +57,30 @@ async def list_bank_transactions(
     return await service.list_transactions(
         tenant.organization_id, bank_account_id, reconciled
     )
+
+
+@router.post(
+    "/automatic/preview",
+    response_model=AutomaticReconciliationPreviewResponse,
+)
+async def preview_automatic_reconciliation(
+    data: AutomaticReconciliationRequest,
+    service: AutomaticBankReconciliationService = Depends(get_automatic_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_reconciliation:read")),
+) -> AutomaticReconciliationPreviewResponse:
+    return await service.preview(tenant.organization_id, data)
+
+
+@router.post(
+    "/automatic/apply",
+    response_model=AutomaticReconciliationApplyResponse,
+)
+async def apply_automatic_reconciliation(
+    data: AutomaticReconciliationRequest,
+    service: AutomaticBankReconciliationService = Depends(get_automatic_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_reconciliation:match")),
+) -> AutomaticReconciliationApplyResponse:
+    return await service.apply(tenant.organization_id, tenant.user_id, data)
 
 
 @router.get(

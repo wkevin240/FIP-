@@ -51,3 +51,28 @@ class BankReconciliationResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AutomaticReconciliationRequest(BaseModel):
+    bank_account_id: str
+    date_window_days: int = Field(default=7, ge=0, le=90)
+
+
+class AutomaticReconciliationSuggestion(BaseModel):
+    bank_transaction_id: str
+    external_id: str
+    status: str
+    candidate: ReconciliationCandidate | None = None
+    reason: str | None = None
+
+
+class AutomaticReconciliationPreviewResponse(BaseModel):
+    bank_account_id: str
+    date_window_days: int
+    suggestions: list[AutomaticReconciliationSuggestion]
+
+
+class AutomaticReconciliationApplyResponse(BaseModel):
+    bank_account_id: str
+    reconciliations: list[BankReconciliationResponse]
+    suggestions: list[AutomaticReconciliationSuggestion]
