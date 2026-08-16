@@ -71,3 +71,23 @@ class VATSummaryResponse(BaseModel):
     total_output_vat: Decimal
     total_input_vat: Decimal
     net_vat_payable: Decimal
+
+
+class VATDeclarationCreate(BaseModel):
+    fiscal_period_id: str
+
+
+class VATDeclarationResponse(BaseModel):
+    id: str
+    organization_id: str
+    fiscal_period_id: str
+    status: str
+    total_output_vat: Decimal
+    total_input_vat: Decimal
+    net_vat_payable: Decimal
+    submitted_at: datetime | None
+    submitted_by_user_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

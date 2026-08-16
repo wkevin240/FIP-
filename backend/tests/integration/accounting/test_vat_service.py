@@ -6,15 +6,23 @@ from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus, VATD
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
+from app.models.audit.audit_event import AuditEvent
 from app.models.organization import Organization
 from app.schemas.accounting.journal import JournalCreate
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
-from app.schemas.accounting.vat import VATEntryCreate, VATRateCreate, VATRateUpdate
+from app.schemas.accounting.vat import (
+    VATDeclarationCreate,
+    VATEntryCreate,
+    VATRateCreate,
+    VATRateUpdate,
+)
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from app.services.accounting.vat_declaration_service import VATDeclarationService
 from app.services.accounting.vat_service import VATService
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -309,3 +317,129 @@ async def test_updates_rate_with_valid_accounts_and_rejects_reversed_effective_d
             VATRateUpdate(effective_to=date(2025, 12, 31)),
         )
     assert invalid_dates.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_vat_declaration_uses_closed_period_real_entries_and_is_audited(
+    db_session: AsyncSession,
+) -> None:
+    organization, period, accounts, journal_id = await _create_vat_context(db_session)
+    vat_service = VATService(db_session)
+    rate = await vat_service.create_rate(
+        organization.id,
+        VATRateCreate(
+            code="TVA18",
+            name="Standard VAT",
+            rate=Decimal("18.00"),
+            effective_from=date(2026, 1, 1),
+            input_vat_account_id=accounts["input_vat"].id,
+            output_vat_account_id=accounts["output_vat"].id,
+        ),
+    )
+    sale_entry_id = await _create_posted_entry(
+        db_session,
+        organization.id,
+        period.id,
+        journal_id,
+        "OD-VAT-SALE",
+        [
+            JournalEntryLineCreate(
+                account_id=accounts["bank"].id, debit=Decimal("118.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["revenue"].id, credit=Decimal("100.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["output_vat"].id, credit=Decimal("18.00")
+            ),
+        ],
+    )
+    purchase_entry_id = await _create_posted_entry(
+        db_session,
+        organization.id,
+        period.id,
+        journal_id,
+        "OD-VAT-PURCHASE",
+        [
+            JournalEntryLineCreate(
+                account_id=accounts["expense"].id, debit=Decimal("100.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["input_vat"].id, debit=Decimal("18.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["bank"].id, credit=Decimal("118.00")
+            ),
+        ],
+    )
+    await vat_service.create_entry(
+        organization.id,
+        VATEntryCreate(
+            vat_rate_id=rate.id,
+            journal_entry_id=sale_entry_id,
+            tax_date=date(2026, 1, 15),
+            taxable_amount=Decimal("100.00"),
+            direction=VATDirection.OUTPUT,
+        ),
+    )
+    await vat_service.create_entry(
+        organization.id,
+        VATEntryCreate(
+            vat_rate_id=rate.id,
+            journal_entry_id=purchase_entry_id,
+            tax_date=date(2026, 1, 15),
+            taxable_amount=Decimal("100.00"),
+            direction=VATDirection.INPUT,
+        ),
+    )
+
+    declaration_service = VATDeclarationService(db_session)
+    with pytest.raises(HTTPException) as open_period_error:
+        await declaration_service.create(
+            organization.id,
+            "vat-test-user",
+            VATDeclarationCreate(fiscal_period_id=period.id),
+        )
+    assert open_period_error.value.status_code == 422
+
+    period.status = FiscalPeriodStatus.CLOSED
+    await db_session.commit()
+    declaration = await declaration_service.create(
+        organization.id,
+        "vat-test-user",
+        VATDeclarationCreate(fiscal_period_id=period.id),
+    )
+    assert declaration.status == "READY"
+    assert declaration.total_output_vat == Decimal("18.00")
+    assert declaration.total_input_vat == Decimal("18.00")
+    assert declaration.net_vat_payable == Decimal("0.00")
+
+    with pytest.raises(HTTPException) as duplicate_error:
+        await declaration_service.create(
+            organization.id,
+            "vat-test-user",
+            VATDeclarationCreate(fiscal_period_id=period.id),
+        )
+    assert duplicate_error.value.status_code == 409
+
+    submitted = await declaration_service.submit(
+        organization.id, declaration.id, "vat-test-user"
+    )
+    assert submitted.status == "SUBMITTED"
+    exported = await declaration_service.export_json(
+        organization.id, declaration.id, "vat-test-user"
+    )
+    assert '"net_vat_payable":"0.00"' in exported
+    actions = set(
+        await db_session.scalars(
+            select(AuditEvent.action).where(
+                AuditEvent.organization_id == organization.id,
+                AuditEvent.resource_id == declaration.id,
+            )
+        )
+    )
+    assert {
+        "VAT_DECLARATION_CREATED",
+        "VAT_DECLARATION_SUBMITTED",
+        "VAT_DECLARATION_EXPORTED",
+    }.issubset(actions)

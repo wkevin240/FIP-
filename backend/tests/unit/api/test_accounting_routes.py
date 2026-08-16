@@ -5,7 +5,10 @@ def test_journal_and_entry_routes_are_published() -> None:
     application = create_application()
     paths = application.openapi()["paths"]
 
-    assert "/api/v1/accounting/journals/" in paths
+    assert "/api/v1/accounting/vat/rates" in paths
+    assert "/api/v1/accounting/vat/declarations" in paths
+    assert "/api/v1/accounting/vat/declarations/{declaration_id}/submit" in paths
+    assert "/api/v1/accounting/vat/declarations/{declaration_id}/export.json" in paths
     assert "/api/v1/accounting/journal-entries/" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/post" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/reverse" in paths
@@ -74,7 +77,16 @@ def test_journal_and_entry_routes_are_published() -> None:
         "/api/v1/treasury/reconciliation/bank-accounts/{treasury_bank_account_id}/transactions/{transaction_id}/match"
         in paths
     )
-    assert "post" in paths["/api/v1/accounting/journals/"]
+    assert "post" in paths["/api/v1/accounting/vat/rates"]
+    assert "post" in paths["/api/v1/accounting/vat/declarations"]
+    assert "get" in paths["/api/v1/accounting/vat/declarations"]
+    assert (
+        "post" in paths["/api/v1/accounting/vat/declarations/{declaration_id}/submit"]
+    )
+    assert (
+        "get"
+        in paths["/api/v1/accounting/vat/declarations/{declaration_id}/export.json"]
+    )
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
     assert "post" in paths["/api/v1/accounting/professional-reports/mappings"]
     assert (
