@@ -9,7 +9,9 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/accounting/vat/declarations" in paths
     assert "/api/v1/accounting/vat/declarations/{declaration_id}/submit" in paths
     assert "/api/v1/accounting/vat/declarations/{declaration_id}/export.json" in paths
-    assert "/api/v1/accounting/journal-entries/" in paths
+    assert "/api/v1/accounting/fiscal-periods/" in paths
+    assert "/api/v1/accounting/fiscal-years/{id}/closing-preview" in paths
+    assert "/api/v1/accounting/fiscal-years/{id}/close" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/post" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/reverse" in paths
     assert "/api/v1/accounting/journal-entries/{journal_entry_id}/correct" in paths
@@ -92,6 +94,8 @@ def test_journal_and_entry_routes_are_published() -> None:
         in paths["/api/v1/accounting/vat/declarations/{declaration_id}/export.json"]
     )
     assert "post" in paths["/api/v1/accounting/journal-entries/{journal_entry_id}/post"]
+    assert "get" in paths["/api/v1/accounting/fiscal-years/{id}/closing-preview"]
+    assert "post" in paths["/api/v1/accounting/fiscal-years/{id}/close"]
     assert "post" in paths["/api/v1/accounting/professional-reports/mappings"]
     assert (
         "get"
