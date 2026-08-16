@@ -1,32 +1,42 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
+from app.models.audit.audit_event import AuditEvent
 from app.models.organization import Organization
 from app.models.user import User
-from app.schemas.accounting.bank_reconciliation import BankTransactionCreate
+from app.schemas.accounting.bank_reconciliation import (
+    AutomaticReconciliationRequest,
+    BankTransactionCreate,
+)
 from app.schemas.accounting.journal import JournalCreate
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
+from app.services.accounting.automatic_bank_reconciliation_service import (
+    AutomaticBankReconciliationService,
+)
 from app.services.accounting.bank_reconciliation_service import (
     BankReconciliationService,
 )
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def _create_reconciliation_context(
     session: AsyncSession,
 ) -> tuple[Organization, User, FiscalPeriod, dict[str, Account], str]:
-    organization = Organization(name="Bank reconciliation test organization")
+    suffix = uuid4().hex[:12]
+    organization = Organization(name=f"Bank reconciliation test organization {suffix}")
     user = User(
-        email="reconciler@example.test",
+        email=f"reconciler-{suffix}@example.test",
         hashed_password="not-used-by-test",
         is_active=True,
     )
@@ -275,3 +285,197 @@ async def test_mismatched_or_already_used_entry_is_rejected(
     with pytest.raises(HTTPException, match="already reconciled") as exc_info:
         await service.reconcile(organization.id, duplicate.id, entry_id, user.id)
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_automatic_reconciliation_applies_only_unique_exact_matches_and_audits(
+    db_session: AsyncSession,
+) -> None:
+    (
+        organization,
+        user,
+        period,
+        accounts,
+        journal_id,
+    ) = await _create_reconciliation_context(db_session)
+    exact_entry_id = await _create_posted_entry(
+        db_session,
+        organization.id,
+        period.id,
+        journal_id,
+        "BQ-AUTO-EXACT",
+        date(2026, 1, 10),
+        [
+            JournalEntryLineCreate(
+                account_id=accounts["bank"].id, debit=Decimal("500.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["revenue"].id, credit=Decimal("500.00")
+            ),
+        ],
+    )
+    for entry_number in ("BQ-AUTO-AMB-1", "BQ-AUTO-AMB-2"):
+        await _create_posted_entry(
+            db_session,
+            organization.id,
+            period.id,
+            journal_id,
+            entry_number,
+            date(2026, 1, 12),
+            [
+                JournalEntryLineCreate(
+                    account_id=accounts["bank"].id, debit=Decimal("300.00")
+                ),
+                JournalEntryLineCreate(
+                    account_id=accounts["revenue"].id, credit=Decimal("300.00")
+                ),
+            ],
+        )
+    manual_service = BankReconciliationService(db_session)
+    for external_id, amount, transaction_date in (
+        ("BANK-AUTO-EXACT", Decimal("500.00"), date(2026, 1, 11)),
+        ("BANK-AUTO-AMB", Decimal("300.00"), date(2026, 1, 12)),
+        ("BANK-AUTO-NONE", Decimal("200.00"), date(2026, 1, 12)),
+    ):
+        await manual_service.create_transaction(
+            organization.id,
+            BankTransactionCreate(
+                bank_account_id=accounts["bank"].id,
+                transaction_date=transaction_date,
+                amount=amount,
+                description=external_id,
+                external_id=external_id,
+            ),
+        )
+
+    automatic_service = AutomaticBankReconciliationService(db_session)
+    request = AutomaticReconciliationRequest(bank_account_id=accounts["bank"].id)
+    preview = await automatic_service.preview(organization.id, request)
+    statuses = {
+        suggestion.external_id: suggestion.status for suggestion in preview.suggestions
+    }
+    assert statuses == {
+        "BANK-AUTO-EXACT": "AUTO_ELIGIBLE",
+        "BANK-AUTO-AMB": "AMBIGUOUS",
+        "BANK-AUTO-NONE": "UNMATCHED",
+    }
+
+    applied = await automatic_service.apply(organization.id, user.id, request)
+    assert len(applied.reconciliations) == 1
+    assert applied.reconciliations[0].journal_entry_id == exact_entry_id
+    assert applied.reconciliations[0].match_method == "AUTO_EXACT"
+    audit_event = await db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.organization_id == organization.id,
+            AuditEvent.action == "BANK_TRANSACTION_RECONCILED",
+            AuditEvent.resource_id == applied.reconciliations[0].id,
+        )
+    )
+    assert audit_event is not None
+
+
+@pytest.mark.asyncio
+async def test_automatic_reconciliation_does_not_reuse_one_ledger_entry(
+    db_session: AsyncSession,
+) -> None:
+    (
+        organization,
+        user,
+        period,
+        accounts,
+        journal_id,
+    ) = await _create_reconciliation_context(db_session)
+    await _create_posted_entry(
+        db_session,
+        organization.id,
+        period.id,
+        journal_id,
+        "BQ-AUTO-ONE",
+        date(2026, 1, 15),
+        [
+            JournalEntryLineCreate(
+                account_id=accounts["bank"].id, debit=Decimal("120.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts["revenue"].id, credit=Decimal("120.00")
+            ),
+        ],
+    )
+    manual_service = BankReconciliationService(db_session)
+    for external_id in ("BANK-AUTO-FIRST", "BANK-AUTO-SECOND"):
+        await manual_service.create_transaction(
+            organization.id,
+            BankTransactionCreate(
+                bank_account_id=accounts["bank"].id,
+                transaction_date=date(2026, 1, 15),
+                amount=Decimal("120.00"),
+                description=external_id,
+                external_id=external_id,
+            ),
+        )
+
+    automatic_service = AutomaticBankReconciliationService(db_session)
+    request = AutomaticReconciliationRequest(bank_account_id=accounts["bank"].id)
+    preview = await automatic_service.preview(organization.id, request)
+    assert [suggestion.status for suggestion in preview.suggestions] == [
+        "AUTO_ELIGIBLE",
+        "AMBIGUOUS",
+    ]
+    applied = await automatic_service.apply(organization.id, user.id, request)
+    assert len(applied.reconciliations) == 1
+    assert applied.suggestions[1].reason == "CANDIDATE_CLAIMED_BY_ANOTHER_TRANSACTION"
+
+
+@pytest.mark.asyncio
+async def test_automatic_reconciliation_never_reads_another_tenant_ledger(
+    db_session: AsyncSession,
+) -> None:
+    (
+        organization_a,
+        _,
+        _,
+        accounts_a,
+        _,
+    ) = await _create_reconciliation_context(db_session)
+    (
+        organization_b,
+        _,
+        period_b,
+        accounts_b,
+        journal_b,
+    ) = await _create_reconciliation_context(db_session)
+    await _create_posted_entry(
+        db_session,
+        organization_b.id,
+        period_b.id,
+        journal_b,
+        "BQ-OTHER-TENANT",
+        date(2026, 1, 15),
+        [
+            JournalEntryLineCreate(
+                account_id=accounts_b["bank"].id, debit=Decimal("400.00")
+            ),
+            JournalEntryLineCreate(
+                account_id=accounts_b["revenue"].id, credit=Decimal("400.00")
+            ),
+        ],
+    )
+    await BankReconciliationService(db_session).create_transaction(
+        organization_a.id,
+        BankTransactionCreate(
+            bank_account_id=accounts_a["bank"].id,
+            transaction_date=date(2026, 1, 15),
+            amount=Decimal("400.00"),
+            description="Cross tenant guard",
+            external_id="BANK-TENANT-A",
+        ),
+    )
+
+    preview = await AutomaticBankReconciliationService(db_session).preview(
+        organization_a.id,
+        AutomaticReconciliationRequest(bank_account_id=accounts_a["bank"].id),
+    )
+
+    assert len(preview.suggestions) == 1
+    assert preview.suggestions[0].status == "UNMATCHED"
+    assert preview.suggestions[0].reason == "NO_EXACT_CANDIDATE"

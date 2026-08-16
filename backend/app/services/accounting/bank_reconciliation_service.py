@@ -12,6 +12,7 @@ from app.schemas.accounting.bank_reconciliation import (
     BankTransactionCreate,
     ReconciliationCandidate,
 )
+from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +23,7 @@ class BankReconciliationService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repository = BankReconciliationRepository(session)
+        self.audit = AuditService(session)
 
     async def create_transaction(
         self, organization_id: str, data: BankTransactionCreate
@@ -117,6 +119,7 @@ class BankReconciliationService:
         transaction_id: str,
         journal_entry_id: str,
         user_id: str,
+        match_method: str = "MANUAL",
     ) -> BankReconciliation:
         try:
             transaction = await self.repository.get_transaction(
@@ -172,9 +175,22 @@ class BankReconciliationService:
                 reconciled_by_user_id=user_id,
                 reconciled_at=datetime.now(timezone.utc),
                 matched_amount=abs(Decimal(transaction.amount)),
-                match_method="MANUAL",
+                match_method=match_method,
             )
             await self.repository.create_reconciliation(reconciliation)
+            await self.audit.record(
+                organization_id=organization_id,
+                actor_user_id=user_id,
+                action="BANK_TRANSACTION_RECONCILED",
+                resource_type="BankReconciliation",
+                resource_id=reconciliation.id,
+                new_value={
+                    "bank_transaction_id": transaction.id,
+                    "journal_entry_id": entry.id,
+                    "matched_amount": str(reconciliation.matched_amount),
+                    "match_method": match_method,
+                },
+            )
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
