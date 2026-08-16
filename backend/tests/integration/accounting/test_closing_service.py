@@ -12,15 +12,18 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.models.audit.audit_event import AuditEvent
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.accounting.journal import JournalCreate
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
 from app.services.accounting.closing_service import ClosingService
+from app.services.accounting.fiscal_year_closing_service import FiscalYearClosingService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -234,3 +237,41 @@ async def test_invalid_posted_entry_blocks_period_closing(
     assert exc_info.value.status_code == 422
     await db_session.refresh(period, attribute_names=["status"])
     assert period.status == FiscalPeriodStatus.OPEN
+
+
+@pytest.mark.asyncio
+async def test_fiscal_year_closing_requires_real_closed_periods_and_audits(
+    db_session: AsyncSession,
+) -> None:
+    organization, user, period, _, _ = await _create_closing_context(db_session)
+    fiscal_year = await db_session.get(FiscalYear, period.fiscal_year_id)
+    assert fiscal_year is not None
+    service = FiscalYearClosingService(db_session)
+
+    blocked_preview = await service.preview(organization.id, fiscal_year.id)
+    assert blocked_preview.is_ready is False
+    assert "OPEN_FISCAL_PERIODS" in blocked_preview.blockers
+    with pytest.raises(HTTPException) as blocked_close:
+        await service.close(organization.id, fiscal_year.id, user.id)
+    assert blocked_close.value.status_code == 422
+
+    period.status = FiscalPeriodStatus.CLOSED
+    await db_session.commit()
+    preview = await service.preview(organization.id, fiscal_year.id)
+    assert preview.is_ready is True
+    closed = await service.close(organization.id, fiscal_year.id, user.id)
+    assert closed.status == FiscalYearStatus.CLOSED
+    refreshed_year = await db_session.get(FiscalYear, fiscal_year.id)
+    assert refreshed_year.status == FiscalYearStatus.CLOSED
+    audit_event = await db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.organization_id == organization.id,
+            AuditEvent.action == "FISCAL_YEAR_CLOSED",
+            AuditEvent.resource_id == fiscal_year.id,
+        )
+    )
+    assert audit_event is not None
+
+    with pytest.raises(HTTPException) as repeated_close:
+        await service.close(organization.id, fiscal_year.id, user.id)
+    assert repeated_close.value.status_code == 422
