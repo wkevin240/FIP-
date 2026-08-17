@@ -6,14 +6,18 @@ from app.schemas.treasury.accounting import (
     TreasuryAccountingProfileResponse,
     TreasuryTransactionPostingCreate,
 )
+from app.schemas.treasury.bank_statement_import import BankStatementImportResponse
 from app.schemas.treasury.reconciliation import TreasuryReconciliationCandidate
 from app.schemas.treasury.transaction import (
     TreasuryBankTransactionCreate,
     TreasuryBankTransactionResponse,
 )
+from app.services.treasury.bank_statement_import_service import (
+    BankStatementImportService,
+)
 from app.services.treasury.transaction_service import TreasuryTransactionService
 from app.services.treasury.treasury_accounting_service import TreasuryAccountingService
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Header, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -29,6 +33,35 @@ async def get_accounting_service(
     session: AsyncSession = Depends(get_db),
 ) -> TreasuryAccountingService:
     return TreasuryAccountingService(session)
+
+
+async def get_import_service(
+    session: AsyncSession = Depends(get_db),
+) -> BankStatementImportService:
+    return BankStatementImportService(session)
+
+
+@router.post(
+    "/imports/csv",
+    response_model=BankStatementImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_bank_statement_csv(
+    treasury_bank_account_id: str = Form(...),
+    statement_file: UploadFile = File(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1),
+    service: BankStatementImportService = Depends(get_import_service),
+    tenant: CurrentTenant = Depends(require_permission("treasury_transaction:create")),
+) -> BankStatementImportResponse:
+    filename = statement_file.filename or "bank-statement.csv"
+    return await service.import_csv(
+        tenant.organization_id,
+        tenant.user_id,
+        treasury_bank_account_id,
+        idempotency_key,
+        filename,
+        await statement_file.read(),
+    )
 
 
 @router.get("/accounting-profile", response_model=TreasuryAccountingProfileResponse)
