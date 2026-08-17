@@ -21,6 +21,11 @@ class TreasuryBankAccount(Base):
     __table_args__ = (
         UniqueConstraint(
             "organization_id",
+            "id",
+            name="uq_treasury_bank_accounts_organization_id_id",
+        ),
+        UniqueConstraint(
+            "organization_id",
             "ledger_account_id",
             name="uq_treasury_bank_account_ledger",
         ),
