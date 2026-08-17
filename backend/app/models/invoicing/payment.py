@@ -18,6 +18,9 @@ class Payment(Base):
 
     __tablename__ = "payments"
     __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "id", name="uq_payments_organization_id_id"
+        ),
         CheckConstraint("amount > 0", name="ck_payment_amount_positive"),
         CheckConstraint(
             "method IN ('CASH', 'BANK_TRANSFER', 'CARD', 'MOBILE_MONEY', 'OTHER')",

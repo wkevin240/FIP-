@@ -1,8 +1,15 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.schemas.invoicing.payment import PaymentCreate, PaymentResponse
+from app.schemas.invoicing.settlement_accounting import (
+    PaymentPostingCreate,
+    PaymentPostingResponse,
+)
 from app.services.invoicing.payment_service import PaymentService
-from fastapi import APIRouter, Depends, status
+from app.services.invoicing.settlement_accounting_service import (
+    SettlementAccountingService,
+)
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -10,6 +17,25 @@ router = APIRouter()
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> PaymentService:
     return PaymentService(session)
+
+
+async def get_accounting_service(
+    session: AsyncSession = Depends(get_db),
+) -> SettlementAccountingService:
+    return SettlementAccountingService(session)
+
+
+@router.post("/{payment_id}/post-accounting", response_model=PaymentPostingResponse)
+async def post_payment_to_accounting(
+    payment_id: str,
+    data: PaymentPostingCreate,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1),
+    service: SettlementAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("payment:post")),
+) -> PaymentPostingResponse:
+    return await service.post_payment(
+        tenant.organization_id, tenant.user_id, payment_id, idempotency_key, data
+    )
 
 
 @router.post("/", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)

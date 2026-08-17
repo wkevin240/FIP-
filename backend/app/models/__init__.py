@@ -40,6 +40,10 @@ from app.models.invoicing.credit_note import CreditNote
 from app.models.invoicing.invoice import Invoice
 from app.models.invoicing.invoice_line import InvoiceLine
 from app.models.invoicing.payment import Payment
+from app.models.invoicing.settlement_accounting import (
+    CreditNoteAccountingPosting,
+    PaymentAccountingPosting,
+)
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.payroll import (
@@ -73,6 +77,7 @@ __all__ = [
     "BankTransaction",
     "CashFlowAccountMapping",
     "CreditNote",
+    "CreditNoteAccountingPosting",
     "DepreciationPlan",
     "DepreciationScheduleLine",
     "Employee",
@@ -98,6 +103,7 @@ __all__ = [
     "Organization",
     "OrganizationMembership",
     "Payment",
+    "PaymentAccountingPosting",
     "PayrollAccountingProfile",
     "PayrollAuditEvent",
     "PayrollContributionRule",
