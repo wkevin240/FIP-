@@ -18,6 +18,9 @@ from app.schemas.inventory.stock import (
     StockReceiptCreate,
     StockTransferCreate,
 )
+from app.services.inventory.inventory_accounting_service import (
+    InventoryAccountingService,
+)
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +35,10 @@ class StockService:
         self.movements = StockMovementRepository(session)
 
     async def record_receipt(
-        self, organization_id: str, data: StockReceiptCreate
+        self,
+        organization_id: str,
+        data: StockReceiptCreate,
+        actor_user_id: str | None = None,
     ) -> StockMovement:
         try:
             await self._validate_active_references(
@@ -56,6 +62,10 @@ class StockService:
                 reference=data.reference,
                 note=data.note,
             )
+            if actor_user_id is not None:
+                await InventoryAccountingService(self.session).post_movement(
+                    organization_id, actor_user_id, movement
+                )
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
@@ -70,7 +80,10 @@ class StockService:
         return movement
 
     async def record_issue(
-        self, organization_id: str, data: StockIssueCreate
+        self,
+        organization_id: str,
+        data: StockIssueCreate,
+        actor_user_id: str | None = None,
     ) -> StockMovement:
         try:
             await self._validate_active_references(
@@ -93,6 +106,10 @@ class StockService:
                 reference=data.reference,
                 note=data.note,
             )
+            if actor_user_id is not None:
+                await InventoryAccountingService(self.session).post_movement(
+                    organization_id, actor_user_id, movement
+                )
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
@@ -101,7 +118,10 @@ class StockService:
         return movement
 
     async def record_adjustment(
-        self, organization_id: str, data: StockAdjustmentCreate
+        self,
+        organization_id: str,
+        data: StockAdjustmentCreate,
+        actor_user_id: str | None = None,
     ) -> StockMovement:
         if data.direction == "IN":
             if data.unit_cost is None:
@@ -118,7 +138,9 @@ class StockService:
                 reference=data.reference,
                 note=data.note,
             )
-            return await self._record_inbound_adjustment(organization_id, receipt)
+            return await self._record_inbound_adjustment(
+                organization_id, receipt, actor_user_id
+            )
         if data.unit_cost is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -132,7 +154,9 @@ class StockService:
             reference=data.reference,
             note=data.note,
         )
-        return await self._record_outbound_adjustment(organization_id, issue)
+        return await self._record_outbound_adjustment(
+            organization_id, issue, actor_user_id
+        )
 
     async def transfer(
         self, organization_id: str, data: StockTransferCreate
@@ -253,7 +277,10 @@ class StockService:
         )
 
     async def _record_inbound_adjustment(
-        self, organization_id: str, data: StockReceiptCreate
+        self,
+        organization_id: str,
+        data: StockReceiptCreate,
+        actor_user_id: str | None = None,
     ) -> StockMovement:
         try:
             await self._validate_active_references(
@@ -277,6 +304,10 @@ class StockService:
                 reference=data.reference,
                 note=data.note,
             )
+            if actor_user_id is not None:
+                await InventoryAccountingService(self.session).post_movement(
+                    organization_id, actor_user_id, movement
+                )
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
@@ -285,7 +316,10 @@ class StockService:
         return movement
 
     async def _record_outbound_adjustment(
-        self, organization_id: str, data: StockIssueCreate
+        self,
+        organization_id: str,
+        data: StockIssueCreate,
+        actor_user_id: str | None = None,
     ) -> StockMovement:
         try:
             await self._validate_active_references(
@@ -308,6 +342,10 @@ class StockService:
                 reference=data.reference,
                 note=data.note,
             )
+            if actor_user_id is not None:
+                await InventoryAccountingService(self.session).post_movement(
+                    organization_id, actor_user_id, movement
+                )
             await self.session.commit()
         except HTTPException:
             await self.session.rollback()
