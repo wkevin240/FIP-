@@ -53,3 +53,18 @@ L’endpoint `POST /api/v1/treasury/transactions/imports/ofx` utilise le même m
 | `STMTTRN/CHECKNUM` ou `REFNUM` | `reference` | Facultatif. |
 
 Les statuts OFX non nuls sont refusés. Le parseur `defusedxml` est utilisé pour rejeter les DTD, entités externes et charges XML dangereuses. Le contenu OFX est ensuite envoyé au même pipeline transactionnel que le CSV : hash de contenu, idempotence, verrous PostgreSQL, lignes de traçabilité, transactions canoniques et Audit atomique.
+## Import MT940
+
+L’endpoint `POST /api/v1/treasury/transactions/imports/mt940` utilise le même multipart, le même `treasury_bank_account_id`, le même en-tête `Idempotency-Key` et la même permission que l’import CSV. Il prend en charge le format **MT940 v1** avec un unique compte par fichier.
+
+| Balise MT940 | Destination normalisée | Règle |
+|---|---|---|
+| `:20:` | Validation du relevé | Référence de message obligatoire. |
+| `:25:` | Compte bancaire de Trésorerie | Doit être unique, non vide et correspondre au numéro de compte configuré après suppression des espaces. |
+| `:60F:` / `:60M:` et `:62F:` / `:62M:` | Validation du relevé | Soldes d’ouverture et de clôture obligatoires. |
+| `:61:` | Transaction bancaire | Date de valeur, date d’écriture, sens crédit/débit, montant et référence bancaire. |
+| `:86:` | Libellé de transaction | Narration associée à la ligne `:61:` précédente lorsqu’elle est présente. |
+
+Le montant MT940 utilise la virgule décimale et le signe est déterminé par le marqueur `C` ou `D`, y compris les marqueurs de contre-passation `RC` et `RD`. Une référence après le séparateur `//` sert d’identifiant externe stable. En son absence, FIP dérive un identifiant déterministe à partir des données normalisées de la ligne ; il n’invente aucun mouvement.
+
+Le fichier est contrôlé avant persistance : balises essentielles, compte, lignes `:61:`, dates, montants, limites et unicité des références externes. Il est ensuite envoyé au même pipeline transactionnel que CSV et OFX : hash de contenu, idempotence, verrous PostgreSQL, déduplication, transactions canoniques, lignes d’import et Audit atomique.
