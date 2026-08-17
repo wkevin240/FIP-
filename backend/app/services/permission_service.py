@@ -72,6 +72,8 @@ class PermissionService:
                 "treasury_position:read",
                 "treasury_transaction:create",
                 "treasury_transaction:read",
+                "treasury_transaction:post",
+                "treasury_accounting:configure",
                 "treasury_reconciliation:read",
                 "payroll_employee:read",
                 "payroll_contract:read",
