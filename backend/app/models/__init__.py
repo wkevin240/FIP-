@@ -71,6 +71,10 @@ from app.models.treasury.accounting import (
     TreasuryAccountingProfile,
 )
 from app.models.treasury.bank_account import TreasuryBankAccount
+from app.models.treasury.bank_accounting_rule import (
+    BankAccountingRule,
+    BankTransactionAccountingProposal,
+)
 from app.models.treasury.bank_statement_import import (
     BankStatementImport,
     BankStatementImportLine,
@@ -81,12 +85,14 @@ __all__ = [
     "Account",
     "AuditEvent",
     "AuditSequence",
+    "BankAccountingRule",
     "BankReconciliation",
     "BankReconciliationAllocation",
     "BankReconciliationBatch",
     "BankStatementImport",
     "BankStatementImportLine",
     "BankTransaction",
+    "BankTransactionAccountingProposal",
     "CashFlowAccountMapping",
     "CreditNote",
     "CreditNoteAccountingPosting",

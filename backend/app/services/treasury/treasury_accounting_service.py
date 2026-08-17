@@ -79,6 +79,8 @@ class TreasuryAccountingService:
         actor_user_id: str,
         transaction_id: str,
         data: TreasuryTransactionPostingCreate,
+        *,
+        commit: bool = True,
     ):
         transaction = await self.transactions.get_by_id(organization_id, transaction_id)
         if transaction is None:
@@ -138,8 +140,13 @@ class TreasuryAccountingService:
                 },
                 transaction_id=posted.id,
             )
-            await self.session.commit()
+            if commit:
+                await self.session.commit()
+            else:
+                await self.session.flush()
         except IntegrityError as exc:
+            if not commit:
+                raise
             await self.session.rollback()
             existing = await self.accounting.get_posting(
                 organization_id, transaction.id

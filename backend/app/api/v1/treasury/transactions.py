@@ -6,11 +6,23 @@ from app.schemas.treasury.accounting import (
     TreasuryAccountingProfileResponse,
     TreasuryTransactionPostingCreate,
 )
+from app.schemas.treasury.bank_accounting_rule import (
+    BankAccountingProposalDecision,
+    BankAccountingProposalPreview,
+    BankAccountingProposalRejection,
+    BankAccountingProposalResponse,
+    BankAccountingRuleCreate,
+    BankAccountingRuleResponse,
+    BankAccountingRuleUpdate,
+)
 from app.schemas.treasury.bank_statement_import import BankStatementImportResponse
 from app.schemas.treasury.reconciliation import TreasuryReconciliationCandidate
 from app.schemas.treasury.transaction import (
     TreasuryBankTransactionCreate,
     TreasuryBankTransactionResponse,
+)
+from app.services.treasury.bank_rules_accounting_service import (
+    BankRulesAccountingService,
 )
 from app.services.treasury.bank_statement_import_service import (
     BankStatementImportService,
@@ -39,6 +51,12 @@ async def get_import_service(
     session: AsyncSession = Depends(get_db),
 ) -> BankStatementImportService:
     return BankStatementImportService(session)
+
+
+async def get_bank_rules_accounting_service(
+    session: AsyncSession = Depends(get_db),
+) -> BankRulesAccountingService:
+    return BankRulesAccountingService(session)
 
 
 @router.post(
@@ -131,6 +149,103 @@ async def configure_treasury_accounting_profile(
     ),
 ) -> TreasuryAccountingProfileResponse:
     return await service.configure_profile(tenant.organization_id, tenant.user_id, data)
+
+
+@router.get("/accounting-rules", response_model=list[BankAccountingRuleResponse])
+async def list_bank_accounting_rules(
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_rule:read")),
+) -> list[BankAccountingRuleResponse]:
+    return await service.list_rules(tenant.organization_id)
+
+
+@router.post(
+    "/accounting-rules",
+    response_model=BankAccountingRuleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_bank_accounting_rule(
+    data: BankAccountingRuleCreate,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_rule:create")),
+) -> BankAccountingRuleResponse:
+    return await service.create_rule(tenant.organization_id, tenant.user_id, data)
+
+
+@router.put(
+    "/accounting-rules/{rule_id}",
+    response_model=BankAccountingRuleResponse,
+)
+async def update_bank_accounting_rule(
+    rule_id: str,
+    data: BankAccountingRuleUpdate,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_rule:update")),
+) -> BankAccountingRuleResponse:
+    return await service.update_rule(
+        tenant.organization_id, tenant.user_id, rule_id, data
+    )
+
+
+@router.get(
+    "/accounting-proposals/{proposal_id}",
+    response_model=BankAccountingProposalResponse,
+)
+async def get_bank_accounting_proposal(
+    proposal_id: str,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_rule:read")),
+) -> BankAccountingProposalResponse:
+    return await service.get_proposal(tenant.organization_id, proposal_id)
+
+
+@router.post(
+    "/{transaction_id}/accounting-proposals",
+    response_model=BankAccountingProposalPreview,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_bank_accounting_proposal(
+    transaction_id: str,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_transaction:propose")),
+) -> BankAccountingProposalPreview:
+    return await service.evaluate_transaction(
+        tenant.organization_id, tenant.user_id, transaction_id
+    )
+
+
+@router.post(
+    "/accounting-proposals/{proposal_id}/validate",
+    response_model=BankAccountingProposalResponse,
+)
+async def validate_bank_accounting_proposal(
+    proposal_id: str,
+    data: BankAccountingProposalDecision,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("bank_transaction:validate_accounting")
+    ),
+) -> BankAccountingProposalResponse:
+    return await service.validate_proposal(
+        tenant.organization_id, tenant.user_id, proposal_id, data
+    )
+
+
+@router.post(
+    "/accounting-proposals/{proposal_id}/reject",
+    response_model=BankAccountingProposalResponse,
+)
+async def reject_bank_accounting_proposal(
+    proposal_id: str,
+    data: BankAccountingProposalRejection,
+    service: BankRulesAccountingService = Depends(get_bank_rules_accounting_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("bank_transaction:validate_accounting")
+    ),
+) -> BankAccountingProposalResponse:
+    return await service.reject_proposal(
+        tenant.organization_id, tenant.user_id, proposal_id, data
+    )
 
 
 @router.post(
