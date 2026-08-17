@@ -19,6 +19,9 @@ class BankTransaction(Base):
     __tablename__ = "bank_transactions"
     __table_args__ = (
         UniqueConstraint(
+            "organization_id", "id", name="uq_bank_transactions_organization_id_id"
+        ),
+        UniqueConstraint(
             "organization_id",
             "bank_account_id",
             "external_id",

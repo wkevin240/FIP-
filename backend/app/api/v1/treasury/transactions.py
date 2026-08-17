@@ -1,11 +1,18 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
+from app.schemas.treasury.accounting import (
+    TreasuryAccountingPostingResponse,
+    TreasuryAccountingProfileCreate,
+    TreasuryAccountingProfileResponse,
+    TreasuryTransactionPostingCreate,
+)
 from app.schemas.treasury.reconciliation import TreasuryReconciliationCandidate
 from app.schemas.treasury.transaction import (
     TreasuryBankTransactionCreate,
     TreasuryBankTransactionResponse,
 )
 from app.services.treasury.transaction_service import TreasuryTransactionService
+from app.services.treasury.treasury_accounting_service import TreasuryAccountingService
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +23,51 @@ async def get_service(
     session: AsyncSession = Depends(get_db),
 ) -> TreasuryTransactionService:
     return TreasuryTransactionService(session)
+
+
+async def get_accounting_service(
+    session: AsyncSession = Depends(get_db),
+) -> TreasuryAccountingService:
+    return TreasuryAccountingService(session)
+
+
+@router.get("/accounting-profile", response_model=TreasuryAccountingProfileResponse)
+async def get_treasury_accounting_profile(
+    service: TreasuryAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("treasury_transaction:read")),
+) -> TreasuryAccountingProfileResponse:
+    return await service.get_profile(tenant.organization_id)
+
+
+@router.post(
+    "/accounting-profile",
+    response_model=TreasuryAccountingProfileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def configure_treasury_accounting_profile(
+    data: TreasuryAccountingProfileCreate,
+    service: TreasuryAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("treasury_accounting:configure")
+    ),
+) -> TreasuryAccountingProfileResponse:
+    return await service.configure_profile(tenant.organization_id, tenant.user_id, data)
+
+
+@router.post(
+    "/{transaction_id}/post-accounting",
+    response_model=TreasuryAccountingPostingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_treasury_transaction(
+    transaction_id: str,
+    data: TreasuryTransactionPostingCreate,
+    service: TreasuryAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("treasury_transaction:post")),
+) -> TreasuryAccountingPostingResponse:
+    return await service.post_transaction(
+        tenant.organization_id, tenant.user_id, transaction_id, data
+    )
 
 
 @router.post(
