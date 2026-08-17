@@ -163,3 +163,169 @@ async def test_csv_import_rejects_malformed_content_and_rolls_back(
         )
     assert cross_tenant.value.status_code == 404
     assert other_organization_id != organization_id
+
+
+OFX_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+<OFX>
+  <SIGNONMSGSRSV1><SONRS><STATUS><CODE>0</CODE></STATUS></SONRS></SIGNONMSGSRSV1>
+  <BANKMSGSRSV1><STMTTRNRS><STATUS><CODE>0</CODE></STATUS><STMTRS>
+    <CURDEF>XOF</CURDEF>
+    <BANKACCTFROM><BANKID>FIP</BANKID><ACCTID>{account_number}</ACCTID><ACCTTYPE>CHECKING</ACCTTYPE></BANKACCTFROM>
+    <BANKTRANLIST>{transactions}</BANKTRANLIST>
+  </STMTRS></STMTTRNRS></BANKMSGSRSV1>
+</OFX>
+"""
+
+
+def _ofx_transaction(fitid: str, posted: str, amount: str, name: str) -> str:
+    return (
+        "<STMTTRN>"
+        f"<TRNTYPE>OTHER</TRNTYPE><DTPOSTED>{posted}</DTPOSTED>"
+        f"<TRNAMT>{amount}</TRNAMT><FITID>{fitid}</FITID>"
+        f"<NAME>{name}</NAME><MEMO>Memo {fitid}</MEMO>"
+        "</STMTTRN>"
+    )
+
+
+@pytest.mark.asyncio
+async def test_ofx_v2_import_normalizes_transactions_idempotently_and_audits(
+    db_session: AsyncSession,
+) -> None:
+    from app.models.treasury.bank_account import TreasuryBankAccount
+
+    organization, _, bank_profile, _, _, _ = await _context(db_session)
+    organization_id = organization.id
+    bank_profile_id = bank_profile.id
+    bank_account = await db_session.get(TreasuryBankAccount, bank_profile_id)
+    assert bank_account is not None
+    account_number = bank_account.account_number
+    content = OFX_TEMPLATE.format(
+        account_number=account_number,
+        transactions=(
+            _ofx_transaction("OFX-FITID-001", "20260211123000", "210.50", "Collection")
+            + _ofx_transaction("OFX-FITID-002", "20260212090000", "-10.50", "Bank fee")
+        ),
+    ).encode("utf-8")
+    service = BankStatementImportService(db_session)
+    first = await service.import_ofx(
+        organization_id,
+        "import-tester",
+        bank_profile_id,
+        "ofx-import-001",
+        "february.ofx",
+        content,
+    )
+    repeated = await service.import_ofx(
+        organization_id,
+        "import-tester",
+        bank_profile_id,
+        "ofx-import-001",
+        "february.ofx",
+        content,
+    )
+
+    assert first.id == repeated.id
+    assert first.format_version == "OFX_V2_XML"
+    assert first.imported_count == 2
+    assert first.duplicate_count == 0
+    amounts = list(
+        await db_session.scalars(
+            select(BankTransaction.amount)
+            .where(
+                BankTransaction.organization_id == organization_id,
+                BankTransaction.external_id.in_(["OFX-FITID-001", "OFX-FITID-002"]),
+            )
+            .order_by(BankTransaction.external_id)
+        )
+    )
+    assert amounts == [Decimal("210.50"), Decimal("-10.50")]
+    assert (
+        await db_session.scalar(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.organization_id == organization_id,
+                AuditEvent.action == "BANK_STATEMENT_IMPORTED",
+                AuditEvent.resource_id == first.id,
+            )
+        )
+        == 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_ofx_v2_import_rejects_account_mismatch_duplicate_fitid_and_unsafe_xml(
+    db_session: AsyncSession,
+) -> None:
+    from app.models.treasury.bank_account import TreasuryBankAccount
+
+    organization, _, bank_profile, _, _, _ = await _context(db_session)
+    organization_id = organization.id
+    bank_profile_id = bank_profile.id
+    bank_account = await db_session.get(TreasuryBankAccount, bank_profile_id)
+    assert bank_account is not None
+    account_number = bank_account.account_number
+    service = BankStatementImportService(db_session)
+
+    with pytest.raises(HTTPException, match="account identifier") as account_mismatch:
+        await service.import_ofx(
+            organization_id,
+            "import-tester",
+            bank_profile_id,
+            "ofx-import-account-mismatch",
+            "mismatch.ofx",
+            OFX_TEMPLATE.format(
+                account_number="OTHER-ACCOUNT",
+                transactions=_ofx_transaction(
+                    "OFX-MISMATCH", "20260213", "10.00", "Mismatch"
+                ),
+            ).encode("utf-8"),
+        )
+    assert account_mismatch.value.status_code == 422
+
+    duplicate_fitid = OFX_TEMPLATE.format(
+        account_number=account_number,
+        transactions=(
+            _ofx_transaction("OFX-DUP", "20260213", "10.00", "First")
+            + _ofx_transaction("OFX-DUP", "20260214", "11.00", "Second")
+        ),
+    ).encode("utf-8")
+    with pytest.raises(HTTPException, match="duplicate external_id") as duplicate:
+        await service.import_ofx(
+            organization_id,
+            "import-tester",
+            bank_profile_id,
+            "ofx-import-duplicate",
+            "duplicate.ofx",
+            duplicate_fitid,
+        )
+    assert duplicate.value.status_code == 422
+
+    unsafe_xml = b"""<?xml version="1.0"?>
+<!DOCTYPE OFX [<!ENTITY secret SYSTEM "file:///etc/passwd">]>
+<OFX><BANKMSGSRSV1/></OFX>"""
+    with pytest.raises(HTTPException, match="valid safe XML") as unsafe:
+        await service.import_ofx(
+            organization_id,
+            "import-tester",
+            bank_profile_id,
+            "ofx-import-unsafe",
+            "unsafe.ofx",
+            unsafe_xml,
+        )
+    assert unsafe.value.status_code == 422
+    assert (
+        await db_session.scalar(
+            select(func.count(BankStatementImport.id)).where(
+                BankStatementImport.organization_id == organization_id
+            )
+        )
+        == 0
+    )
+    assert (
+        await db_session.scalar(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.organization_id == organization_id,
+                AuditEvent.action == "BANK_STATEMENT_IMPORTED",
+            )
+        )
+        == 0
+    )

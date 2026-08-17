@@ -168,3 +168,93 @@ async def test_postgresql_concurrent_bank_statement_import_is_idempotent_and_aud
         )
         == 1
     )
+
+
+OFX_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0</CODE></STATUS></SONRS></SIGNONMSGSRSV1>
+<BANKMSGSRSV1><STMTTRNRS><STATUS><CODE>0</CODE></STATUS><STMTRS>
+<BANKACCTFROM><ACCTID>{account_number}</ACCTID></BANKACCTFROM>
+<BANKTRANLIST>{transactions}</BANKTRANLIST>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>
+"""
+
+
+def _ofx_transaction(fitid: str, posted: str, amount: str, name: str) -> str:
+    return (
+        "<STMTTRN>"
+        f"<DTPOSTED>{posted}</DTPOSTED><TRNAMT>{amount}</TRNAMT>"
+        f"<FITID>{fitid}</FITID><NAME>{name}</NAME>"
+        "</STMTTRN>"
+    )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_concurrent_ofx_import_is_idempotent_and_audited_once(
+    postgres_session: AsyncSession,
+) -> None:
+    from app.models.treasury.bank_account import TreasuryBankAccount
+
+    organization, _, bank_profile, _, _, _ = await _context(postgres_session)
+    organization_id = organization.id
+    bank_profile_id = bank_profile.id
+    bank_account = await postgres_session.get(TreasuryBankAccount, bank_profile_id)
+    assert bank_account is not None
+    account_number = bank_account.account_number
+    actor = await _create_actor(postgres_session)
+    actor_id = actor.id
+    content = OFX_TEMPLATE.format(
+        account_number=account_number,
+        transactions=(
+            _ofx_transaction("PG-OFX-001", "20260215", "120.00", "Collection")
+            + _ofx_transaction("PG-OFX-002", "20260216", "-5.50", "Bank fee")
+        ),
+    ).encode("utf-8")
+    engine = create_async_engine(POSTGRES_TEST_DATABASE_URL, echo=False)
+
+    async def import_once() -> str:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            statement_import = await BankStatementImportService(session).import_ofx(
+                organization_id,
+                actor_id,
+                bank_profile_id,
+                "postgres-ofx-concurrent-001",
+                "concurrent.ofx",
+                content,
+            )
+            return statement_import.id
+
+    try:
+        first_id, second_id = await asyncio.gather(import_once(), import_once())
+    finally:
+        await engine.dispose()
+
+    assert first_id == second_id
+    assert (
+        await postgres_session.scalar(
+            select(func.count(BankStatementImport.id)).where(
+                BankStatementImport.organization_id == organization_id,
+                BankStatementImport.idempotency_key == "postgres-ofx-concurrent-001",
+                BankStatementImport.format_version == "OFX_V2_XML",
+            )
+        )
+        == 1
+    )
+    assert (
+        await postgres_session.scalar(
+            select(func.count(BankTransaction.id)).where(
+                BankTransaction.organization_id == organization_id,
+                BankTransaction.external_id.in_(["PG-OFX-001", "PG-OFX-002"]),
+            )
+        )
+        == 2
+    )
+    assert (
+        await postgres_session.scalar(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.organization_id == organization_id,
+                AuditEvent.action == "BANK_STATEMENT_IMPORTED",
+                AuditEvent.resource_id == first_id,
+            )
+        )
+        == 1
+    )

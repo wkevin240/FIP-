@@ -38,3 +38,18 @@ Les verrous transactionnels PostgreSQL sur la clé d’idempotence et les identi
 La migration `0021_bank_statement_imports` crée les tables `bank_statement_imports` et `bank_statement_import_lines`. Elles disposent de FK composites incluant `organization_id`, de contraintes de comptage et de liens vers les transactions canoniques. Les tables sont détenues par `fip_accounting_owner`, avec les seuls droits `SELECT` et `INSERT` pour `fip_user`.
 
 La création du lot, de ses lignes, des transactions nouvelles et de l’événement `BANK_STATEMENT_IMPORTED` est atomique. En cas de rejet ou d’échec, la transaction entière est annulée : aucune transaction importée, aucune ligne de lot et aucun Audit de succès ne subsistent.
+
+## Import OFX v2 XML
+
+L’endpoint `POST /api/v1/treasury/transactions/imports/ofx` utilise le même multipart, le même `treasury_bank_account_id`, le même en-tête `Idempotency-Key` et la même permission que l’import CSV. Il prend en charge **OFX v2 XML uniquement** ; les fichiers OFX 1.x SGML sont explicitement rejetés car ils ne constituent pas du XML strictement vérifiable.
+
+| Champ OFX | Destination normalisée | Règle |
+|---|---|---|
+| `BANKACCTFROM/ACCTID` | Compte bancaire de Trésorerie | Doit correspondre au numéro de compte configuré, après suppression des espaces. |
+| `STMTTRN/FITID` | `external_id` | Obligatoire, unique dans le fichier et utilisé pour la déduplication. |
+| `STMTTRN/DTPOSTED` | `transaction_date` | Obligatoire ; les huit premiers caractères doivent former une date `YYYYMMDD` valide. |
+| `STMTTRN/TRNAMT` | `amount` | Obligatoire, signé, non nul et converti en `Decimal(18,2)`. |
+| `STMTTRN/NAME`, `PAYEE/NAME` ou `MEMO` | `description` | Au moins une valeur est obligatoire. |
+| `STMTTRN/CHECKNUM` ou `REFNUM` | `reference` | Facultatif. |
+
+Les statuts OFX non nuls sont refusés. Le parseur `defusedxml` est utilisé pour rejeter les DTD, entités externes et charges XML dangereuses. Le contenu OFX est ensuite envoyé au même pipeline transactionnel que le CSV : hash de contenu, idempotence, verrous PostgreSQL, lignes de traçabilité, transactions canoniques et Audit atomique.
