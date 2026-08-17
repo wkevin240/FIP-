@@ -76,3 +76,44 @@ class AutomaticReconciliationApplyResponse(BaseModel):
     bank_account_id: str
     reconciliations: list[BankReconciliationResponse]
     suggestions: list[AutomaticReconciliationSuggestion]
+
+
+class ReconciliationAllocationCreate(BaseModel):
+    bank_transaction_id: str
+    journal_entry_id: str
+    matched_amount: Decimal = Field(..., gt=0, max_digits=18, decimal_places=2)
+
+
+class ReconcileBankTransactionsRequest(BaseModel):
+    bank_account_id: str
+    allocations: list[ReconciliationAllocationCreate] = Field(..., min_length=1)
+
+
+class BankReconciliationAllocationResponse(BaseModel):
+    id: str
+    organization_id: str
+    batch_id: str
+    bank_transaction_id: str
+    journal_entry_id: str
+    matched_amount: Decimal
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankReconciliationBatchResponse(BaseModel):
+    id: str
+    organization_id: str
+    bank_account_id: str
+    reconciled_by_user_id: str
+    reconciled_at: datetime
+    idempotency_key: str
+    request_fingerprint: str
+    match_method: str
+    allocated_total: Decimal
+    allocations: list[BankReconciliationAllocationResponse]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

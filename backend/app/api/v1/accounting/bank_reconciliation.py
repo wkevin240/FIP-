@@ -4,10 +4,12 @@ from app.schemas.accounting.bank_reconciliation import (
     AutomaticReconciliationApplyResponse,
     AutomaticReconciliationPreviewResponse,
     AutomaticReconciliationRequest,
+    BankReconciliationBatchResponse,
     BankReconciliationResponse,
     BankTransactionCreate,
     BankTransactionResponse,
     ReconcileBankTransactionRequest,
+    ReconcileBankTransactionsRequest,
     ReconciliationCandidate,
 )
 from app.services.accounting.automatic_bank_reconciliation_service import (
@@ -16,7 +18,7 @@ from app.services.accounting.automatic_bank_reconciliation_service import (
 from app.services.accounting.bank_reconciliation_service import (
     BankReconciliationService,
 )
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -81,6 +83,22 @@ async def apply_automatic_reconciliation(
     tenant: CurrentTenant = Depends(require_permission("bank_reconciliation:match")),
 ) -> AutomaticReconciliationApplyResponse:
     return await service.apply(tenant.organization_id, tenant.user_id, data)
+
+
+@router.post(
+    "/allocations",
+    response_model=BankReconciliationBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def reconcile_bank_transactions(
+    data: ReconcileBankTransactionsRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1),
+    service: BankReconciliationService = Depends(get_service),
+    tenant: CurrentTenant = Depends(require_permission("bank_reconciliation:match")),
+) -> BankReconciliationBatchResponse:
+    return await service.reconcile_allocations(
+        tenant.organization_id, tenant.user_id, idempotency_key, data
+    )
 
 
 @router.get(
