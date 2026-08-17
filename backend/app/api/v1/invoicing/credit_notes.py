@@ -1,8 +1,12 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.schemas.invoicing.credit_note import CreditNoteCreate, CreditNoteResponse
+from app.schemas.invoicing.settlement_accounting import CreditNotePostingResponse
 from app.services.invoicing.credit_note_service import CreditNoteService
-from fastapi import APIRouter, Depends, status
+from app.services.invoicing.settlement_accounting_service import (
+    SettlementAccountingService,
+)
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -10,6 +14,26 @@ router = APIRouter()
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> CreditNoteService:
     return CreditNoteService(session)
+
+
+async def get_accounting_service(
+    session: AsyncSession = Depends(get_db),
+) -> SettlementAccountingService:
+    return SettlementAccountingService(session)
+
+
+@router.post(
+    "/{credit_note_id}/post-accounting", response_model=CreditNotePostingResponse
+)
+async def post_credit_note_to_accounting(
+    credit_note_id: str,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1),
+    service: SettlementAccountingService = Depends(get_accounting_service),
+    tenant: CurrentTenant = Depends(require_permission("credit_note:post")),
+) -> CreditNotePostingResponse:
+    return await service.post_credit_note(
+        tenant.organization_id, tenant.user_id, credit_note_id, idempotency_key
+    )
 
 
 @router.post(

@@ -92,6 +92,8 @@ async def test_invoice_issue_payment_and_credit_preserve_amounts(
             invoice_id=draft.id,
             credit_note_number="cn-001",
             credit_date=date(2026, 2, 3),
+            subtotal=Decimal("57.63"),
+            tax_amount=Decimal("10.37"),
             amount=Decimal("68.00"),
             reason="Commercial discount",
         ),
