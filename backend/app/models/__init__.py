@@ -2,6 +2,10 @@
 
 from app.models.accounting.account import Account
 from app.models.accounting.bank_reconciliation import BankReconciliation
+from app.models.accounting.bank_reconciliation_allocation import (
+    BankReconciliationAllocation,
+    BankReconciliationBatch,
+)
 from app.models.accounting.bank_transaction import BankTransaction
 from app.models.accounting.cash_flow_account_mapping import CashFlowAccountMapping
 from app.models.accounting.closing import PeriodClosing
@@ -74,6 +78,8 @@ __all__ = [
     "AuditEvent",
     "AuditSequence",
     "BankReconciliation",
+    "BankReconciliationAllocation",
+    "BankReconciliationBatch",
     "BankTransaction",
     "CashFlowAccountMapping",
     "CreditNote",

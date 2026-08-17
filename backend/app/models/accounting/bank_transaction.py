@@ -58,3 +58,9 @@ class BankTransaction(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    allocations = relationship(
+        "BankReconciliationAllocation",
+        back_populates="bank_transaction",
+        order_by="BankReconciliationAllocation.id",
+        overlaps="allocations,batch,journal_entry,organization",
+    )

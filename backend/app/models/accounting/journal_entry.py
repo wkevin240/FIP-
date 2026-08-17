@@ -121,4 +121,10 @@ class JournalEntry(Base):
     bank_reconciliation = relationship(
         "BankReconciliation", back_populates="journal_entry", uselist=False
     )
+    bank_allocations = relationship(
+        "BankReconciliationAllocation",
+        back_populates="journal_entry",
+        order_by="BankReconciliationAllocation.id",
+        overlaps="allocations,batch,bank_transaction,organization",
+    )
     vat_entry = relationship("VATEntry", back_populates="journal_entry", uselist=False)
