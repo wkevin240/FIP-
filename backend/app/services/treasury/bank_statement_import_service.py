@@ -1,4 +1,5 @@
 import csv
+import re
 from datetime import date
 from decimal import Decimal
 from hashlib import sha256
@@ -25,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class BankStatementImportService:
-    """Imports normalized CSV and OFX v2 XML statements into canonical transactions."""
+    """Imports normalized CSV, OFX v2 XML and MT940 statements into canonical transactions."""
 
     _CSV_HEADERS = (
         "external_id",
@@ -37,6 +38,14 @@ class BankStatementImportService:
     )
     _MAX_CONTENT_BYTES = 5 * 1024 * 1024
     _MAX_ROWS = 10_000
+    _MT940_TAG = re.compile(
+        r"(?ms)^:(?P<tag>\d{2}[A-Z]?):(?P<value>.*?)(?=^:\d{2}[A-Z]?:|\Z)"
+    )
+    _MT940_LINE = re.compile(
+        r"^(?P<value_date>\d{6})(?P<entry_date>\d{4})?"
+        r"(?P<mark>RC|RD|C|D)(?P<funds>[A-Z])?"
+        r"(?P<amount>\d+(?:,\d{1,2})?)(?P<details>.*)$"
+    )
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -94,6 +103,31 @@ class BankStatementImportService:
             source_account_number=source_account_number,
         )
 
+    async def import_mt940(
+        self,
+        organization_id: str,
+        actor_user_id: str,
+        treasury_bank_account_id: str,
+        idempotency_key: str,
+        source_filename: str,
+        content: bytes,
+    ) -> BankStatementImport:
+        try:
+            source_account_number, rows = self._parse_mt940_rows(content)
+        except ValueError as exc:
+            raise self._validation_error(exc) from exc
+        return await self._import_rows(
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            treasury_bank_account_id=treasury_bank_account_id,
+            idempotency_key=idempotency_key,
+            source_filename=source_filename,
+            content=content,
+            format_version="MT940_V1",
+            rows=rows,
+            source_account_number=source_account_number,
+        )
+
     async def _import_rows(
         self,
         *,
@@ -129,7 +163,7 @@ class BankStatementImportService:
             ):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="OFX account identifier does not match the treasury bank account",
+                    detail="Statement account identifier does not match the treasury bank account",
                 )
             await self.imports.lock_resources(
                 {
@@ -251,7 +285,7 @@ class BankStatementImportService:
         return await self._reload_import(organization_id, statement_import.id)
 
     def _parse_csv_rows(self, content: bytes) -> list[dict[str, Any]]:
-        text_content = self._decode_content(content)
+        text_content = self._decode_content(content, source="CSV")
         reader = csv.DictReader(StringIO(text_content, newline=""))
         if reader.fieldnames is None or tuple(reader.fieldnames) != self._CSV_HEADERS:
             raise ValueError(
@@ -276,7 +310,7 @@ class BankStatementImportService:
         return self._validate_row_collection(rows, "Bank statement file")
 
     def _parse_ofx_rows(self, content: bytes) -> tuple[str, list[dict[str, Any]]]:
-        text_content = self._decode_content(content)
+        text_content = self._decode_content(content, source="OFX")
         if not text_content.lstrip().startswith("<?xml"):
             raise ValueError("OFX import supports OFX v2 XML files only")
         try:
@@ -330,6 +364,84 @@ class BankStatementImportService:
                 )
             )
         return next(iter(account_ids)), self._validate_row_collection(rows, "OFX file")
+
+    def _parse_mt940_rows(self, content: bytes) -> tuple[str, list[dict[str, Any]]]:
+        text_content = self._decode_content(
+            content, source="MT940", allow_latin_1=True
+        ).replace("\r\n", "\n")
+        tags = [
+            (match.group("tag"), match.group("value").strip())
+            for match in self._MT940_TAG.finditer(text_content)
+        ]
+        if not tags:
+            raise ValueError("MT940 file contains no tagged fields")
+        if not any(tag == "20" and value for tag, value in tags):
+            raise ValueError(
+                "MT940 file requires a non-empty :20: transaction reference"
+            )
+        account_identifiers = [value for tag, value in tags if tag == "25" and value]
+        if len(account_identifiers) != 1:
+            raise ValueError(
+                "MT940 file must contain exactly one non-empty :25: account"
+            )
+        if not any(tag in {"60F", "60M"} for tag, _ in tags) or not any(
+            tag in {"62F", "62M"} for tag, _ in tags
+        ):
+            raise ValueError("MT940 file requires opening and closing balances")
+        rows: list[dict[str, Any]] = []
+        for index, (tag, value) in enumerate(tags):
+            if tag != "61":
+                continue
+            narrative = ""
+            if index + 1 < len(tags) and tags[index + 1][0] == "86":
+                narrative = self._normalize_narrative(tags[index + 1][1])
+            rows.append(
+                self._parse_mt940_statement_line(
+                    line_number=len(rows) + 1,
+                    line=value,
+                    narrative=narrative,
+                )
+            )
+        return account_identifiers[0], self._validate_row_collection(rows, "MT940 file")
+
+    def _parse_mt940_statement_line(
+        self, *, line_number: int, line: str, narrative: str
+    ) -> dict[str, Any]:
+        match = self._MT940_LINE.match(line.replace("\n", ""))
+        if match is None:
+            raise ValueError(f"MT940 :61: line {line_number} is invalid")
+        value_date = self._mt940_date(match.group("value_date"))
+        entry_date = self._mt940_entry_date(value_date, match.group("entry_date"))
+        mark = match.group("mark")
+        amount = Decimal(match.group("amount").replace(",", "."))
+        if mark in {"D", "RC"}:
+            amount = -amount
+        details = match.group("details").strip()
+        bank_reference = self._mt940_bank_reference(details)
+        description = narrative or self._normalize_narrative(details)
+        if not description:
+            raise ValueError(
+                f"MT940 :61: line {line_number} requires :86: or narrative"
+            )
+        reference = bank_reference or None
+        external_id = (
+            f"MT940:{bank_reference}"
+            if bank_reference
+            else "MT940:"
+            + sha256(
+                f"{value_date.isoformat()}|{entry_date.isoformat()}|{amount}|{details}|{narrative}".encode()
+            ).hexdigest()[:40]
+        )
+        return self._normalized_row(
+            line_number=line_number,
+            external_id=external_id,
+            transaction_date_text=entry_date.isoformat(),
+            value_date_text=value_date.isoformat(),
+            amount_text=str(amount),
+            description=description,
+            reference=reference or "",
+            source_label=f"MT940 :61: line {line_number}",
+        )
 
     def _normalized_row(
         self,
@@ -401,7 +513,9 @@ class BankStatementImportService:
             raise ValueError(f"{source_label} contains duplicate external_id")
         return rows
 
-    def _decode_content(self, content: bytes) -> str:
+    def _decode_content(
+        self, content: bytes, *, source: str, allow_latin_1: bool = False
+    ) -> str:
         if not content:
             raise ValueError("Bank statement file must not be empty")
         if len(content) > self._MAX_CONTENT_BYTES:
@@ -409,7 +523,42 @@ class BankStatementImportService:
         try:
             return content.decode("utf-8-sig")
         except UnicodeDecodeError as exc:
-            raise ValueError("Bank statement file must be UTF-8 encoded") from exc
+            if allow_latin_1:
+                return content.decode("latin-1")
+            raise ValueError(f"{source} file must be UTF-8 encoded") from exc
+
+    @staticmethod
+    def _mt940_date(value: str) -> date:
+        try:
+            year = int(value[:2])
+            month = int(value[2:4])
+            day = int(value[4:6])
+            return date(2000 + year if year <= 69 else 1900 + year, month, day)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("MT940 :61: value date is invalid") from exc
+
+    @staticmethod
+    def _mt940_entry_date(value_date: date, entry_date: str | None) -> date:
+        if not entry_date:
+            return value_date
+        try:
+            candidate = date(value_date.year, int(entry_date[:2]), int(entry_date[2:]))
+        except ValueError as exc:
+            raise ValueError("MT940 :61: entry date is invalid") from exc
+        if (candidate - value_date).days > 183:
+            return candidate.replace(year=candidate.year - 1)
+        if (value_date - candidate).days > 183:
+            return candidate.replace(year=candidate.year + 1)
+        return candidate
+
+    @staticmethod
+    def _mt940_bank_reference(details: str) -> str | None:
+        match = re.search(r"//([^\s/]+)", details)
+        return match.group(1).strip() if match else None
+
+    @staticmethod
+    def _normalize_narrative(value: str) -> str:
+        return " ".join(value.split())
 
     @staticmethod
     def _ofx_date(value: str) -> str:

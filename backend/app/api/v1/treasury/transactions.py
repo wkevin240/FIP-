@@ -87,6 +87,29 @@ async def import_bank_statement_ofx(
     )
 
 
+@router.post(
+    "/imports/mt940",
+    response_model=BankStatementImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_bank_statement_mt940(
+    treasury_bank_account_id: str = Form(...),
+    statement_file: UploadFile = File(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1),
+    service: BankStatementImportService = Depends(get_import_service),
+    tenant: CurrentTenant = Depends(require_permission("treasury_transaction:create")),
+) -> BankStatementImportResponse:
+    filename = statement_file.filename or "bank-statement.mt940"
+    return await service.import_mt940(
+        tenant.organization_id,
+        tenant.user_id,
+        treasury_bank_account_id,
+        idempotency_key,
+        filename,
+        await statement_file.read(),
+    )
+
+
 @router.get("/accounting-profile", response_model=TreasuryAccountingProfileResponse)
 async def get_treasury_accounting_profile(
     service: TreasuryAccountingService = Depends(get_accounting_service),

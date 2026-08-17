@@ -258,3 +258,102 @@ async def test_postgresql_concurrent_ofx_import_is_idempotent_and_audited_once(
         )
         == 1
     )
+
+
+MT940_TEMPLATE = """:20:PG-MT940-001
+:25:{account_number}
+:28C:00001/001
+:60F:C260214XOF1000,00
+{transactions}
+:62F:C260216XOF1115,00
+"""
+
+
+def _mt940_transaction(
+    value_date: str,
+    entry_date: str,
+    mark: str,
+    amount: str,
+    reference: str,
+    narrative: str,
+) -> str:
+    return f":61:{value_date}{entry_date}{mark}{amount}NMSCREMIT//{reference}\n:86:{narrative}"
+
+
+@pytest.mark.asyncio
+async def test_postgresql_concurrent_mt940_import_is_idempotent_and_audited_once(
+    postgres_session: AsyncSession,
+) -> None:
+    from app.models.treasury.bank_account import TreasuryBankAccount
+
+    organization, _, bank_profile, _, _, _ = await _context(postgres_session)
+    organization_id = organization.id
+    bank_profile_id = bank_profile.id
+    bank_account = await postgres_session.get(TreasuryBankAccount, bank_profile_id)
+    assert bank_account is not None
+    account_number = bank_account.account_number
+    actor = await _create_actor(postgres_session)
+    actor_id = actor.id
+    content = MT940_TEMPLATE.format(
+        account_number=account_number,
+        transactions=(
+            _mt940_transaction(
+                "260215", "0215", "C", "120,00", "PG-MT940-001", "Collection"
+            )
+            + "\n"
+            + _mt940_transaction(
+                "260216", "0216", "D", "5,50", "PG-MT940-002", "Bank fee"
+            )
+        ),
+    ).encode("utf-8")
+    engine = create_async_engine(POSTGRES_TEST_DATABASE_URL, echo=False)
+
+    async def import_once() -> str:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            statement_import = await BankStatementImportService(session).import_mt940(
+                organization_id,
+                actor_id,
+                bank_profile_id,
+                "postgres-mt940-concurrent-001",
+                "concurrent.mt940",
+                content,
+            )
+            return statement_import.id
+
+    try:
+        first_id, second_id = await asyncio.gather(import_once(), import_once())
+    finally:
+        await engine.dispose()
+
+    assert first_id == second_id
+    assert (
+        await postgres_session.scalar(
+            select(func.count(BankStatementImport.id)).where(
+                BankStatementImport.organization_id == organization_id,
+                BankStatementImport.idempotency_key == "postgres-mt940-concurrent-001",
+                BankStatementImport.format_version == "MT940_V1",
+            )
+        )
+        == 1
+    )
+    assert (
+        await postgres_session.scalar(
+            select(func.count(BankTransaction.id)).where(
+                BankTransaction.organization_id == organization_id,
+                BankTransaction.external_id.in_(
+                    ["MT940:PG-MT940-001", "MT940:PG-MT940-002"]
+                ),
+            )
+        )
+        == 2
+    )
+    assert (
+        await postgres_session.scalar(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.organization_id == organization_id,
+                AuditEvent.action == "BANK_STATEMENT_IMPORTED",
+                AuditEvent.resource_id == first_id,
+            )
+        )
+        == 1
+    )
