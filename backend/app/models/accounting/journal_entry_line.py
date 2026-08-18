@@ -25,6 +25,11 @@ class JournalEntryLine(Base):
             "line_number",
             name="uq_journal_entry_line_number",
         ),
+        UniqueConstraint(
+            "organization_id",
+            "id",
+            name="uq_journal_entry_lines_organization_id_id",
+        ),
         CheckConstraint("debit >= 0", name="ck_journal_entry_line_debit_non_negative"),
         CheckConstraint(
             "credit >= 0", name="ck_journal_entry_line_credit_non_negative"

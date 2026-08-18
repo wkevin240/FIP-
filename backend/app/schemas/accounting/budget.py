@@ -13,6 +13,7 @@ class BudgetLineCreate(BaseModel):
     fiscal_period_id: str = Field(min_length=1)
     account_id: str = Field(min_length=1)
     amount: Decimal
+    dimension_value_id: str | None = None
 
 
 class BudgetLineResponse(BudgetLineCreate):

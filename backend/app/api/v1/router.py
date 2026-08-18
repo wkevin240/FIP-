@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.accounting.accounts import router as accounts_router
+from app.api.v1.accounting.analytical import router as analytical_router
 from app.api.v1.accounting.bank_reconciliation import (
     router as bank_reconciliation_router,
 )
@@ -55,6 +56,11 @@ api_router.include_router(
     budgets_router,
     prefix="/accounting/budgets",
     tags=["Accounting - Budgets"],
+)
+api_router.include_router(
+    analytical_router,
+    prefix="/accounting/analytical",
+    tags=["Accounting - Analytical FP&A"],
 )
 api_router.include_router(
     cash_flow_router,
