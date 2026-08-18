@@ -7,6 +7,7 @@ from app.models.accounting.bank_reconciliation_allocation import (
     BankReconciliationBatch,
 )
 from app.models.accounting.bank_transaction import BankTransaction
+from app.models.accounting.budget import Budget, BudgetLine
 from app.models.accounting.cash_flow_account_mapping import CashFlowAccountMapping
 from app.models.accounting.closing import PeriodClosing
 from app.models.accounting.financial_statement_mapping import FinancialStatementMapping
@@ -108,6 +109,8 @@ __all__ = [
     "BankTransaction",
     "BankTransactionAccountingProposal",
     "BankingControlException",
+    "Budget",
+    "BudgetLine",
     "CashFlowAccountMapping",
     "CreditNote",
     "CreditNoteAccountingPosting",

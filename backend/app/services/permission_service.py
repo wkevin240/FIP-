@@ -125,6 +125,10 @@ class PermissionService:
                 "bank_control:read",
                 "bank_control:refresh",
                 "bank_control:close",
+                "budget:create",
+                "budget:update",
+                "budget:approve",
+                "budget:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -167,6 +171,7 @@ class PermissionService:
                 "purchase_invoice:read",
                 "supplier_payment:read",
                 "bank_control:read",
+                "budget:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -212,6 +217,7 @@ class PermissionService:
                 "purchase_invoice:read",
                 "supplier_payment:read",
                 "bank_control:read",
+                "budget:read",
             }
         ),
     }
