@@ -65,6 +65,15 @@ from app.models.payroll import (
     PayrollTaxBracket,
 )
 from app.models.permission import Permission
+from app.models.procurement import (
+    ProcurementAccountingProfile,
+    PurchaseInvoice,
+    PurchaseInvoiceAccountingPosting,
+    PurchaseInvoiceLine,
+    Supplier,
+    SupplierPayment,
+    SupplierPaymentAccountingPosting,
+)
 from app.models.role import Role
 from app.models.treasury.accounting import (
     TreasuryAccountingPosting,
@@ -134,10 +143,17 @@ __all__ = [
     "PayrollTaxBracket",
     "PeriodClosing",
     "Permission",
+    "ProcurementAccountingProfile",
     "Product",
+    "PurchaseInvoice",
+    "PurchaseInvoiceAccountingPosting",
+    "PurchaseInvoiceLine",
     "Role",
     "StockBalance",
     "StockMovement",
+    "Supplier",
+    "SupplierPayment",
+    "SupplierPaymentAccountingPosting",
     "TreasuryAccountingPosting",
     "TreasuryAccountingProfile",
     "TreasuryBankAccount",

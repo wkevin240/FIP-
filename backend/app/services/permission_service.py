@@ -112,6 +112,16 @@ class PermissionService:
                 "fixed_asset_disposal:create",
                 "audit_event:read",
                 "audit_event:verify",
+                "supplier:create",
+                "supplier:read",
+                "procurement:accounting:configure",
+                "purchase_invoice:create",
+                "purchase_invoice:read",
+                "purchase_invoice:validate",
+                "purchase_invoice:post",
+                "supplier_payment:create",
+                "supplier_payment:read",
+                "supplier_payment:post",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -150,6 +160,9 @@ class PermissionService:
                 "fixed_asset:read",
                 "fixed_asset_depreciation:read",
                 "audit_event:read",
+                "supplier:read",
+                "purchase_invoice:read",
+                "supplier_payment:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -191,6 +204,9 @@ class PermissionService:
                 "fixed_asset_depreciation:read",
                 "audit_event:read",
                 "audit_event:verify",
+                "supplier:read",
+                "purchase_invoice:read",
+                "supplier_payment:read",
             }
         ),
     }
