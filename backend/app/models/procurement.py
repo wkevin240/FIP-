@@ -101,6 +101,9 @@ class PurchaseInvoice(Base):
         "PurchaseInvoiceLine", back_populates="invoice", cascade="all, delete-orphan"
     )
     payments = relationship("SupplierPayment", back_populates="invoice")
+    payment_allocations = relationship(
+        "SupplierPaymentAllocation", back_populates="invoice"
+    )
 
     @property
     def outstanding_amount(self) -> Decimal:
@@ -174,14 +177,19 @@ class SupplierPayment(Base):
         nullable=False,
         index=True,
     )
-    invoice_id = Column(String, nullable=False, index=True)
-    payment_date = Column(Date, nullable=False)
+    invoice_id = Column(String, nullable=True, index=True)
+    payment_date = Column(Date, nullable=False, index=True)
     amount = Column(Numeric(18, 2), nullable=False)
     method = Column(String(32), nullable=False)
     external_reference = Column(String(128), nullable=False)
     notes = Column(Text, nullable=True)
 
     invoice = relationship("PurchaseInvoice", back_populates="payments")
+    allocations = relationship(
+        "SupplierPaymentAllocation",
+        back_populates="payment",
+        overlaps="payment_allocations",
+    )
 
 
 class ProcurementAccountingProfile(Base):

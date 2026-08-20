@@ -82,6 +82,7 @@ from app.models.procurement import (
     SupplierPaymentAccountingPosting,
 )
 from app.models.role import Role
+from app.models.supplier_payment_allocation import SupplierPaymentAllocation
 from app.models.treasury.accounting import (
     TreasuryAccountingPosting,
     TreasuryAccountingProfile,
@@ -174,6 +175,7 @@ __all__ = [
     "Supplier",
     "SupplierPayment",
     "SupplierPaymentAccountingPosting",
+    "SupplierPaymentAllocation",
     "TreasuryAccountingPosting",
     "TreasuryAccountingProfile",
     "TreasuryBankAccount",

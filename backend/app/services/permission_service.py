@@ -122,6 +122,8 @@ class PermissionService:
                 "supplier_payment:create",
                 "supplier_payment:read",
                 "supplier_payment:post",
+                "supplier_payment:allocate",
+                "supplier_payment:reallocate",
                 "bank_control:read",
                 "bank_control:refresh",
                 "bank_control:close",

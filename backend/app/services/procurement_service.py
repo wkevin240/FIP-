@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ from app.models.procurement import (
     SupplierPayment,
     SupplierPaymentAccountingPosting,
 )
+from app.models.supplier_payment_allocation import SupplierPaymentAllocation
 from app.repositories.procurement_repository import ProcurementRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
@@ -180,35 +181,57 @@ class ProcurementService:
     async def create_payment(
         self, organization_id: str, actor_user_id: str, data: SupplierPaymentCreate
     ):
-        invoice = await self.repo.invoice(organization_id, data.invoice_id, lock=True)
-        if invoice is None:
-            raise HTTPException(status_code=404, detail="Purchase invoice not found")
-        if invoice.status not in {"VALIDATED", "PARTIALLY_PAID"}:
-            raise HTTPException(
-                status_code=422, detail="Purchase invoice is not payable"
+        invoice = None
+        if data.invoice_id is not None:
+            invoice = await self.repo.invoice(
+                organization_id, data.invoice_id, lock=True
             )
-        if (
-            data.payment_date < invoice.invoice_date
-            or data.amount > invoice.outstanding_amount
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail="Payment exceeds supplier invoice outstanding amount",
-            )
+            if invoice is None:
+                raise HTTPException(
+                    status_code=404, detail="Purchase invoice not found"
+                )
+            if invoice.status not in {"VALIDATED", "PARTIALLY_PAID"}:
+                raise HTTPException(
+                    status_code=422, detail="Purchase invoice is not payable"
+                )
+            if (
+                data.payment_date < invoice.invoice_date
+                or data.amount > invoice.outstanding_amount
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Payment exceeds supplier invoice outstanding amount",
+                )
         payment = SupplierPayment(organization_id=organization_id, **data.model_dump())
-        invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
-        invoice.status = (
-            "PAID" if invoice.paid_amount == invoice.total_amount else "PARTIALLY_PAID"
-        )
+        if invoice is not None:
+            invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
+            invoice.status = (
+                "PAID"
+                if invoice.paid_amount == invoice.total_amount
+                else "PARTIALLY_PAID"
+            )
         self.session.add(payment)
         await self.session.flush()
+        if invoice is not None:
+            self.session.add(
+                SupplierPaymentAllocation(
+                    organization_id=organization_id,
+                    payment_id=payment.id,
+                    invoice_id=invoice.id,
+                    supplier_id=invoice.supplier_id,
+                    amount=data.amount,
+                    idempotency_key=f"payment-{payment.id}-initial",
+                    created_by_user_id=actor_user_id,
+                )
+            )
+            await self.session.flush()
         await self.audit.record(
             organization_id=organization_id,
             actor_user_id=actor_user_id,
             action="SUPPLIER_PAYMENT_CREATED",
             resource_type="SupplierPayment",
             resource_id=payment.id,
-            new_value={"invoice_id": invoice.id, "amount": str(data.amount)},
+            new_value={"invoice_id": data.invoice_id, "amount": str(data.amount)},
         )
         await self.session.commit()
         return payment
@@ -347,6 +370,22 @@ class ProcurementService:
         existing = await self.repo.payment_posting(organization_id, payment_id)
         if existing:
             return existing
+        allocated_amount = Decimal(
+            await self.session.scalar(
+                select(
+                    func.coalesce(func.sum(SupplierPaymentAllocation.amount), 0)
+                ).where(
+                    SupplierPaymentAllocation.organization_id == organization_id,
+                    SupplierPaymentAllocation.payment_id == payment.id,
+                )
+            )
+            or 0
+        )
+        if allocated_amount != Decimal(payment.amount):
+            raise HTTPException(
+                status_code=422,
+                detail="Supplier payment must be fully allocated before posting",
+            )
         if await self.repo.posting_by_key(organization_id, key):
             raise HTTPException(
                 status_code=409, detail="Idempotency-Key is already bound"
