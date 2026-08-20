@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.schemas.treasury.banking_control import (
@@ -5,11 +7,31 @@ from app.schemas.treasury.banking_control import (
     BankingControlRefreshResponse,
     BankStatementClosureResponse,
 )
+from app.schemas.treasury.banking_cross_reconciliation import (
+    BankingCrossReconciliationResponse,
+)
 from app.services.treasury.banking_control_service import BankingControlService
+from app.services.treasury.banking_cross_reconciliation_service import (
+    BankingCrossReconciliationService,
+)
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
+
+
+@router.get(
+    "/cross-reconciliation",
+    response_model=BankingCrossReconciliationResponse,
+)
+async def cross_reconciliation_report(
+    as_of: date = Query(default_factory=date.today),
+    tenant: CurrentTenant = Depends(require_permission("bank_control:read")),
+    session: AsyncSession = Depends(get_db),
+) -> BankingCrossReconciliationResponse:
+    return await BankingCrossReconciliationService(session).report(
+        tenant.organization_id, as_of
+    )
 
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> BankingControlService:
