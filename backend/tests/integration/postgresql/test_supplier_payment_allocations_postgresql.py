@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from app.models.organization import Organization
 from app.models.procurement import PurchaseInvoice, Supplier, SupplierPayment
+from app.models.user import User
 from app.schemas.procurement import SupplierPaymentAllocationCreate
 from app.services.supplier_payment_allocation_service import (
     SupplierPaymentAllocationService,
@@ -33,7 +34,12 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
     postgres_session: AsyncSession,
 ):
     organization = Organization(name=f"AP allocation {uuid4().hex}")
-    postgres_session.add(organization)
+    actor = User(
+        email=f"ap-tester-{uuid4().hex}@example.invalid",
+        full_name="AP PostgreSQL tester",
+        hashed_password="test-only-hash",
+    )
+    postgres_session.add_all([organization, actor])
     await postgres_session.flush()
     supplier = Supplier(
         organization_id=organization.id,
@@ -70,7 +76,7 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
     service = SupplierPaymentAllocationService(postgres_session)
     first = await service.allocate(
         organization.id,
-        "postgres-ap-tester",
+        actor.id,
         payment.id,
         SupplierPaymentAllocationCreate(
             invoice_id=invoices[0].id, amount=Decimal("40.00")
@@ -79,7 +85,7 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
     )
     second = await service.allocate(
         organization.id,
-        "postgres-ap-tester",
+        actor.id,
         payment.id,
         SupplierPaymentAllocationCreate(
             invoice_id=invoices[1].id, amount=Decimal("60.00")
@@ -95,7 +101,7 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
 
     duplicate = await service.allocate(
         organization.id,
-        "postgres-ap-tester",
+        actor.id,
         payment.id,
         SupplierPaymentAllocationCreate(
             invoice_id=invoices[0].id, amount=Decimal("40.00")
@@ -107,7 +113,7 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
     with pytest.raises(HTTPException, match="exceeds payment amount"):
         await service.allocate(
             organization.id,
-            "postgres-ap-tester",
+            actor.id,
             payment.id,
             SupplierPaymentAllocationCreate(
                 invoice_id=invoices[0].id, amount=Decimal("0.01")
