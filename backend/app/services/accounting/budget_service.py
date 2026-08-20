@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from app.core.enums.accounting import JournalEntryStatus
 from app.models.accounting.account import Account
+from app.models.accounting.analytical import AnalyticalDimensionValue
 from app.models.accounting.budget import Budget, BudgetLine
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry
@@ -97,11 +98,27 @@ class BudgetService:
             raise HTTPException(
                 status_code=422, detail="Account not found in organization"
             )
+        if data.dimension_value_id:
+            dimension_value = await self.session.scalar(
+                select(AnalyticalDimensionValue).where(
+                    AnalyticalDimensionValue.organization_id == organization_id,
+                    AnalyticalDimensionValue.id == data.dimension_value_id,
+                    AnalyticalDimensionValue.is_active == "true",
+                )
+            )
+            if dimension_value is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Analytical dimension value not found in organization",
+                )
+        else:
+            dimension_value = None
         line = BudgetLine(
             organization_id=organization_id,
             budget_id=budget.id,
             fiscal_period_id=period.id,
             account_id=account.id,
+            dimension_value_id=dimension_value.id if dimension_value else None,
             amount=data.amount,
         )
         self.session.add(line)

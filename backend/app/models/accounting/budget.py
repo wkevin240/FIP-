@@ -51,7 +51,8 @@ class BudgetLine(Base):
             "budget_id",
             "fiscal_period_id",
             "account_id",
-            name="uq_budget_line_org_budget_period_account",
+            "dimension_value_id",
+            name="uq_budget_line_org_budget_period_account_dimension",
         ),
         ForeignKeyConstraint(
             ["organization_id", "budget_id"],
@@ -63,6 +64,15 @@ class BudgetLine(Base):
             ["organization_id", "fiscal_period_id"],
             ["fiscal_periods.organization_id", "fiscal_periods.id"],
             name="fk_budget_line_organization_period",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "dimension_value_id"],
+            [
+                "analytical_dimension_values.organization_id",
+                "analytical_dimension_values.id",
+            ],
+            name="fk_budget_line_organization_dimension_value",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -82,4 +92,5 @@ class BudgetLine(Base):
     budget_id = Column(String, nullable=False, index=True)
     fiscal_period_id = Column(String, nullable=False, index=True)
     account_id = Column(String, nullable=False, index=True)
+    dimension_value_id = Column(String, nullable=True, index=True)
     amount = Column(Numeric(18, 2), nullable=False)

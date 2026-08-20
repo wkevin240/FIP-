@@ -129,6 +129,10 @@ class PermissionService:
                 "budget:update",
                 "budget:approve",
                 "budget:read",
+                "analytical_dimension:create",
+                "analytical_value:create",
+                "analytical_allocation:create",
+                "analytical_report:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -172,6 +176,7 @@ class PermissionService:
                 "supplier_payment:read",
                 "bank_control:read",
                 "budget:read",
+                "analytical_report:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -218,6 +223,7 @@ class PermissionService:
                 "supplier_payment:read",
                 "bank_control:read",
                 "budget:read",
+                "analytical_report:read",
             }
         ),
     }
