@@ -88,6 +88,10 @@ from app.models.treasury.bank_statement_import import (
     BankStatementImport,
     BankStatementImportLine,
 )
+from app.models.treasury.banking_control import (
+    BankingControlException,
+    BankStatementClosure,
+)
 from app.models.user import User
 
 __all__ = [
@@ -98,10 +102,12 @@ __all__ = [
     "BankReconciliation",
     "BankReconciliationAllocation",
     "BankReconciliationBatch",
+    "BankStatementClosure",
     "BankStatementImport",
     "BankStatementImportLine",
     "BankTransaction",
     "BankTransactionAccountingProposal",
+    "BankingControlException",
     "CashFlowAccountMapping",
     "CreditNote",
     "CreditNoteAccountingPosting",
