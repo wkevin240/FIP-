@@ -21,6 +21,7 @@ from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal import Journal
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.models.accounting.scenario import Scenario, ScenarioAssumption
 from app.models.accounting.vat import VATEntry, VATRate
 from app.models.accounting.vat_declaration import VATDeclaration
 from app.models.audit import AuditEvent, AuditSequence
@@ -143,6 +144,8 @@ __all__ = [
     "Journal",
     "JournalEntry",
     "JournalEntryLine",
+    "Scenario",
+    "ScenarioAssumption",
     "JournalEntryLineAnalyticAllocation",
     "Organization",
     "OrganizationMembership",
