@@ -21,6 +21,7 @@ from app.api.v1.accounting.reporting import router as reporting_router
 from app.api.v1.accounting.scenarios import router as scenarios_router
 from app.api.v1.accounting.syscohada_liasse import router as syscohada_liasse_router
 from app.api.v1.accounting.vat import router as vat_router
+from app.api.v1.accounting.working_capital import router as working_capital_router
 from app.api.v1.audit.events import router as audit_events_router
 from app.api.v1.fixed_assets.assets import router as fixed_assets_router
 from app.api.v1.fixed_assets.configuration import (
@@ -120,6 +121,11 @@ api_router.include_router(
 )
 api_router.include_router(
     vat_router, prefix="/accounting/vat", tags=["Accounting - VAT"]
+)
+api_router.include_router(
+    working_capital_router,
+    prefix="/accounting/working-capital",
+    tags=["Accounting - Working Capital"],
 )
 api_router.include_router(
     journal_entries_router,
