@@ -79,6 +79,20 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "/api/v1/treasury/bank-accounts/" in paths
     assert "/api/v1/treasury/bank-accounts/{treasury_bank_account_id}/position" in paths
     assert "/api/v1/treasury/transactions/" in paths
+    assert "/api/v1/treasury/transactions/accounting-rules" in paths
+    assert "/api/v1/treasury/transactions/accounting-rules/{rule_id}" in paths
+    assert (
+        "/api/v1/treasury/transactions/{transaction_id}/accounting-proposals" in paths
+    )
+    assert "/api/v1/treasury/transactions/accounting-proposals/{proposal_id}" in paths
+    assert (
+        "/api/v1/treasury/transactions/accounting-proposals/{proposal_id}/validate"
+        in paths
+    )
+    assert (
+        "/api/v1/treasury/transactions/accounting-proposals/{proposal_id}/reject"
+        in paths
+    )
     assert (
         "/api/v1/treasury/reconciliation/bank-accounts/{treasury_bank_account_id}/transactions/{transaction_id}/match"
         in paths
@@ -138,6 +152,25 @@ def test_journal_and_entry_routes_are_published() -> None:
     assert "post" in paths["/api/v1/payroll/periods/{payroll_period_id}/post"]
     assert "post" in paths["/api/v1/treasury/bank-accounts/"]
     assert "post" in paths["/api/v1/treasury/transactions/"]
+    assert "get" in paths["/api/v1/treasury/transactions/accounting-rules"]
+    assert "post" in paths["/api/v1/treasury/transactions/accounting-rules"]
+    assert "put" in paths["/api/v1/treasury/transactions/accounting-rules/{rule_id}"]
+    assert (
+        "post"
+        in paths["/api/v1/treasury/transactions/{transaction_id}/accounting-proposals"]
+    )
+    assert (
+        "post"
+        in paths[
+            "/api/v1/treasury/transactions/accounting-proposals/{proposal_id}/validate"
+        ]
+    )
+    assert (
+        "post"
+        in paths[
+            "/api/v1/treasury/transactions/accounting-proposals/{proposal_id}/reject"
+        ]
+    )
     assert (
         "post"
         in paths[

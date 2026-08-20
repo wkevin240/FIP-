@@ -74,7 +74,7 @@ L’API expose alors les ressources suivantes :
 | Avoirs commerciaux | `/api/v1/invoicing/credit-notes` |
 | Règlements de facture | `/api/v1/invoicing/payments` |
 | Profils de comptes bancaires Trésorerie et positions | `/api/v1/treasury/bank-accounts` |
-| Transactions de relevé Trésorerie et candidats | `/api/v1/treasury/transactions` |
+| Transactions de relevé, règles et propositions Trésorerie | `/api/v1/treasury/transactions` |
 | Validation de rapprochement Trésorerie | `/api/v1/treasury/reconciliation` |
 | Salariés et contrats Paie | `/api/v1/payroll/employees` |
 | Règles datées et profils comptables Paie | `/api/v1/payroll/configuration` |
@@ -208,7 +208,9 @@ La position disponible via `GET /api/v1/treasury/bank-accounts/{treasury_bank_ac
 
 Les opérations de relevé et de rapprochement restent la **source de vérité unique** du domaine comptable, dans les ressources existantes de transactions et rapprochements bancaires. Les façades Trésorerie importent une transaction avec `POST /api/v1/treasury/transactions/`, la consultent par profil avec `GET /api/v1/treasury/transactions/bank-accounts/{treasury_bank_account_id}`, proposent les écritures candidates et valident le rapprochement sous `/api/v1/treasury/reconciliation`. Elles imposent un profil actif, filtrent toute donnée par organisation, compte comptable et date d’ouverture, et refusent l’utilisation d’une transaction appartenant à un autre profil bancaire.
 
-Les permissions `treasury_bank_account:create`, `treasury_bank_account:read`, `treasury_bank_account:update`, `treasury_position:read`, `treasury_transaction:create`, `treasury_transaction:read`, `treasury_reconciliation:read` et `treasury_reconciliation:match` séparent la configuration, la consultation de position, l’import et la validation. Ce premier périmètre ne fournit pas encore de prévision de trésorerie, de rapprochement partiel ni d’import de fichiers de relevé normalisés ; ces capacités restent des évolutions distinctes.
+Les relevés normalisés CSV, OFX v2 XML et MT940 sont importés sous `/api/v1/treasury/transactions/imports/*` avec idempotence, déduplication, isolation tenant et Audit. Les règles de reconnaissance sous `/api/v1/treasury/transactions/accounting-rules` comparent explicitement description, référence, bornes de montant et sens, puis génèrent au plus une proposition `PENDING`. L’absence de règle ou une égalité de priorité reste visible (`NO_MATCH` ou `AMBIGUOUS`) et ne déclenche aucune écriture. La validation explicite d’une proposition par `/accounting-proposals/{proposal_id}/validate` délègue à `JournalEntryService` via le service Trésorerie, dans une période ouverte, avec une clé d’idempotence, des verrous PostgreSQL et un Audit atomique. Aucun compte ni règle par défaut n’est créé ; la configuration vient exclusivement de l’organisation. Les détails sont décrits dans [`docs/treasury_bank_accounting_rules.md`](docs/treasury_bank_accounting_rules.md).
+
+Les permissions `treasury_bank_account:create`, `treasury_bank_account:read`, `treasury_bank_account:update`, `treasury_position:read`, `treasury_transaction:create`, `treasury_transaction:read`, `treasury_reconciliation:read`, `treasury_reconciliation:match`, `bank_rule:create`, `bank_rule:read`, `bank_rule:update`, `bank_transaction:propose` et `bank_transaction:validate_accounting` séparent la configuration, la consultation, l’import, la proposition et la décision comptable. Le rapprochement reste un processus distinct : aucune règle de reconnaissance ne rapproche ni ne comptabilise automatiquement une transaction bancaire.
 
 ## Qualité et sécurité
 
