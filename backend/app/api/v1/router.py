@@ -16,6 +16,7 @@ from app.api.v1.accounting.professional_reporting import (
     router as professional_reporting_router,
 )
 from app.api.v1.accounting.reporting import router as reporting_router
+from app.api.v1.accounting.scenarios import router as scenarios_router
 from app.api.v1.accounting.syscohada_liasse import router as syscohada_liasse_router
 from app.api.v1.accounting.vat import router as vat_router
 from app.api.v1.audit.events import router as audit_events_router
@@ -61,6 +62,11 @@ api_router.include_router(
     analytical_router,
     prefix="/accounting/analytical",
     tags=["Accounting - Analytical FP&A"],
+)
+api_router.include_router(
+    scenarios_router,
+    prefix="/accounting/scenarios",
+    tags=["Accounting - FP&A Scenarios"],
 )
 api_router.include_router(
     cash_flow_router,
