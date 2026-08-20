@@ -43,12 +43,20 @@ class PaymentService:
                 if invoice is None:
                     raise HTTPException(status_code=404, detail="Invoice not found")
                 self._validate_invoice_payment(invoice, data)
-                status_value, paid_amount, credited_amount = InvoiceRules.apply_payment(
-                    Decimal(invoice.total_amount),
-                    Decimal(invoice.paid_amount),
-                    Decimal(invoice.credited_amount),
-                    data.amount,
-                )
+                try:
+                    status_value, paid_amount, credited_amount = (
+                        InvoiceRules.apply_payment(
+                            Decimal(invoice.total_amount),
+                            Decimal(invoice.paid_amount),
+                            Decimal(invoice.credited_amount),
+                            data.amount,
+                        )
+                    )
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail=str(exc),
+                    ) from exc
             payment = await self.payments.create(
                 organization_id,
                 data,
