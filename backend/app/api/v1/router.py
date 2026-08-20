@@ -43,6 +43,9 @@ from app.api.v1.procurement import router as procurement_router
 from app.api.v1.treasury.bank_accounts import router as treasury_bank_accounts_router
 from app.api.v1.treasury.banking_control import router as banking_control_router
 from app.api.v1.treasury.reconciliation import router as treasury_reconciliation_router
+from app.api.v1.treasury.supplier_payment_reconciliation import (
+    router as supplier_payment_reconciliation_router,
+)
 from app.api.v1.treasury.transactions import router as treasury_transactions_router
 
 api_router = APIRouter()
@@ -199,4 +202,9 @@ api_router.include_router(
     treasury_reconciliation_router,
     prefix="/treasury/reconciliation",
     tags=["Treasury - Reconciliation"],
+)
+api_router.include_router(
+    supplier_payment_reconciliation_router,
+    prefix="/treasury/reconciliation",
+    tags=["Treasury - AP Reconciliation"],
 )
