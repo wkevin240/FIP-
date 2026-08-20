@@ -10,13 +10,23 @@ from app.services.permission_service import PermissionService
 
 
 def test_scenario_rbac_is_least_privilege():
-    assert PermissionService.role_allows(MembershipRole.ACCOUNTANT.value, "scenario:create")
-    assert PermissionService.role_allows(MembershipRole.ACCOUNTANT.value, "scenario:update")
-    assert PermissionService.role_allows(MembershipRole.ACCOUNTANT.value, "scenario:approve")
+    assert PermissionService.role_allows(
+        MembershipRole.ACCOUNTANT.value, "scenario:create"
+    )
+    assert PermissionService.role_allows(
+        MembershipRole.ACCOUNTANT.value, "scenario:update"
+    )
+    assert PermissionService.role_allows(
+        MembershipRole.ACCOUNTANT.value, "scenario:approve"
+    )
     assert PermissionService.role_allows(MembershipRole.MANAGER.value, "scenario:read")
     assert PermissionService.role_allows(MembershipRole.AUDITOR.value, "scenario:read")
-    assert not PermissionService.role_allows(MembershipRole.MANAGER.value, "scenario:approve")
-    assert not PermissionService.role_allows(MembershipRole.AUDITOR.value, "scenario:update")
+    assert not PermissionService.role_allows(
+        MembershipRole.MANAGER.value, "scenario:approve"
+    )
+    assert not PermissionService.role_allows(
+        MembershipRole.AUDITOR.value, "scenario:update"
+    )
 
 
 def test_scenario_assumption_rejects_zero_and_preserves_decimal():
