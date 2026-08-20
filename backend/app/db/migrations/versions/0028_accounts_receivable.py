@@ -107,7 +107,7 @@ def upgrade() -> None:
             p.invoice_id,
             p.amount,
             COALESCE(p.received_at::text, p.payment_date::text),
-            'payment:' || p.id || ':initial',
+            'payment:' || p.id || chr(58) || 'initial',
             NULL
         FROM public.payments p
         WHERE p.invoice_id IS NOT NULL
