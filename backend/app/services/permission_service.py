@@ -138,6 +138,7 @@ class PermissionService:
                 "scenario:approve",
                 "scenario:read",
                 "forecast:read",
+                "kpi:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -184,6 +185,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "kpi:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -233,6 +235,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "kpi:read",
             }
         ),
     }
