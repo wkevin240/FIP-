@@ -5,6 +5,7 @@ from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.invoicing.credit_note import CreditNote
 from app.models.invoicing.payment import Payment
+from app.models.invoicing.payment_allocation import PaymentAllocation
 from app.repositories.invoicing.invoice_accounting_repository import (
     InvoiceAccountingRepository,
 )
@@ -17,7 +18,7 @@ from app.schemas.invoicing.settlement_accounting import PaymentPostingCreate
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,6 +133,20 @@ class SettlementAccountingService:
         )
         if payment is None:
             raise HTTPException(status_code=404, detail="Payment not found")
+        allocated_amount = Decimal(
+            await self.session.scalar(
+                select(func.coalesce(func.sum(PaymentAllocation.amount), 0)).where(
+                    PaymentAllocation.organization_id == organization_id,
+                    PaymentAllocation.payment_id == payment.id,
+                )
+            )
+            or 0
+        )
+        if allocated_amount <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Payment must be allocated before accounting posting",
+            )
         existing = await self.links.payment_posting(organization_id, payment.id)
         if existing:
             return existing

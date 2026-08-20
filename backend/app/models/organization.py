@@ -33,7 +33,9 @@ class Organization(Base):
     stock_movements = relationship("StockMovement", back_populates="organization")
     invoices = relationship("Invoice", back_populates="organization")
     credit_notes = relationship("CreditNote", back_populates="organization")
-    payments = relationship("Payment", back_populates="organization")
+    payments = relationship(
+        "Payment", back_populates="organization", overlaps="payments"
+    )
     treasury_bank_accounts = relationship(
         "TreasuryBankAccount", back_populates="organization"
     )
