@@ -138,6 +138,7 @@ class PermissionService:
                 "scenario:approve",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
@@ -185,6 +186,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
@@ -235,6 +237,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
