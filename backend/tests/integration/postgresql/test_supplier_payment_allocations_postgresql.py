@@ -56,9 +56,9 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
             invoice_date=date(2026, 1, 1),
             due_date=date(2026, 2, 1),
             status="VALIDATED",
-            subtotal=Decimal("50.00"),
+            subtotal=Decimal("100.00"),
             tax_amount=Decimal("0.00"),
-            total_amount=Decimal("50.00"),
+            total_amount=Decimal("100.00"),
         )
         for index in (1, 2)
     ]
