@@ -13,6 +13,7 @@ from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.forecasts import router as forecasts_router
 from app.api.v1.accounting.journal_entries import router as journal_entries_router
 from app.api.v1.accounting.journals import router as journals_router
+from app.api.v1.accounting.kpis import router as kpis_router
 from app.api.v1.accounting.professional_reporting import (
     router as professional_reporting_router,
 )
@@ -73,6 +74,11 @@ api_router.include_router(
     forecasts_router,
     prefix="/accounting/forecasts",
     tags=["Accounting - FP&A Forecasts"],
+)
+api_router.include_router(
+    kpis_router,
+    prefix="/accounting/kpis",
+    tags=["Accounting - FP&A KPIs"],
 )
 api_router.include_router(
     cash_flow_router,
