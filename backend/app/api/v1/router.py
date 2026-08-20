@@ -8,6 +8,7 @@ from app.api.v1.accounting.bank_reconciliation import (
 from app.api.v1.accounting.budgets import router as budgets_router
 from app.api.v1.accounting.cash_flow import router as cash_flow_router
 from app.api.v1.accounting.closing import router as closing_router
+from app.api.v1.accounting.closing_readiness import router as closing_readiness_router
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.forecasts import router as forecasts_router
@@ -99,6 +100,11 @@ api_router.include_router(
     closing_router,
     prefix="/accounting/period-closings",
     tags=["Accounting - Period Closings"],
+)
+api_router.include_router(
+    closing_readiness_router,
+    prefix="/accounting/closing-readiness",
+    tags=["Accounting - Closing Readiness"],
 )
 api_router.include_router(
     journals_router, prefix="/accounting/journals", tags=["Accounting - Journals"]
