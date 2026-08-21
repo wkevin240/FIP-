@@ -10,6 +10,7 @@ from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal import Journal
+from app.models.procurement_flow import PurchaseOrder
 from app.models.procurement import (
     ProcurementAccountingProfile,
     PurchaseInvoice,
@@ -104,11 +105,29 @@ class ProcurementService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Active supplier not found",
             )
+        if data.purchase_order_id:
+            purchase_order = await self.session.scalar(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.organization_id == organization_id,
+                    PurchaseOrder.id == data.purchase_order_id,
+                )
+            )
+            if purchase_order is None or purchase_order.supplier_id != data.supplier_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Purchase order does not belong to supplier or organization",
+                )
+            if purchase_order.status != "ISSUED":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Only issued purchase orders can be invoiced",
+                )
         subtotal = sum((line.line_subtotal for line in data.lines), Decimal("0.00"))
         tax_amount = sum((line.tax_amount for line in data.lines), Decimal("0.00"))
         invoice = PurchaseInvoice(
             organization_id=organization_id,
             supplier_id=data.supplier_id,
+            purchase_order_id=data.purchase_order_id,
             invoice_number=data.invoice_number,
             invoice_date=data.invoice_date,
             due_date=data.due_date,
