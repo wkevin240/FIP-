@@ -108,6 +108,7 @@ class PurchaseOrderLine(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_purchase_order_line_quantity"),
         CheckConstraint("unit_price >= 0", name="ck_purchase_order_line_price"),
+        UniqueConstraint("organization_id", "id", name="uq_purchase_order_line_org_id"),
         ForeignKeyConstraint(
             ["organization_id", "order_id"],
             ["purchase_orders.organization_id", "purchase_orders.id"],

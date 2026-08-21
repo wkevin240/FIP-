@@ -112,6 +112,9 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "organization_id", "id", name="uq_purchase_order_line_org_id"
+        ),
         sa.CheckConstraint("quantity > 0", name="ck_purchase_order_line_quantity"),
         sa.CheckConstraint("unit_price >= 0", name="ck_purchase_order_line_price"),
     )
