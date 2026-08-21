@@ -30,6 +30,7 @@ from app.schemas.procurement import (
 )
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.audit.audit_service import AuditService
+from app.services.procurement_approval_service import ProcurementApprovalService
 
 
 class ProcurementService:
@@ -243,6 +244,9 @@ class ProcurementService:
         invoice = await self.repo.invoice(organization_id, invoice_id, lock=True)
         if invoice is None:
             raise HTTPException(status_code=404, detail="Purchase invoice not found")
+        await ProcurementApprovalService(self.session).require_approved(
+            organization_id, invoice_id
+        )
         existing = await self.repo.invoice_posting(organization_id, invoice_id)
         if existing:
             return existing

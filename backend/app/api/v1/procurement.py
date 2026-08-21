@@ -16,6 +16,11 @@ from app.schemas.procurement import (
     SupplierPaymentResponse,
     SupplierResponse,
 )
+from app.schemas.procurement_approval import (
+    PurchaseInvoiceApprovalDecision,
+    PurchaseInvoiceApprovalResponse,
+)
+from app.services.procurement_approval_service import ProcurementApprovalService
 from app.services.procurement_service import ProcurementService
 
 router = APIRouter()
@@ -23,6 +28,12 @@ router = APIRouter()
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> ProcurementService:
     return ProcurementService(session)
+
+
+async def get_approval_service(
+    session: AsyncSession = Depends(get_db),
+) -> ProcurementApprovalService:
+    return ProcurementApprovalService(session)
 
 
 @router.post(
@@ -72,6 +83,54 @@ async def validate_invoice(
 ):
     return await service.validate_invoice(
         tenant.organization_id, tenant.user_id, invoice_id
+    )
+
+
+@router.post(
+    "/invoices/{invoice_id}/approval",
+    response_model=PurchaseInvoiceApprovalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def request_invoice_approval(
+    invoice_id: str,
+    service: ProcurementApprovalService = Depends(get_approval_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("purchase_invoice:approval:request")
+    ),
+):
+    return await service.request(tenant.organization_id, tenant.user_id, invoice_id)
+
+
+@router.get(
+    "/invoices/{invoice_id}/approval",
+    response_model=PurchaseInvoiceApprovalResponse | None,
+)
+async def get_invoice_approval(
+    invoice_id: str,
+    service: ProcurementApprovalService = Depends(get_approval_service),
+    tenant: CurrentTenant = Depends(require_permission("purchase_invoice:read")),
+):
+    return await service.get(tenant.organization_id, invoice_id)
+
+
+@router.post(
+    "/invoices/{invoice_id}/approval/decision",
+    response_model=PurchaseInvoiceApprovalResponse,
+)
+async def decide_invoice_approval(
+    invoice_id: str,
+    data: PurchaseInvoiceApprovalDecision,
+    service: ProcurementApprovalService = Depends(get_approval_service),
+    tenant: CurrentTenant = Depends(
+        require_permission("purchase_invoice:approval:decide")
+    ),
+):
+    return await service.decide(
+        tenant.organization_id,
+        tenant.user_id,
+        invoice_id,
+        data.decision,
+        data.reason,
     )
 
 

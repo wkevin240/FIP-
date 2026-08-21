@@ -85,6 +85,7 @@ from app.models.procurement import (
     SupplierPayment,
     SupplierPaymentAccountingPosting,
 )
+from app.models.procurement_approval import PurchaseInvoiceApproval
 from app.models.role import Role
 from app.models.treasury.accounting import (
     TreasuryAccountingPosting,
@@ -172,6 +173,7 @@ __all__ = [
     "Product",
     "PurchaseInvoice",
     "PurchaseInvoiceAccountingPosting",
+    "PurchaseInvoiceApproval",
     "PurchaseInvoiceLine",
     "Role",
     "Scenario",
