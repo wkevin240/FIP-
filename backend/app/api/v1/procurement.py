@@ -16,6 +16,10 @@ from app.schemas.procurement import (
     SupplierPaymentResponse,
     SupplierResponse,
 )
+from app.schemas.procurement_approval import (
+    PurchaseInvoiceApprovalDecision,
+    PurchaseInvoiceApprovalResponse,
+)
 from app.schemas.procurement_flow import (
     GoodsReceiptCreate,
     GoodsReceiptResponse,
@@ -24,10 +28,6 @@ from app.schemas.procurement_flow import (
     PurchaseRequestCreate,
     PurchaseRequestResponse,
     ThreeWayMatchResponse,
-)
-from app.schemas.procurement_approval import (
-    PurchaseInvoiceApprovalDecision,
-    PurchaseInvoiceApprovalResponse,
 )
 from app.services.procurement_approval_service import ProcurementApprovalService
 from app.services.procurement_flow_service import ProcurementFlowService

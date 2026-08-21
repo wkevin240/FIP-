@@ -10,7 +10,6 @@ from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal import Journal
-from app.models.procurement_flow import PurchaseOrder
 from app.models.procurement import (
     ProcurementAccountingProfile,
     PurchaseInvoice,
@@ -20,6 +19,7 @@ from app.models.procurement import (
     SupplierPayment,
     SupplierPaymentAccountingPosting,
 )
+from app.models.procurement_flow import PurchaseOrder
 from app.repositories.procurement_repository import ProcurementRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
