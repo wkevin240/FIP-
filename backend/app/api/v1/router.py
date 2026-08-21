@@ -44,6 +44,7 @@ from app.api.v1.payroll.payroll import router as payroll_router
 from app.api.v1.procurement import router as procurement_router
 from app.api.v1.treasury.bank_accounts import router as treasury_bank_accounts_router
 from app.api.v1.treasury.banking_control import router as banking_control_router
+from app.api.v1.treasury.liquidity_control import router as liquidity_control_router
 from app.api.v1.treasury.reconciliation import router as treasury_reconciliation_router
 from app.api.v1.treasury.transactions import router as treasury_transactions_router
 
@@ -206,6 +207,11 @@ api_router.include_router(
     banking_control_router,
     prefix="/treasury/banking-control",
     tags=["Treasury - Banking Control"],
+)
+api_router.include_router(
+    liquidity_control_router,
+    prefix="/treasury/liquidity-control",
+    tags=["Treasury - Liquidity Control"],
 )
 api_router.include_router(
     treasury_reconciliation_router,

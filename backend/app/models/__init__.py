@@ -99,6 +99,7 @@ from app.models.treasury.banking_control import (
     BankingControlException,
     BankStatementClosure,
 )
+from app.models.treasury.liquidity_alert import LiquidityAlertConfiguration
 from app.models.user import User
 
 __all__ = [
@@ -145,6 +146,7 @@ __all__ = [
     "JournalEntry",
     "JournalEntryLine",
     "JournalEntryLineAnalyticAllocation",
+    "LiquidityAlertConfiguration",
     "Organization",
     "OrganizationMembership",
     "Payment",

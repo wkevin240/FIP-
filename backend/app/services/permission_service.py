@@ -140,6 +140,9 @@ class PermissionService:
                 "scenario:read",
                 "forecast:read",
                 "cash_forecast:read",
+                "liquidity_control:read",
+                "liquidity_alert_config:read",
+                "liquidity_alert_config:write",
                 "kpi:read",
             }
         ),
@@ -189,6 +192,9 @@ class PermissionService:
                 "scenario:read",
                 "forecast:read",
                 "cash_forecast:read",
+                "liquidity_control:read",
+                "liquidity_alert_config:read",
+                "liquidity_alert_config:write",
                 "kpi:read",
             }
         ),
@@ -241,6 +247,9 @@ class PermissionService:
                 "scenario:read",
                 "forecast:read",
                 "cash_forecast:read",
+                "liquidity_control:read",
+                "liquidity_alert_config:read",
+                "liquidity_alert_config:write",
                 "kpi:read",
             }
         ),
