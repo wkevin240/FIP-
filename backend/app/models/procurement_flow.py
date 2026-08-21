@@ -21,6 +21,7 @@ class PurchaseRequest(Base):
         UniqueConstraint(
             "organization_id", "request_number", name="uq_purchase_request_org_number"
         ),
+        UniqueConstraint("organization_id", "id", name="uq_purchase_request_org_id"),
         CheckConstraint(
             "status IN ('DRAFT','SUBMITTED','APPROVED','REJECTED','CANCELLED')",
             name="ck_purchase_request_status",
@@ -70,6 +71,7 @@ class PurchaseOrder(Base):
         UniqueConstraint(
             "organization_id", "order_number", name="uq_purchase_order_org_number"
         ),
+        UniqueConstraint("organization_id", "id", name="uq_purchase_order_org_id"),
         CheckConstraint(
             "status IN ('DRAFT','ISSUED','CANCELLED','CLOSED')",
             name="ck_purchase_order_status",

@@ -31,6 +31,7 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "organization_id", "request_number", name="uq_purchase_request_org_number"
         ),
+        sa.UniqueConstraint("organization_id", "id", name="uq_purchase_request_org_id"),
         sa.CheckConstraint(
             "status IN ('DRAFT','SUBMITTED','APPROVED','REJECTED','CANCELLED')",
             name="ck_purchase_request_status",
@@ -85,6 +86,7 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "organization_id", "order_number", name="uq_purchase_order_org_number"
         ),
+        sa.UniqueConstraint("organization_id", "id", name="uq_purchase_order_org_id"),
         sa.CheckConstraint(
             "status IN ('DRAFT','ISSUED','CANCELLED','CLOSED')",
             name="ck_purchase_order_status",
