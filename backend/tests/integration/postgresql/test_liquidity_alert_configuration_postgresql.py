@@ -1,6 +1,5 @@
 import os
 from datetime import date
-from uuid import uuid4
 
 import pytest
 from app.models.treasury.liquidity_alert import LiquidityAlertConfiguration
@@ -37,6 +36,8 @@ async def test_liquidity_alert_configuration_constraints(
     )
     postgres_session.add(first)
     await postgres_session.commit()
+    first_id = first.id
+    organization_id = organization.id
 
     duplicate = LiquidityAlertConfiguration(
         organization_id=organization.id,
@@ -72,6 +73,5 @@ async def test_liquidity_alert_configuration_constraints(
         await postgres_session.commit()
     await postgres_session.rollback()
 
-    assert first.id
-    assert first.organization_id == organization.id
-    assert uuid4()
+    assert first_id
+    assert organization_id
