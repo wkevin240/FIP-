@@ -134,6 +134,7 @@ class GoodsReceipt(Base):
         UniqueConstraint(
             "organization_id", "receipt_number", name="uq_goods_receipt_org_number"
         ),
+        UniqueConstraint("organization_id", "id", name="uq_goods_receipt_org_id"),
         CheckConstraint(
             "status IN ('DRAFT','POSTED','CANCELLED')", name="ck_goods_receipt_status"
         ),
