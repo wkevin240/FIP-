@@ -21,7 +21,9 @@ Le montant non appliqué est calculé comme `payment amount - total allocated`, 
 
 Les allocations ne modifient pas directement une écriture `POSTED`, ne postent pas automatiquement dans Accounting et ne rapprochent pas automatiquement une transaction bancaire. Le contrôle Payment Control produit des états explicables. Liquidity Control réutilise les allocations explicites pour calculer les montants clients et fournisseurs non appliqués.
 
-Les paiements historiques sans allocation explicite conservent leur sémantique existante. Le système ne prétend pas connaître un montant non appliqué qui ne peut pas être déduit du modèle historique ; il utilise les sources réelles disponibles et signale les liens bancaires manquants.
+Un `invoice_id` historique n’est pas une allocation canonique : lorsqu’aucune ligne d’allocation n’existe, le montant alloué est zéro et le paiement est `UNAPPLIED`. Le système ne transforme donc jamais implicitement le lien facture en allocation à 100 %.
+
+La comparaison Payment ↔ BankTransaction est read-only. Elle recherche, dans la même organisation et à la même date, une référence exacte dans `BankTransaction.reference` ou `BankTransaction.external_id`, puis compare le montant signé en Decimal. Une absence de référence, une absence de transaction, une correspondance multiple ou un écart de montant produit `NOT_READY` ou `INCOMPLETE` avec un blocker explicable ; aucune ligne n’est modifiée et aucun rapprochement automatique n’est créé.
 
 ## API
 

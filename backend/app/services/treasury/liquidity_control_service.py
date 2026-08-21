@@ -235,13 +235,7 @@ class LiquidityControlService:
                 )
             )
             explicit_amount = Decimal(explicit or ZERO)
-            allocated = (
-                explicit_amount
-                if explicit_amount > ZERO
-                else ZERO
-                if payment.invoice_id is None
-                else Decimal(payment.amount)
-            )
+            allocated = explicit_amount
             result += max(ZERO, Decimal(payment.amount) - allocated)
         return result.quantize(CENT)
 
@@ -271,13 +265,7 @@ class LiquidityControlService:
                 )
             )
             explicit_amount = Decimal(explicit or ZERO)
-            allocated = (
-                explicit_amount
-                if explicit_amount > ZERO
-                else ZERO
-                if payment.invoice_id is None
-                else Decimal(payment.amount)
-            )
+            allocated = explicit_amount
             result += max(ZERO, Decimal(payment.amount) - allocated)
         return result.quantize(CENT)
 
