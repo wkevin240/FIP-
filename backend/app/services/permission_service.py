@@ -58,6 +58,7 @@ class PermissionService:
                 "inventory_stock:read",
                 "invoice:create",
                 "invoice:read",
+                "collection:read",
                 "invoice:update",
                 "invoice:issue",
                 "invoice:post",
@@ -140,6 +141,7 @@ class PermissionService:
                 "scenario:approve",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
@@ -162,6 +164,7 @@ class PermissionService:
                 "inventory_warehouse:read",
                 "inventory_stock:read",
                 "invoice:read",
+                "collection:read",
                 "credit_note:read",
                 "payment:read",
                 "receivable:read",
@@ -188,6 +191,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
@@ -212,6 +216,7 @@ class PermissionService:
                 "inventory_warehouse:read",
                 "inventory_stock:read",
                 "invoice:read",
+                "collection:read",
                 "credit_note:read",
                 "payment:read",
                 "receivable:read",
@@ -239,6 +244,7 @@ class PermissionService:
                 "analytical_report:read",
                 "scenario:read",
                 "forecast:read",
+                "cash_forecast:read",
                 "kpi:read",
             }
         ),
