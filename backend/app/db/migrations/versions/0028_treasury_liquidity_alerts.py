@@ -58,9 +58,16 @@ def upgrade() -> None:
         "liquidity_alert_configurations",
         ["organization_id"],
     )
+    op.execute("REVOKE ALL ON TABLE public.liquidity_alert_configurations FROM PUBLIC")
+    op.execute(
+        "GRANT SELECT, INSERT, UPDATE ON TABLE public.liquidity_alert_configurations TO fip_user"
+    )
 
 
 def downgrade() -> None:
+    op.execute(
+        "REVOKE ALL ON TABLE public.liquidity_alert_configurations FROM fip_user"
+    )
     op.drop_index(
         "ix_liquidity_alert_configurations_organization_id",
         table_name="liquidity_alert_configurations",
