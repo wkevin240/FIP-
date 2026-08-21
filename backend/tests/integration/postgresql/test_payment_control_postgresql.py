@@ -26,8 +26,24 @@ async def postgres_session():
 
 @pytest.mark.asyncio
 async def test_payment_allocation_database_constraints(postgres_session: AsyncSession):
-    organization, _, _, _, invoice, _ = await _context(postgres_session)
+    organization, _, _, _, _, _ = await _context(postgres_session)
+    from app.models.invoicing.invoice import Invoice
     from app.models.invoicing.payment import Payment
+
+    invoice = Invoice(
+        organization_id=organization.id,
+        invoice_number=f"INV-{uuid4().hex}",
+        customer_name="Test customer",
+        invoice_date=date(2026, 8, 1),
+        status="ISSUED",
+        subtotal=Decimal("100.00"),
+        tax_amount=Decimal("0.00"),
+        total_amount=Decimal("100.00"),
+        paid_amount=Decimal("0.00"),
+        credited_amount=Decimal("0.00"),
+    )
+    postgres_session.add(invoice)
+    await postgres_session.flush()
 
     payment = Payment(
         organization_id=organization.id,
