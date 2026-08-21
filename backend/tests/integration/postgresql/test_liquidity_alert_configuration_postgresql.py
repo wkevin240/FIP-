@@ -40,7 +40,7 @@ async def test_liquidity_alert_configuration_constraints(
     organization_id = organization.id
 
     duplicate = LiquidityAlertConfiguration(
-        organization_id=organization.id,
+        organization_id=organization_id,
         alert_code="LOW_LIQUIDITY",
         enabled=True,
         threshold_amount="2000.00",
@@ -51,7 +51,7 @@ async def test_liquidity_alert_configuration_constraints(
     await postgres_session.rollback()
 
     negative = LiquidityAlertConfiguration(
-        organization_id=organization.id,
+        organization_id=organization_id,
         alert_code="LIQUIDITY_GAP",
         enabled=True,
         threshold_amount="-1.00",
@@ -62,7 +62,7 @@ async def test_liquidity_alert_configuration_constraints(
     await postgres_session.rollback()
 
     invalid_dates = LiquidityAlertConfiguration(
-        organization_id=organization.id,
+        organization_id=organization_id,
         alert_code="NEGATIVE_FORECAST",
         enabled=True,
         effective_from=date(2026, 2, 1),
