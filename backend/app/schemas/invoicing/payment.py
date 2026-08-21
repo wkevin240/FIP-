@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PaymentCreate(BaseModel):
-    invoice_id: str
+    invoice_id: str | None = None
     payment_date: date
     amount: Decimal = Field(..., gt=0, max_digits=18, decimal_places=2)
     method: PaymentMethod
@@ -17,7 +17,7 @@ class PaymentCreate(BaseModel):
 class PaymentResponse(BaseModel):
     id: str
     organization_id: str
-    invoice_id: str
+    invoice_id: str | None = None
     payment_date: date
     amount: Decimal
     method: PaymentMethod

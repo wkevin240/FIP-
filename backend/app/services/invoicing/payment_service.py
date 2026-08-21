@@ -32,14 +32,17 @@ class PaymentService:
                 detail="Payment external reference already exists",
             )
         try:
-            invoice = await self.invoices.get_for_update(
-                organization_id, data.invoice_id
-            )
-            if invoice is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+            invoice = None
+            if data.invoice_id is not None:
+                invoice = await self.invoices.get_for_update(
+                    organization_id, data.invoice_id
                 )
-            if invoice.status not in {
+                if invoice is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Invoice not found",
+                    )
+            if invoice is not None and invoice.status not in {
                 InvoiceStatus.ISSUED,
                 InvoiceStatus.PARTIALLY_PAID,
             }:
@@ -47,25 +50,29 @@ class PaymentService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Only issued invoices with an outstanding amount can receive payments",
                 )
-            if data.payment_date < invoice.invoice_date:
+            if invoice is not None and data.payment_date < invoice.invoice_date:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Payment date must not precede invoice date",
                 )
-            try:
-                status_value, paid_amount, credited_amount = InvoiceRules.apply_payment(
-                    Decimal(invoice.total_amount),
-                    Decimal(invoice.paid_amount),
-                    Decimal(invoice.credited_amount),
-                    data.amount,
-                )
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
-                ) from exc
-            invoice.status = status_value
-            invoice.paid_amount = paid_amount
-            invoice.credited_amount = credited_amount
+            if invoice is not None:
+                try:
+                    status_value, paid_amount, credited_amount = (
+                        InvoiceRules.apply_payment(
+                            Decimal(invoice.total_amount),
+                            Decimal(invoice.paid_amount),
+                            Decimal(invoice.credited_amount),
+                            data.amount,
+                        )
+                    )
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail=str(exc),
+                    ) from exc
+                invoice.status = status_value
+                invoice.paid_amount = paid_amount
+                invoice.credited_amount = credited_amount
             payment = await self.payments.create(
                 organization_id,
                 data,
