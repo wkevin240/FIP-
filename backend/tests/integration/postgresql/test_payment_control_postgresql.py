@@ -36,7 +36,7 @@ async def test_payment_allocation_database_constraints(postgres_session: AsyncSe
         amount=Decimal("100.00"),
         method="BANK_TRANSFER",
         external_reference=f"PAY-{uuid4().hex}",
-        received_at=datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC),
+        received_at=datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC).replace(tzinfo=None),
     )
     postgres_session.add(payment)
     await postgres_session.flush()
