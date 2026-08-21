@@ -180,14 +180,23 @@ class ProcurementService:
     async def create_payment(
         self, organization_id: str, actor_user_id: str, data: SupplierPaymentCreate
     ):
-        invoice = await self.repo.invoice(organization_id, data.invoice_id, lock=True)
-        if invoice is None:
-            raise HTTPException(status_code=404, detail="Purchase invoice not found")
-        if invoice.status not in {"VALIDATED", "PARTIALLY_PAID"}:
+        invoice = None
+        if data.invoice_id is not None:
+            invoice = await self.repo.invoice(
+                organization_id, data.invoice_id, lock=True
+            )
+            if invoice is None:
+                raise HTTPException(
+                    status_code=404, detail="Purchase invoice not found"
+                )
+        if invoice is not None and invoice.status not in {
+            "VALIDATED",
+            "PARTIALLY_PAID",
+        }:
             raise HTTPException(
                 status_code=422, detail="Purchase invoice is not payable"
             )
-        if (
+        if invoice is not None and (
             data.payment_date < invoice.invoice_date
             or data.amount > invoice.outstanding_amount
         ):
@@ -196,10 +205,13 @@ class ProcurementService:
                 detail="Payment exceeds supplier invoice outstanding amount",
             )
         payment = SupplierPayment(organization_id=organization_id, **data.model_dump())
-        invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
-        invoice.status = (
-            "PAID" if invoice.paid_amount == invoice.total_amount else "PARTIALLY_PAID"
-        )
+        if invoice is not None:
+            invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
+            invoice.status = (
+                "PAID"
+                if invoice.paid_amount == invoice.total_amount
+                else "PARTIALLY_PAID"
+            )
         self.session.add(payment)
         await self.session.flush()
         await self.audit.record(
@@ -208,7 +220,10 @@ class ProcurementService:
             action="SUPPLIER_PAYMENT_CREATED",
             resource_type="SupplierPayment",
             resource_id=payment.id,
-            new_value={"invoice_id": invoice.id, "amount": str(data.amount)},
+            new_value={
+                "invoice_id": invoice.id if invoice is not None else None,
+                "amount": str(data.amount),
+            },
         )
         await self.session.commit()
         return payment

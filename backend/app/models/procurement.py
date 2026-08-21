@@ -174,7 +174,7 @@ class SupplierPayment(Base):
         nullable=False,
         index=True,
     )
-    invoice_id = Column(String, nullable=False, index=True)
+    invoice_id = Column(String, nullable=True, index=True)
     payment_date = Column(Date, nullable=False)
     amount = Column(Numeric(18, 2), nullable=False)
     method = Column(String(32), nullable=False)

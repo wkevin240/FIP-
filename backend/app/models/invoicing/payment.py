@@ -42,7 +42,7 @@ class Payment(Base):
     invoice_id = Column(
         String,
         ForeignKey("invoices.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     payment_date = Column(Date, nullable=False, index=True)

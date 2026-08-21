@@ -37,6 +37,7 @@ from app.api.v1.inventory.warehouses import router as warehouses_router
 from app.api.v1.invoicing.collections import router as collections_router
 from app.api.v1.invoicing.credit_notes import router as credit_notes_router
 from app.api.v1.invoicing.invoices import router as invoices_router
+from app.api.v1.invoicing.payment_control import router as payment_control_router
 from app.api.v1.invoicing.payments import router as payments_router
 from app.api.v1.payroll.configuration import router as payroll_configuration_router
 from app.api.v1.payroll.employees import router as payroll_employees_router
@@ -160,6 +161,11 @@ api_router.include_router(
 )
 api_router.include_router(
     payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
+)
+api_router.include_router(
+    payment_control_router,
+    prefix="/invoicing/payment-control",
+    tags=["Invoicing - Payment Control"],
 )
 api_router.include_router(
     procurement_router, prefix="/procurement", tags=["Procurement - Suppliers"]

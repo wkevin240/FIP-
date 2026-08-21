@@ -2,6 +2,12 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.accounting.bank_transaction import BankTransaction
+from app.models.invoicing.payment import Payment
+from app.models.invoicing.payment_allocation import (
+    PaymentAllocation,
+    SupplierPaymentAllocation,
+)
+from app.models.procurement import SupplierPayment
 from app.models.treasury.bank_account import TreasuryBankAccount
 from app.models.treasury.banking_control import BankingControlException
 from app.models.treasury.liquidity_alert import LiquidityAlertConfiguration
@@ -21,7 +27,7 @@ from app.services.treasury.banking_cross_reconciliation_service import (
     BankingCrossReconciliationService,
 )
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 CENT = Decimal("0.01")
@@ -54,12 +60,8 @@ class LiquidityControlService:
         )
         configs = await self._active_configs(organization_id, as_of)
         blockers = list(dict.fromkeys(cross.blockers + forecast.blockers))
-        blockers.extend(
-            [
-                "UNALLOCATED_CUSTOMER_PAYMENTS_SOURCE_UNAVAILABLE",
-                "UNALLOCATED_SUPPLIER_PAYMENTS_SOURCE_UNAVAILABLE",
-            ]
-        )
+        customer_unapplied = await self._customer_unapplied(organization_id, as_of)
+        supplier_unapplied = await self._supplier_unapplied(organization_id, as_of)
         forecast_cash = (
             forecast.projected_closing_cash if forecast.status == "READY" else None
         )
@@ -103,8 +105,8 @@ class LiquidityControlService:
             unresolved_banking_exposure=await self._unresolved_exposure(
                 organization_id, as_of
             ),
-            unallocated_customer_payments=None,
-            unallocated_supplier_payments=None,
+            unallocated_customer_payments=customer_unapplied,
+            unallocated_supplier_payments=supplier_unapplied,
             current_period_blockers=blockers,
             sources={
                 "current_cash_position": "TreasuryBankAccount + BankTransaction",
@@ -112,8 +114,8 @@ class LiquidityControlService:
                 "ar": "BankingCrossReconciliationService",
                 "ap": "BankingCrossReconciliationService",
                 "forecast": "CashForecastService",
-                "unallocated_customer_payments": "NOT_AVAILABLE_IN_CURRENT_MODEL",
-                "unallocated_supplier_payments": "NOT_AVAILABLE_IN_CURRENT_MODEL",
+                "unallocated_customer_payments": "Payment + PaymentAllocation",
+                "unallocated_supplier_payments": "SupplierPayment + SupplierPaymentAllocation",
             },
             alerts=alerts,
         )
@@ -208,6 +210,76 @@ class LiquidityControlService:
         await self.session.commit()
         await self.session.refresh(existing)
         return existing
+
+    async def _customer_unapplied(
+        self, organization_id: str, as_of: date
+    ) -> Decimal | None:
+        payments = list(
+            await self.session.scalars(
+                select(Payment).where(
+                    Payment.organization_id == organization_id,
+                    Payment.payment_date <= as_of,
+                )
+            )
+        )
+        if not payments:
+            return ZERO
+        result = ZERO
+        for payment in payments:
+            explicit = await self.session.scalar(
+                select(
+                    func.coalesce(func.sum(PaymentAllocation.allocated_amount), 0)
+                ).where(
+                    PaymentAllocation.organization_id == organization_id,
+                    PaymentAllocation.payment_id == payment.id,
+                )
+            )
+            explicit_amount = Decimal(explicit or ZERO)
+            allocated = (
+                explicit_amount
+                if explicit_amount > ZERO
+                else ZERO
+                if payment.invoice_id is None
+                else Decimal(payment.amount)
+            )
+            result += max(ZERO, Decimal(payment.amount) - allocated)
+        return result.quantize(CENT)
+
+    async def _supplier_unapplied(
+        self, organization_id: str, as_of: date
+    ) -> Decimal | None:
+        payments = list(
+            await self.session.scalars(
+                select(SupplierPayment).where(
+                    SupplierPayment.organization_id == organization_id,
+                    SupplierPayment.payment_date <= as_of,
+                )
+            )
+        )
+        if not payments:
+            return ZERO
+        result = ZERO
+        for payment in payments:
+            explicit = await self.session.scalar(
+                select(
+                    func.coalesce(
+                        func.sum(SupplierPaymentAllocation.allocated_amount), 0
+                    )
+                ).where(
+                    SupplierPaymentAllocation.organization_id == organization_id,
+                    SupplierPaymentAllocation.supplier_payment_id == payment.id,
+                )
+            )
+            explicit_amount = Decimal(explicit or ZERO)
+            allocated = (
+                explicit_amount
+                if explicit_amount > ZERO
+                else ZERO
+                if payment.invoice_id is None
+                else Decimal(payment.amount)
+            )
+            result += max(ZERO, Decimal(payment.amount) - allocated)
+        return result.quantize(CENT)
 
     async def _current_cash(self, organization_id: str, as_of: date) -> Decimal | None:
         accounts = list(
