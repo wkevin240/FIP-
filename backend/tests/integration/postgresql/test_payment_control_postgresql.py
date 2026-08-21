@@ -56,10 +56,13 @@ async def test_payment_allocation_database_constraints(postgres_session: AsyncSe
     )
     postgres_session.add(payment)
     await postgres_session.flush()
+    organization_id = organization.id
+    payment_id = payment.id
+    invoice_id = invoice.id
     allocation = PaymentAllocation(
-        organization_id=organization.id,
-        payment_id=payment.id,
-        invoice_id=invoice.id,
+        organization_id=organization_id,
+        payment_id=payment_id,
+        invoice_id=invoice_id,
         allocated_amount=Decimal("40.00"),
         idempotency_key=f"ALLOC-{uuid4().hex}",
     )
@@ -67,9 +70,9 @@ async def test_payment_allocation_database_constraints(postgres_session: AsyncSe
     await postgres_session.commit()
 
     duplicate = PaymentAllocation(
-        organization_id=organization.id,
-        payment_id=payment.id,
-        invoice_id=invoice.id,
+        organization_id=organization_id,
+        payment_id=payment_id,
+        invoice_id=invoice_id,
         allocated_amount=Decimal("10.00"),
         idempotency_key=f"ALLOC-{uuid4().hex}",
     )
@@ -79,9 +82,9 @@ async def test_payment_allocation_database_constraints(postgres_session: AsyncSe
     await postgres_session.rollback()
 
     negative = PaymentAllocation(
-        organization_id=organization.id,
-        payment_id=payment.id,
-        invoice_id=invoice.id,
+        organization_id=organization_id,
+        payment_id=payment_id,
+        invoice_id=invoice_id,
         allocated_amount=Decimal("-1.00"),
         idempotency_key=f"ALLOC-{uuid4().hex}",
     )
