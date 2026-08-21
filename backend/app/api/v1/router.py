@@ -9,6 +9,7 @@ from app.api.v1.accounting.budgets import router as budgets_router
 from app.api.v1.accounting.cash_flow import router as cash_flow_router
 from app.api.v1.accounting.cash_forecast import router as cash_forecast_router
 from app.api.v1.accounting.closing import router as closing_router
+from app.api.v1.accounting.control_center import router as control_center_router
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.forecasts import router as forecasts_router
@@ -87,6 +88,11 @@ api_router.include_router(
     cash_flow_router,
     prefix="/accounting/cash-flow",
     tags=["Accounting - Cash Flow"],
+)
+api_router.include_router(
+    control_center_router,
+    prefix="/accounting/control-center",
+    tags=["Accounting - Financial Control Center"],
 )
 api_router.include_router(
     cash_forecast_router,

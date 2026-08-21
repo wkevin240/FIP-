@@ -143,6 +143,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "financial_control:read",
             }
         ),
         MembershipRole.MANAGER.value: frozenset(
@@ -193,6 +194,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "financial_control:read",
             }
         ),
         MembershipRole.USER.value: frozenset(),
@@ -246,6 +248,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "financial_control:read",
             }
         ),
     }
