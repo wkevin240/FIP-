@@ -7,6 +7,7 @@ from app.api.v1.accounting.bank_reconciliation import (
 )
 from app.api.v1.accounting.budgets import router as budgets_router
 from app.api.v1.accounting.cash_flow import router as cash_flow_router
+from app.api.v1.accounting.cash_forecast import router as cash_forecast_router
 from app.api.v1.accounting.closing import router as closing_router
 from app.api.v1.accounting.control_center import router as control_center_router
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
@@ -34,6 +35,7 @@ from app.api.v1.fixed_assets.disposal import router as fixed_assets_disposal_rou
 from app.api.v1.inventory.products import router as products_router
 from app.api.v1.inventory.stock import router as stock_router
 from app.api.v1.inventory.warehouses import router as warehouses_router
+from app.api.v1.invoicing.collections import router as collections_router
 from app.api.v1.invoicing.credit_notes import router as credit_notes_router
 from app.api.v1.invoicing.invoices import router as invoices_router
 from app.api.v1.invoicing.payments import router as payments_router
@@ -90,6 +92,11 @@ api_router.include_router(
     control_center_router,
     prefix="/accounting/control-center",
     tags=["Accounting - Financial Control Center"],
+)
+api_router.include_router(
+    cash_forecast_router,
+    prefix="/accounting/cash-forecast",
+    tags=["Accounting - Cash Forecast"],
 )
 api_router.include_router(
     fiscal_years_router,
@@ -150,6 +157,11 @@ api_router.include_router(
     credit_notes_router,
     prefix="/invoicing/credit-notes",
     tags=["Invoicing - Credit Notes"],
+)
+api_router.include_router(
+    collections_router,
+    prefix="/invoicing/collections",
+    tags=["Invoicing - Collections"],
 )
 api_router.include_router(
     payments_router, prefix="/invoicing/payments", tags=["Invoicing - Payments"]
