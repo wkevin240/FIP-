@@ -26,6 +26,8 @@ async def calculate_variance(
     comparison: VarianceComparison = Query(...),
     dimension_id: str | None = Query(None),
     dimension_value_id: str | None = Query(None),
+    budget_id: str | None = Query(None),
+    scenario_id: str | None = Query(None),
     service: FinancialVarianceService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("professional_reporting:read")),
 ) -> FinancialVarianceResponse:
@@ -36,4 +38,6 @@ async def calculate_variance(
         comparison,
         dimension_id=dimension_id,
         dimension_value_id=dimension_value_id,
+        budget_id=budget_id,
+        scenario_id=scenario_id,
     )

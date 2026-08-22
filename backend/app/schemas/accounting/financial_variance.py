@@ -14,6 +14,7 @@ class VarianceComparison(StrEnum):
 
 class FinancialVarianceMetric(BaseModel):
     metric: str
+    comparison_type: VarianceComparison
     actual: Decimal | None
     comparison: Decimal | None
     variance: Decimal | None
@@ -24,11 +25,16 @@ class FinancialVarianceMetric(BaseModel):
     comparison_period_end: date | None
     source_accounts: list[str]
     source_lines: list[str]
-    comparison_source_accounts: list[str]
-    comparison_source_lines: list[str]
-    dimensions: list[str]
     status: str
     reason: str | None = None
+    source_journal_entry_lines: list[str] = []
+    source_budget_lines: list[str] = []
+    source_forecast_data: list[str] = []
+    comparison_source_accounts: list[str] = []
+    comparison_source_lines: list[str] = []
+    comparison_source_budget_lines: list[str] = []
+    comparison_source_forecast_data: list[str] = []
+    dimensions: list[str] = []
 
 
 class FinancialVarianceResponse(BaseModel):

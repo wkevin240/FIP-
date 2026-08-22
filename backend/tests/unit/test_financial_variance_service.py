@@ -98,6 +98,11 @@ async def test_variance_percentage_is_null_when_comparison_is_zero():
 @pytest.mark.asyncio
 async def test_budget_and_forecast_without_approved_source_are_not_ready():
     service = FinancialVarianceService(AsyncMock())
+    service.calculation = AsyncMock()
+    service.calculation.list_mappings.return_value = []
+    service.calculation.profitability.return_value = SimpleNamespace(
+        status="READY", metrics=[]
+    )
     for comparison in (VarianceComparison.BUDGET, VarianceComparison.FORECAST):
         result = await service.calculate(
             "org-a", date(2026, 1, 1), date(2026, 1, 31), comparison
