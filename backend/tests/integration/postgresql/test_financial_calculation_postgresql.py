@@ -152,7 +152,9 @@ async def _create_profitability_fixture(session: AsyncSession):
             path=f"/571{suffix}/",
         ),
     }
-    session.add_all([fiscal_year, period, *accounts.values()])
+    session.add(fiscal_year)
+    await session.flush()
+    session.add_all([period, *accounts.values()])
     await session.flush()
     journal = await JournalService(session).create_journal(
         organization.id, JournalCreate(code=f"PR{suffix}", name="Profitability fixture")
