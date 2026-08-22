@@ -35,7 +35,10 @@ class ProfitabilityResponse(BaseModel):
     organization_id: str
     period_start: date
     period_end: date
+    dimension_id: str | None = None
+    dimension_value_id: str | None = None
     status: str
     metrics: list[ProfitabilityMetric]
     source_line_count: int
     ledger_is_balanced: bool
+    ledger_balance_difference: Decimal

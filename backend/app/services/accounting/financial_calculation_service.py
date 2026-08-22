@@ -1,7 +1,9 @@
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.core.enums.accounting import JournalEntryStatus
 from app.models.accounting.account import Account
+from app.models.accounting.analytical import JournalEntryLineAnalyticAllocation
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
 from app.models.accounting.profitability_mapping import ProfitabilityAccountMapping
@@ -13,7 +15,7 @@ from app.schemas.accounting.financial_calculation import (
 )
 from app.services.audit.audit_service import AuditService
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 CENT = Decimal("0.01")
@@ -93,17 +95,47 @@ class FinancialCalculationService:
         )
 
     async def profitability(
-        self, organization_id: str, period_start, period_end
+        self,
+        organization_id: str,
+        period_start: date,
+        period_end: date,
+        dimension_id: str | None = None,
+        dimension_value_id: str | None = None,
     ) -> ProfitabilityResponse:
         if period_start > period_end:
             raise HTTPException(
                 status_code=422, detail="period_start must be before period_end"
             )
+        if dimension_value_id and not dimension_id:
+            raise HTTPException(
+                status_code=422,
+                detail="dimension_id is required with dimension_value_id",
+            )
+
         mappings = await self.list_mappings(organization_id)
         by_category: dict[str, list[str]] = {category: [] for category in CATEGORIES}
         for mapping in mappings:
             by_category[mapping.category].append(mapping.account_id)
-        rows = await self.session.execute(
+
+        dimension_filter = None
+        if dimension_id:
+            dimension_filter = exists(
+                select(1).where(
+                    JournalEntryLineAnalyticAllocation.organization_id
+                    == organization_id,
+                    JournalEntryLineAnalyticAllocation.journal_entry_line_id
+                    == JournalEntryLine.id,
+                    JournalEntryLineAnalyticAllocation.dimension_id == dimension_id,
+                    (
+                        JournalEntryLineAnalyticAllocation.dimension_value_id
+                        == dimension_value_id
+                        if dimension_value_id
+                        else True
+                    ),
+                )
+            )
+
+        line_query = (
             select(
                 JournalEntryLine.id,
                 JournalEntryLine.account_id,
@@ -132,6 +164,43 @@ class FinancialCalculationService:
                 JournalEntry.entry_date <= period_end,
             )
         )
+        if dimension_filter is not None:
+            line_query = line_query.where(dimension_filter)
+        rows = await self.session.execute(line_query)
+        dimension_tokens: set[str] = set()
+        if dimension_id:
+            dimension_rows = await self.session.execute(
+                select(
+                    JournalEntryLineAnalyticAllocation.dimension_id,
+                    JournalEntryLineAnalyticAllocation.dimension_value_id,
+                ).where(
+                    JournalEntryLineAnalyticAllocation.organization_id
+                    == organization_id,
+                    JournalEntryLineAnalyticAllocation.dimension_id == dimension_id,
+                    (
+                        JournalEntryLineAnalyticAllocation.dimension_value_id
+                        == dimension_value_id
+                        if dimension_value_id
+                        else True
+                    ),
+                    JournalEntryLineAnalyticAllocation.journal_entry_line_id.in_(
+                        select(JournalEntryLine.id)
+                        .join(
+                            JournalEntry,
+                            JournalEntry.id == JournalEntryLine.journal_entry_id,
+                        )
+                        .where(
+                            JournalEntryLine.organization_id == organization_id,
+                            JournalEntry.organization_id == organization_id,
+                            JournalEntry.status == JournalEntryStatus.POSTED,
+                            JournalEntry.entry_date >= period_start,
+                            JournalEntry.entry_date <= period_end,
+                        )
+                    ),
+                )
+            )
+            dimension_tokens = {f"{row[0]}:{row[1]}" for row in dimension_rows}
+
         totals: dict[str, Decimal] = {
             category: Decimal("0.00") for category in CATEGORIES
         }
@@ -148,88 +217,8 @@ class FinancialCalculationService:
                 totals[category] += debit_value - credit_value
             source_lines[category].append(line_id)
             source_accounts[category].add(account_id)
-        required = ("REVENUE", "COGS", "OPERATING_EXPENSE")
-        missing = [category for category in required if not by_category[category]]
-        metrics: list[ProfitabilityMetric] = []
-        for category in CATEGORIES:
-            ready = bool(by_category[category])
-            metrics.append(
-                ProfitabilityMetric(
-                    code=category,
-                    value=totals[category].quantize(CENT, rounding=ROUND_HALF_UP)
-                    if ready
-                    else None,
-                    formula=(
-                        "credit - debit"
-                        if category in {"REVENUE", "OTHER_INCOME"}
-                        else "debit - credit"
-                    ),
-                    status="READY" if ready else "NOT_READY",
-                    period_start=period_start,
-                    period_end=period_end,
-                    account_ids=sorted(source_accounts[category]),
-                    journal_entry_line_ids=sorted(source_lines[category]),
-                    dimensions=[],
-                    reason=None
-                    if ready
-                    else f"No explicit organization mapping for {category}",
-                )
-            )
-        revenue = totals["REVENUE"] if "REVENUE" not in missing else None
-        cogs = totals["COGS"] if "COGS" not in missing else None
-        opex = (
-            totals["OPERATING_EXPENSE"] if "OPERATING_EXPENSE" not in missing else None
-        )
-        other_income = totals["OTHER_INCOME"]
-        other_expense = totals["OTHER_EXPENSE"]
-        derived = {
-            "GROSS_PROFIT": (revenue - cogs)
-            if revenue is not None and cogs is not None
-            else None,
-            "OPERATING_INCOME": (revenue - cogs - opex)
-            if revenue is not None and cogs is not None and opex is not None
-            else None,
-            "NET_INCOME": (revenue - cogs - opex + other_income - other_expense)
-            if revenue is not None and cogs is not None and opex is not None
-            else None,
-        }
-        derived_formulas = {
-            "GROSS_PROFIT": "REVENUE - COGS",
-            "OPERATING_INCOME": "REVENUE - COGS - OPERATING_EXPENSE",
-            "NET_INCOME": "REVENUE - COGS - OPERATING_EXPENSE + OTHER_INCOME - OTHER_EXPENSE",
-        }
-        for code, value in derived.items():
-            metrics.append(
-                ProfitabilityMetric(
-                    code=code,
-                    value=value.quantize(CENT, rounding=ROUND_HALF_UP)
-                    if value is not None
-                    else None,
-                    formula=derived_formulas[code],
-                    status="READY" if value is not None else "NOT_READY",
-                    period_start=period_start,
-                    period_end=period_end,
-                    account_ids=sorted(
-                        {
-                            account
-                            for category in required
-                            for account in source_accounts[category]
-                        }
-                    ),
-                    journal_entry_line_ids=sorted(
-                        {
-                            line
-                            for category in required
-                            for line in source_lines[category]
-                        }
-                    ),
-                    dimensions=[],
-                    reason=None
-                    if value is not None
-                    else "Revenue, COGS and operating expense mappings are all required",
-                )
-            )
-        balance = await self.session.scalar(
+
+        balance_query = (
             select(
                 func.coalesce(func.sum(JournalEntryLine.debit), 0)
                 - func.coalesce(func.sum(JournalEntryLine.credit), 0)
@@ -243,12 +232,164 @@ class FinancialCalculationService:
                 JournalEntry.entry_date <= period_end,
             )
         )
+        if dimension_filter is not None:
+            balance_query = balance_query.where(dimension_filter)
+        balance_difference = Decimal(
+            await self.session.scalar(balance_query) or 0
+        ).quantize(CENT, rounding=ROUND_HALF_UP)
+        ledger_is_balanced = balance_difference == Decimal("0.00")
+
+        required = ("REVENUE", "COGS", "OPERATING_EXPENSE")
+        missing = [category for category in required if not by_category[category]]
+        metrics: list[ProfitabilityMetric] = []
+        for category in CATEGORIES:
+            ready = bool(by_category[category])
+            metric_status = "READY" if ready and ledger_is_balanced else "INCOMPLETE"
+            reason = None
+            if not ready:
+                metric_status = "NOT_READY"
+                reason = f"No explicit organization mapping for {category}"
+            elif not ledger_is_balanced:
+                reason = "POSTED ledger is not balanced for the requested scope"
+            metrics.append(
+                ProfitabilityMetric(
+                    code=category,
+                    value=totals[category].quantize(CENT, rounding=ROUND_HALF_UP)
+                    if ready
+                    else None,
+                    formula=(
+                        "credit - debit"
+                        if category in {"REVENUE", "OTHER_INCOME"}
+                        else "debit - credit"
+                    ),
+                    status=metric_status,
+                    period_start=period_start,
+                    period_end=period_end,
+                    account_ids=sorted(source_accounts[category]),
+                    journal_entry_line_ids=sorted(source_lines[category]),
+                    dimensions=sorted(dimension_tokens),
+                    reason=reason,
+                )
+            )
+
+        revenue = totals["REVENUE"] if "REVENUE" not in missing else None
+        cogs = totals["COGS"] if "COGS" not in missing else None
+        opex = (
+            totals["OPERATING_EXPENSE"] if "OPERATING_EXPENSE" not in missing else None
+        )
+        other_income = totals["OTHER_INCOME"]
+        other_expense = totals["OTHER_EXPENSE"]
+        derived_values = {
+            "GROSS_PROFIT": revenue - cogs
+            if revenue is not None and cogs is not None
+            else None,
+            "OPERATING_INCOME": (
+                revenue - cogs - opex
+                if revenue is not None and cogs is not None and opex is not None
+                else None
+            ),
+            "NET_INCOME": (
+                revenue - cogs - opex + other_income - other_expense
+                if revenue is not None and cogs is not None and opex is not None
+                else None
+            ),
+        }
+        derived_formulas = {
+            "GROSS_PROFIT": "REVENUE - COGS",
+            "OPERATING_INCOME": "REVENUE - COGS - OPERATING_EXPENSE",
+            "NET_INCOME": "REVENUE - COGS - OPERATING_EXPENSE + OTHER_INCOME - OTHER_EXPENSE",
+        }
+        derived_line_ids = sorted(
+            {line_id for category in required for line_id in source_lines[category]}
+        )
+        derived_account_ids = sorted(
+            {
+                account_id
+                for category in required
+                for account_id in source_accounts[category]
+            }
+        )
+        for code, value in derived_values.items():
+            metric_status = (
+                "READY" if value is not None and ledger_is_balanced else "INCOMPLETE"
+            )
+            reason = None
+            if value is None:
+                metric_status = "NOT_READY"
+                reason = "Revenue, COGS and operating expense mappings are all required"
+            elif not ledger_is_balanced:
+                reason = "POSTED ledger is not balanced for the requested scope"
+            metrics.append(
+                ProfitabilityMetric(
+                    code=code,
+                    value=value.quantize(CENT, rounding=ROUND_HALF_UP)
+                    if value is not None
+                    else None,
+                    formula=derived_formulas[code],
+                    status=metric_status,
+                    period_start=period_start,
+                    period_end=period_end,
+                    account_ids=derived_account_ids,
+                    journal_entry_line_ids=derived_line_ids,
+                    dimensions=sorted(dimension_tokens),
+                    reason=reason,
+                )
+            )
+
+        ratio_inputs = {
+            "GROSS_MARGIN": (derived_values["GROSS_PROFIT"], "GROSS_PROFIT / REVENUE"),
+            "OPERATING_MARGIN": (
+                derived_values["OPERATING_INCOME"],
+                "OPERATING_INCOME / REVENUE",
+            ),
+            "NET_MARGIN": (derived_values["NET_INCOME"], "NET_INCOME / REVENUE"),
+        }
+        for code, (numerator, formula) in ratio_inputs.items():
+            if numerator is None:
+                value = None
+                metric_status = "NOT_READY"
+                reason = "Base profitability metrics are not ready"
+            elif revenue == Decimal("0.00"):
+                value = None
+                metric_status = "NOT_READY"
+                reason = "Revenue is zero; ratio denominator is zero"
+            elif not ledger_is_balanced:
+                value = None
+                metric_status = "INCOMPLETE"
+                reason = "POSTED ledger is not balanced for the requested scope"
+            else:
+                value = (numerator / revenue).quantize(CENT, rounding=ROUND_HALF_UP)
+                metric_status = "READY"
+                reason = None
+            metrics.append(
+                ProfitabilityMetric(
+                    code=code,
+                    value=value,
+                    formula=formula,
+                    status=metric_status,
+                    period_start=period_start,
+                    period_end=period_end,
+                    account_ids=derived_account_ids,
+                    journal_entry_line_ids=derived_line_ids,
+                    dimensions=sorted(dimension_tokens),
+                    reason=reason,
+                )
+            )
+
+        response_status = "READY"
+        if not ledger_is_balanced:
+            response_status = "INCOMPLETE"
+        elif missing:
+            response_status = "NOT_READY"
         return ProfitabilityResponse(
             organization_id=organization_id,
             period_start=period_start,
             period_end=period_end,
-            status="READY" if not missing else "NOT_READY",
+            dimension_id=dimension_id,
+            dimension_value_id=dimension_value_id,
+            status=response_status,
             metrics=metrics,
             source_line_count=sum(len(lines) for lines in source_lines.values()),
-            ledger_is_balanced=Decimal(balance or 0).quantize(CENT) == Decimal("0.00"),
+            ledger_is_balanced=ledger_is_balanced,
+            ledger_balance_difference=balance_difference,
         )

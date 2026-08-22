@@ -52,7 +52,15 @@ async def list_profitability_mappings(
 async def calculate_profitability(
     period_start: date = Query(...),
     period_end: date = Query(...),
+    dimension_id: str | None = Query(None),
+    dimension_value_id: str | None = Query(None),
     service: FinancialCalculationService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("professional_reporting:read")),
 ) -> ProfitabilityResponse:
-    return await service.profitability(tenant.organization_id, period_start, period_end)
+    return await service.profitability(
+        tenant.organization_id,
+        period_start,
+        period_end,
+        dimension_id=dimension_id,
+        dimension_value_id=dimension_value_id,
+    )
