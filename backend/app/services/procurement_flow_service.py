@@ -174,6 +174,36 @@ class ProcurementFlowService:
         line_ids = {line.id for line in order.lines}
         if any(line.order_line_id not in line_ids for line in data.lines):
             raise HTTPException(422, "Receipt line does not belong to purchase order")
+        submitted_line_ids = [line.order_line_id for line in data.lines]
+        if len(submitted_line_ids) != len(set(submitted_line_ids)):
+            raise HTTPException(422, "A receipt cannot contain duplicate order lines")
+        received_rows = await self.session.execute(
+            select(
+                GoodsReceiptLine.order_line_id,
+                func.coalesce(func.sum(GoodsReceiptLine.received_quantity), 0),
+            )
+            .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.receipt_id)
+            .where(
+                GoodsReceipt.organization_id == organization_id,
+                GoodsReceipt.order_id == order.id,
+                GoodsReceipt.status == "POSTED",
+                GoodsReceiptLine.organization_id == organization_id,
+            )
+            .group_by(GoodsReceiptLine.order_line_id)
+        )
+        received_by_line = {
+            line_id: Decimal(quantity or 0) for line_id, quantity in received_rows.all()
+        }
+        ordered_by_line = {line.id: Decimal(line.quantity) for line in order.lines}
+        for receipt_line in data.lines:
+            total_received = received_by_line.get(
+                receipt_line.order_line_id, Decimal(0)
+            )
+            if (
+                total_received + Decimal(receipt_line.received_quantity)
+                > ordered_by_line[receipt_line.order_line_id]
+            ):
+                raise HTTPException(422, "Received quantity exceeds ordered quantity")
         receipt = GoodsReceipt(
             organization_id=organization_id,
             receiver_user_id=actor_user_id,
@@ -251,34 +281,56 @@ class ProcurementFlowService:
             (Decimal(line.quantity) * Decimal(line.unit_price) for line in order.lines),
             Decimal(0),
         ).quantize(Decimal("0.01"))
-        received_qty = await self.session.scalar(
-            select(func.coalesce(func.sum(GoodsReceiptLine.received_quantity), 0))
+        receipt_rows = await self.session.execute(
+            select(
+                GoodsReceiptLine.order_line_id,
+                func.coalesce(func.sum(GoodsReceiptLine.received_quantity), 0),
+            )
             .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.receipt_id)
             .where(
                 GoodsReceipt.organization_id == organization_id,
                 GoodsReceipt.order_id == order.id,
                 GoodsReceipt.status == "POSTED",
+                GoodsReceiptLine.organization_id == organization_id,
             )
+            .group_by(GoodsReceiptLine.order_line_id)
         )
-        received_qty = Decimal(received_qty or 0)
+        received_by_line = {
+            line_id: Decimal(quantity or 0) for line_id, quantity in receipt_rows.all()
+        }
+        received_qty = sum(received_by_line.values(), Decimal(0))
+        ordered_by_sort = {line.sort_order: line for line in order.lines}
+        invoice_by_sort = {line.sort_order: line for line in invoice.lines}
+        relation_ready = bool(invoice.lines) and set(ordered_by_sort) == set(
+            invoice_by_sort
+        )
+        received_amount = Decimal("0.00")
+        if relation_ready:
+            received_amount = sum(
+                (
+                    received_by_line.get(ordered_by_sort[sort_order].id, Decimal(0))
+                    * Decimal(ordered_by_sort[sort_order].unit_price)
+                    for sort_order in ordered_by_sort
+                ),
+                Decimal(0),
+            ).quantize(Decimal("0.01"))
         invoiced_qty = (
             sum((Decimal(line.quantity) for line in invoice.lines), Decimal(0))
             if invoice.lines
             else None
         )
-        received_amount = (
-            (received_qty * (ordered_amount / ordered_qty)).quantize(Decimal("0.01"))
-            if ordered_qty
-            else Decimal("0.00")
+        invoiced_amount = Decimal(invoice.subtotal)
+        amount_difference = (invoiced_amount - received_amount).quantize(
+            Decimal("0.01")
         )
-        invoiced_amount = Decimal(invoice.total_amount)
-        amount_difference = (invoiced_amount - ordered_amount).quantize(Decimal("0.01"))
         quantity_difference = (
             None
             if invoiced_qty is None
             else (invoiced_qty - received_qty).quantize(Decimal("0.001"))
         )
         blockers = []
+        if not relation_ready:
+            blockers.append("INVOICE_ORDER_LINE_RELATION_MISSING")
         if received_qty == 0:
             blockers.append("NO_POSTED_RECEIPT")
         if amount_difference != 0:
