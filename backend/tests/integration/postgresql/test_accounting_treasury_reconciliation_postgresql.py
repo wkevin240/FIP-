@@ -4,6 +4,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from app.models.accounting.account import Account
+from app.models.accounting.bank_transaction import BankTransaction
 from app.models.invoicing.payment import Payment
 from app.models.organization import Organization
 from app.services.treasury.accounting_treasury_reconciliation_service import (
@@ -35,15 +37,34 @@ async def test_reconciliation_is_tenant_scoped_on_postgresql(
     organization_b = Organization(name=f"Reconciliation B {suffix}")
     postgres_session.add_all([organization_a, organization_b])
     await postgres_session.flush()
-    postgres_session.add(
-        Payment(
-            organization_id=organization_b.id,
-            payment_date=date(2026, 8, 22),
-            amount=Decimal("100.00"),
-            method="BANK_TRANSFER",
-            external_reference=f"TENANT-B-{suffix}",
-            received_at=datetime(2026, 8, 22, tzinfo=UTC).replace(tzinfo=None),
-        )
+    account = Account(
+        organization_id=organization_b.id,
+        code=f"512{suffix[:7]}",
+        name="Tenant B bank",
+        account_type="ASSET",
+        path="/",
+    )
+    postgres_session.add(account)
+    await postgres_session.flush()
+    postgres_session.add_all(
+        [
+            Payment(
+                organization_id=organization_b.id,
+                payment_date=date(2026, 8, 22),
+                amount=Decimal("100.00"),
+                method="BANK_TRANSFER",
+                external_reference=f"TENANT-B-{suffix}",
+                received_at=datetime(2026, 8, 22, tzinfo=UTC).replace(tzinfo=None),
+            ),
+            BankTransaction(
+                organization_id=organization_b.id,
+                bank_account_id=account.id,
+                transaction_date=date(2026, 8, 22),
+                amount=Decimal("100.00"),
+                description="Tenant B bank movement",
+                external_id=f"BANK-B-{suffix}",
+            ),
+        ]
     )
     await postgres_session.commit()
 

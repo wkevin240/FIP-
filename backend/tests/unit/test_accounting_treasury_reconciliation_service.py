@@ -190,3 +190,40 @@ async def test_no_bank_candidate_has_its_own_blocker():
     assert "PAYMENT_BANK_NO_CANDIDATE" in result.blockers
     assert "PAYMENT_BANK_WRONG_DATE" not in result.blockers
     assert "PAYMENT_BANK_WRONG_REFERENCE" not in result.blockers
+
+
+@pytest.mark.asyncio
+async def test_complete_three_way_reconciliation_is_ready():
+    payment = SimpleNamespace(
+        id="payment-ready",
+        amount=Decimal("100.00"),
+        external_reference="READY",
+        payment_date=date(2026, 8, 22),
+    )
+    transaction = SimpleNamespace(
+        id="bank-ready",
+        transaction_date=date(2026, 8, 22),
+        external_id="READY",
+        reference=None,
+        amount=Decimal("100.00"),
+    )
+    posting = SimpleNamespace(source_id="payment-ready", journal_entry_id="entry-ready")
+    entry = SimpleNamespace(id="entry-ready")
+    bank_reconciliation = SimpleNamespace(bank_transaction_id="bank-ready")
+    session = AsyncMock()
+    session.scalars.side_effect = [
+        ScalarResult([payment]),
+        ScalarResult([]),
+        ScalarResult([transaction]),
+        ScalarResult([posting]),
+        ScalarResult([]),
+        ScalarResult([entry]),
+        ScalarResult([bank_reconciliation]),
+        ScalarResult([]),
+    ]
+    result = await AccountingTreasuryReconciliationService(session).report(
+        "org-a", date(2026, 8, 22)
+    )
+    assert result.status == "READY"
+    assert result.matched_payments == 1
+    assert result.blockers == []
