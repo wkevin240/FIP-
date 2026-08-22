@@ -154,6 +154,7 @@ async def _create_profitability_fixture(session: AsyncSession):
     }
     session.add(fiscal_year)
     await session.flush()
+    period.fiscal_year_id = fiscal_year.id
     session.add_all([period, *accounts.values()])
     await session.flush()
     journal = await JournalService(session).create_journal(
