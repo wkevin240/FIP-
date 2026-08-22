@@ -60,4 +60,4 @@ async def test_payment_without_posted_accounting_entry_is_incomplete():
     )
     assert result.status == "INCOMPLETE"
     assert result.missing_postings == 1
-    assert "PAYMENT_ACCOUNTING_POSTING_NOT_READY" in result.blockers
+    assert "PAYMENT_ACCOUNTING_POSTING_ABSENT" in result.blockers
