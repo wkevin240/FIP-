@@ -76,6 +76,12 @@ class PurchaseInvoice(Base):
             name="fk_purchase_invoice_org_supplier",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "purchase_order_id"],
+            ["purchase_orders.organization_id", "purchase_orders.id"],
+            name="fk_purchase_invoice_org_order",
+            ondelete="RESTRICT",
+        ),
     )
 
     organization_id = Column(
@@ -85,6 +91,7 @@ class PurchaseInvoice(Base):
         index=True,
     )
     supplier_id = Column(String, nullable=False, index=True)
+    purchase_order_id = Column(String, nullable=True, index=True)
     invoice_number = Column(String(64), nullable=False)
     invoice_date = Column(Date, nullable=False, index=True)
     due_date = Column(Date, nullable=True, index=True)
@@ -174,7 +181,7 @@ class SupplierPayment(Base):
         nullable=False,
         index=True,
     )
-    invoice_id = Column(String, nullable=False, index=True)
+    invoice_id = Column(String, nullable=True, index=True)
     payment_date = Column(Date, nullable=False)
     amount = Column(Numeric(18, 2), nullable=False)
     method = Column(String(32), nullable=False)

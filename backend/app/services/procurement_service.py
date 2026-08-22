@@ -19,6 +19,7 @@ from app.models.procurement import (
     SupplierPayment,
     SupplierPaymentAccountingPosting,
 )
+from app.models.procurement_flow import PurchaseOrder
 from app.repositories.procurement_repository import ProcurementRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
@@ -30,6 +31,7 @@ from app.schemas.procurement import (
 )
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.audit.audit_service import AuditService
+from app.services.procurement_approval_service import ProcurementApprovalService
 
 
 class ProcurementService:
@@ -103,11 +105,29 @@ class ProcurementService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Active supplier not found",
             )
+        if data.purchase_order_id:
+            purchase_order = await self.session.scalar(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.organization_id == organization_id,
+                    PurchaseOrder.id == data.purchase_order_id,
+                )
+            )
+            if purchase_order is None or purchase_order.supplier_id != data.supplier_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Purchase order does not belong to supplier or organization",
+                )
+            if purchase_order.status != "ISSUED":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Only issued purchase orders can be invoiced",
+                )
         subtotal = sum((line.line_subtotal for line in data.lines), Decimal("0.00"))
         tax_amount = sum((line.tax_amount for line in data.lines), Decimal("0.00"))
         invoice = PurchaseInvoice(
             organization_id=organization_id,
             supplier_id=data.supplier_id,
+            purchase_order_id=data.purchase_order_id,
             invoice_number=data.invoice_number,
             invoice_date=data.invoice_date,
             due_date=data.due_date,
@@ -180,14 +200,23 @@ class ProcurementService:
     async def create_payment(
         self, organization_id: str, actor_user_id: str, data: SupplierPaymentCreate
     ):
-        invoice = await self.repo.invoice(organization_id, data.invoice_id, lock=True)
-        if invoice is None:
-            raise HTTPException(status_code=404, detail="Purchase invoice not found")
-        if invoice.status not in {"VALIDATED", "PARTIALLY_PAID"}:
+        invoice = None
+        if data.invoice_id is not None:
+            invoice = await self.repo.invoice(
+                organization_id, data.invoice_id, lock=True
+            )
+            if invoice is None:
+                raise HTTPException(
+                    status_code=404, detail="Purchase invoice not found"
+                )
+        if invoice is not None and invoice.status not in {
+            "VALIDATED",
+            "PARTIALLY_PAID",
+        }:
             raise HTTPException(
                 status_code=422, detail="Purchase invoice is not payable"
             )
-        if (
+        if invoice is not None and (
             data.payment_date < invoice.invoice_date
             or data.amount > invoice.outstanding_amount
         ):
@@ -196,10 +225,13 @@ class ProcurementService:
                 detail="Payment exceeds supplier invoice outstanding amount",
             )
         payment = SupplierPayment(organization_id=organization_id, **data.model_dump())
-        invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
-        invoice.status = (
-            "PAID" if invoice.paid_amount == invoice.total_amount else "PARTIALLY_PAID"
-        )
+        if invoice is not None:
+            invoice.paid_amount = Decimal(invoice.paid_amount) + data.amount
+            invoice.status = (
+                "PAID"
+                if invoice.paid_amount == invoice.total_amount
+                else "PARTIALLY_PAID"
+            )
         self.session.add(payment)
         await self.session.flush()
         await self.audit.record(
@@ -208,7 +240,10 @@ class ProcurementService:
             action="SUPPLIER_PAYMENT_CREATED",
             resource_type="SupplierPayment",
             resource_id=payment.id,
-            new_value={"invoice_id": invoice.id, "amount": str(data.amount)},
+            new_value={
+                "invoice_id": invoice.id if invoice is not None else None,
+                "amount": str(data.amount),
+            },
         )
         await self.session.commit()
         return payment
@@ -228,6 +263,9 @@ class ProcurementService:
         invoice = await self.repo.invoice(organization_id, invoice_id, lock=True)
         if invoice is None:
             raise HTTPException(status_code=404, detail="Purchase invoice not found")
+        await ProcurementApprovalService(self.session).require_approved(
+            organization_id, invoice_id
+        )
         existing = await self.repo.invoice_posting(organization_id, invoice_id)
         if existing:
             return existing

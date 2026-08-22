@@ -48,6 +48,7 @@ class PurchaseInvoiceLineCreate(BaseModel):
 
 class PurchaseInvoiceCreate(BaseModel):
     supplier_id: str
+    purchase_order_id: str | None = None
     invoice_number: str = Field(min_length=1, max_length=64)
     invoice_date: date
     due_date: date | None = None
@@ -67,6 +68,7 @@ class PurchaseInvoiceResponse(BaseModel):
     id: str
     organization_id: str
     supplier_id: str
+    purchase_order_id: str | None
     invoice_number: str
     invoice_date: date
     due_date: date | None
@@ -93,7 +95,7 @@ class ProcurementAccountingProfileResponse(ProcurementAccountingProfileCreate):
 
 
 class SupplierPaymentCreate(BaseModel):
-    invoice_id: str
+    invoice_id: str | None = None
     payment_date: date
     amount: Decimal = Field(gt=Decimal(0), max_digits=18, decimal_places=2)
     method: str = Field(min_length=1, max_length=32)
