@@ -78,7 +78,15 @@ class Invoice(Base):
     lines = relationship(
         "InvoiceLine", back_populates="invoice", cascade="all, delete-orphan"
     )
-    payments = relationship("Payment", back_populates="invoice")
+    payments = relationship(
+        "Payment", back_populates="invoice", overlaps="organization,invoice"
+    )
+    payment_allocations = relationship(
+        "PaymentAllocation",
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        overlaps="allocations,payment",
+    )
     credit_notes = relationship("CreditNote", back_populates="invoice")
     accounting_posting = relationship(
         "InvoiceAccountingPosting",
