@@ -42,7 +42,7 @@ async def test_reconciliation_is_tenant_scoped_on_postgresql(
             amount=Decimal("100.00"),
             method="BANK_TRANSFER",
             external_reference=f"TENANT-B-{suffix}",
-            received_at=datetime(2026, 8, 22, tzinfo=UTC),
+            received_at=datetime(2026, 8, 22, tzinfo=UTC).replace(tzinfo=None),
         )
     )
     await postgres_session.commit()
@@ -70,7 +70,7 @@ async def test_as_of_excludes_future_payment_on_postgresql(
             amount=Decimal("75.00"),
             method="BANK_TRANSFER",
             external_reference=f"FUTURE-{suffix}",
-            received_at=datetime(2026, 8, 23, tzinfo=UTC),
+            received_at=datetime(2026, 8, 23, tzinfo=UTC).replace(tzinfo=None),
         )
     )
     await postgres_session.commit()
