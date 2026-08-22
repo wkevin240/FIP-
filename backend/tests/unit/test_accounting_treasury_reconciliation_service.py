@@ -169,3 +169,24 @@ async def test_amount_difference_is_returned_separately_with_decimal_precision()
     result = await _run_match(payment, [transaction])
     assert result.amount_differences == Decimal("0.01")
     assert "PAYMENT_BANK_AMOUNT_DIFFERENCE" in result.blockers
+
+
+@pytest.mark.asyncio
+async def test_no_bank_candidate_has_its_own_blocker():
+    payment = SimpleNamespace(
+        id="payment-none",
+        amount=Decimal("100.00"),
+        external_reference="MISSING",
+        payment_date=date(2026, 8, 22),
+    )
+    transaction = SimpleNamespace(
+        id="bank-other",
+        transaction_date=date(2026, 8, 21),
+        external_id="OTHER",
+        reference=None,
+        amount=Decimal("100.00"),
+    )
+    result = await _run_match(payment, [transaction])
+    assert "PAYMENT_BANK_NO_CANDIDATE" in result.blockers
+    assert "PAYMENT_BANK_WRONG_DATE" not in result.blockers
+    assert "PAYMENT_BANK_WRONG_REFERENCE" not in result.blockers

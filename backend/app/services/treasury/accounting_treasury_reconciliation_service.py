@@ -120,6 +120,7 @@ class AccountingTreasuryReconciliationService:
         missing_entries = 0
         wrong_dates = 0
         wrong_references = 0
+        no_candidates = 0
         amount_mismatches = 0
         amount_differences = ZERO
         claimed_bank_ids: set[str] = set()
@@ -184,7 +185,10 @@ class AccountingTreasuryReconciliationService:
             if not candidates:
                 unmatched_payments += 1
                 if not by_date:
-                    wrong_dates += 1 if by_reference else 0
+                    if by_reference:
+                        wrong_dates += 1
+                    else:
+                        no_candidates += 1
                 elif reference and not by_reference:
                     wrong_references += 1
                 continue
@@ -229,6 +233,8 @@ class AccountingTreasuryReconciliationService:
             blockers.append("NO_BANK_TRANSACTION_SOURCE")
         if unmatched_payments:
             blockers.append("UNMATCHED_PAYMENTS")
+        if no_candidates:
+            blockers.append("PAYMENT_BANK_NO_CANDIDATE")
         if wrong_dates:
             blockers.append("PAYMENT_BANK_WRONG_DATE")
         if wrong_references:
