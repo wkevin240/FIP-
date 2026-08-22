@@ -1,7 +1,7 @@
 """Add explicit tenant-scoped profitability account mappings.
 
-Revision ID: 0029_profitability_mappings
-Revises: 0028_accounts_receivable
+Revision ID: 0032_profitability_mappings
+Revises: 0031_procurement_flow
 """
 
 from collections.abc import Sequence
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0029_profitability_mappings"
-down_revision: str | None = "0028_accounts_receivable"
+revision: str = "0032_profitability_mappings"
+down_revision: str | None = "0031_procurement_flow"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
