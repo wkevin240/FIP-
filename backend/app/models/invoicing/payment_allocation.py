@@ -7,7 +7,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 
 from app.db.base import Base
 
@@ -51,6 +51,7 @@ class PaymentAllocation(Base):
     payment_id = Column(String, nullable=False, index=True)
     invoice_id = Column(String, nullable=False, index=True)
     amount = Column(Numeric(18, 2), nullable=False)
+    allocated_amount = synonym("amount")
     allocated_at = Column(String(64), nullable=False)
     idempotency_key = Column(String(128), nullable=False)
     allocated_by_user_id = Column(
