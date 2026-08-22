@@ -106,6 +106,7 @@ class FinancialVarianceService:
         organization_id: str,
         budget_id: str | None,
         scenario_id: str | None,
+        dimension_value_id: str | None,
         mappings: list[ProfitabilityAccountMapping],
     ) -> tuple[dict[str, Decimal], dict[str, list[str]], str | None]:
         if not budget_id or not scenario_id:
@@ -121,6 +122,8 @@ class FinancialVarianceService:
         values: dict[str, Decimal] = {}
         sources: dict[str, list[str]] = {}
         for line in forecast.lines:
+            if dimension_value_id and line.dimension_value_id != dimension_value_id:
+                continue
             category = mapping_by_account.get(line.account_id)
             if category is None:
                 continue
@@ -232,7 +235,11 @@ class FinancialVarianceService:
                 comparison_sources,
                 source_reason,
             ) = await self._forecast_metrics(
-                organization_id, budget_id, scenario_id, mappings
+                organization_id,
+                budget_id,
+                scenario_id,
+                dimension_value_id,
+                mappings,
             )
 
         current_metrics = self._metric_map(current.metrics)
