@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -52,7 +54,11 @@ class PaymentAllocation(Base):
     invoice_id = Column(String, nullable=False, index=True)
     amount = Column(Numeric(18, 2), nullable=False)
     allocated_amount = synonym("amount")
-    allocated_at = Column(String(64), nullable=False)
+    allocated_at = Column(
+        String(64),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).isoformat(),
+    )
     idempotency_key = Column(String(128), nullable=False)
     allocated_by_user_id = Column(
         String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
