@@ -31,3 +31,17 @@ class TreasuryReconciliationResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AccountingTreasuryReconciliationResponse(BaseModel):
+    organization_id: str
+    as_of: date
+    status: str
+    bank_transactions: int
+    payments: int
+    matched_payments: int
+    unmatched_payments: int
+    missing_postings: int
+    unresolved_bank_transactions: int
+    amount_differences: Decimal
+    blockers: list[str]
