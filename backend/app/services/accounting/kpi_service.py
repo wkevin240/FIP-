@@ -1,154 +1,253 @@
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-from app.core.enums.accounting import JournalEntryStatus
-from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
-from app.models.accounting.journal_entry import JournalEntry
-from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.schemas.accounting.financial_calculation import ProfitabilityMetric
 from app.schemas.accounting.kpi import KPIMetricResponse, KPIResponse
-from sqlalchemy import func, select
+from app.services.accounting.financial_calculation_service import (
+    FinancialCalculationService,
+)
+from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 CENT = Decimal("0.01")
 
+_CORE_CODES = (
+    "REVENUE",
+    "GROSS_PROFIT",
+    "GROSS_MARGIN",
+    "OPERATING_INCOME",
+    "OPERATING_MARGIN",
+    "NET_INCOME",
+    "NET_MARGIN",
+)
+
+_UNAVAILABLE = {
+    "DSO": (
+        "Délai moyen de recouvrement",
+        "days",
+        "AR Outstanding / Revenue × days",
+        "Customer receivables and collection-period mappings are not configured",
+    ),
+    "DPO": (
+        "Délai moyen de paiement fournisseur",
+        "days",
+        "AP Outstanding / Purchases × days",
+        "Supplier payables and reliable purchases denominator are not configured",
+    ),
+    "WORKING_CAPITAL": (
+        "Fonds de roulement",
+        "amount",
+        "AR Outstanding + Inventory - AP Outstanding",
+        "AR, Inventory and AP source services are not available in one reconciled scope",
+    ),
+    "NET_WORKING_CAPITAL": (
+        "Besoin en fonds de roulement net",
+        "amount",
+        "AR Outstanding + Inventory - AP Outstanding",
+        "AR, Inventory and AP source services are not available in one reconciled scope",
+    ),
+    "LIQUIDITY": (
+        "Liquidité nette",
+        "amount",
+        "Cash + AR Outstanding - AP Outstanding",
+        "Cash, AR and AP are not available in one reconciled scope",
+    ),
+    "CASH_COVERAGE": (
+        "Couverture de trésorerie",
+        "days",
+        "Cash / average daily operating outflow",
+        "Cash and a reliable operating-outflow denominator are not configured",
+    ),
+    "AR_OUTSTANDING": (
+        "Créances clients",
+        "amount",
+        "Validated receivables - allocated payments",
+        "A reconciled AR source is not exposed by the current central calculation contract",
+    ),
+    "AP_OUTSTANDING": (
+        "Dettes fournisseurs",
+        "amount",
+        "Validated payables - allocated payments",
+        "A reconciled AP source is not exposed by the current central calculation contract",
+    ),
+}
+
 
 class KPIService:
+    """Read-only management KPIs consuming the central financial calculation engine."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.calculation = FinancialCalculationService(session)
 
-    async def calculate(
-        self, organization_id: str, fiscal_period_id: str | None = None
-    ) -> KPIResponse:
+    async def _resolve_period(
+        self,
+        organization_id: str,
+        fiscal_period_id: str | None,
+        period_start: date | None,
+        period_end: date | None,
+    ) -> tuple[date, date]:
         if fiscal_period_id:
             period = await self.session.scalar(
-                select(FiscalPeriod.id).where(
+                select(FiscalPeriod).where(
                     FiscalPeriod.organization_id == organization_id,
                     FiscalPeriod.id == fiscal_period_id,
                 )
             )
             if period is None:
-                from fastapi import HTTPException
-
                 raise HTTPException(status_code=404, detail="Fiscal period not found")
-        query = (
-            select(
-                Account.account_type,
-                func.sum(JournalEntryLine.debit),
-                func.sum(JournalEntryLine.credit),
+            if period_start is not None and period_start != period.start_date:
+                raise HTTPException(
+                    status_code=422,
+                    detail="period_start does not match fiscal_period_id",
+                )
+            if period_end is not None and period_end != period.end_date:
+                raise HTTPException(
+                    status_code=422,
+                    detail="period_end does not match fiscal_period_id",
+                )
+            return period.start_date, period.end_date
+        if period_start is None or period_end is None:
+            raise HTTPException(
+                status_code=422,
+                detail="period_start and period_end are required without fiscal_period_id",
             )
-            .join(JournalEntryLine, JournalEntryLine.account_id == Account.id)
-            .join(JournalEntry, JournalEntry.id == JournalEntryLine.journal_entry_id)
-            .where(
-                Account.organization_id == organization_id,
-                JournalEntryLine.organization_id == organization_id,
-                JournalEntry.organization_id == organization_id,
-                JournalEntry.status == JournalEntryStatus.POSTED,
+        if period_start > period_end:
+            raise HTTPException(
+                status_code=422, detail="period_start must be before period_end"
             )
-            .group_by(Account.account_type)
+        return period_start, period_end
+
+    @staticmethod
+    def _metric(
+        source: ProfitabilityMetric,
+        *,
+        value: Decimal | None = None,
+        formula: str | None = None,
+        unit: str = "amount",
+        name: str | None = None,
+    ) -> KPIMetricResponse:
+        source_ids = list(source.journal_entry_line_ids)
+        status = source.status
+        reason = source.reason
+        resolved_value = value if value is not None else source.value
+        if status == "READY" and not source_ids:
+            status = "NOT_READY"
+            resolved_value = None
+            reason = "No POSTED source lines exist in the requested scope"
+        return KPIMetricResponse(
+            code=source.code,
+            name=name or source.code,
+            label=name or source.code,
+            value=resolved_value,
+            unit=unit,
+            formula=formula or source.formula,
+            period_start=source.period_start,
+            period_end=source.period_end,
+            status=status,
+            reason=reason,
+            source_modules=["Accounting"],
+            source_ids=source_ids,
+            dimensions=list(source.dimensions),
         )
-        if fiscal_period_id:
-            query = query.where(JournalEntry.fiscal_period_id == fiscal_period_id)
-        rows = await self.session.execute(query)
-        balances: dict[str, Decimal] = {}
-        for account_type, debit, credit in rows:
-            debit_amount = Decimal(debit or 0)
-            credit_amount = Decimal(credit or 0)
-            if account_type in {"REVENUE", "LIABILITY", "EQUITY"}:
-                balances[account_type] = (credit_amount - debit_amount).quantize(
-                    CENT, rounding=ROUND_HALF_UP
+
+    async def calculate(
+        self,
+        organization_id: str,
+        fiscal_period_id: str | None = None,
+        period_start: date | None = None,
+        period_end: date | None = None,
+        dimension_id: str | None = None,
+        dimension_value_id: str | None = None,
+    ) -> KPIResponse:
+        resolved_start, resolved_end = await self._resolve_period(
+            organization_id, fiscal_period_id, period_start, period_end
+        )
+        profitability = await self.calculation.profitability(
+            organization_id,
+            resolved_start,
+            resolved_end,
+            dimension_id,
+            dimension_value_id,
+        )
+        by_code = {metric.code: metric for metric in profitability.metrics}
+        metrics: list[KPIMetricResponse] = []
+        labels = {
+            "REVENUE": "Produits",
+            "GROSS_PROFIT": "Marge brute en valeur",
+            "GROSS_MARGIN": "Marge brute",
+            "OPERATING_INCOME": "Résultat d’exploitation",
+            "OPERATING_MARGIN": "Marge opérationnelle",
+            "NET_INCOME": "Résultat net",
+            "NET_MARGIN": "Marge nette",
+        }
+        for code in _CORE_CODES:
+            source = by_code.get(code)
+            if source is None:
+                continue
+            if code.endswith("MARGIN"):
+                metric = self._metric(
+                    source,
+                    value=(source.value * Decimal("100.00")).quantize(
+                        CENT, rounding=ROUND_HALF_UP
+                    )
+                    if source.value is not None
+                    else None,
+                    formula=f"({source.formula}) × 100",
+                    unit="percent",
+                    name=labels[code],
                 )
             else:
-                balances[account_type] = (debit_amount - credit_amount).quantize(
-                    CENT, rounding=ROUND_HALF_UP
+                metric = self._metric(source, name=labels[code])
+            metrics.append(metric)
+
+        for code, (label, unit, formula, reason) in _UNAVAILABLE.items():
+            metrics.append(
+                KPIMetricResponse(
+                    code=code,
+                    name=code,
+                    label=label,
+                    value=None,
+                    unit=unit,
+                    formula=formula,
+                    period_start=resolved_start,
+                    period_end=resolved_end,
+                    status="NOT_READY",
+                    reason=reason,
+                    source_modules=[],
+                    source_ids=[],
+                    dimensions=[],
+                    blockers=[reason],
                 )
-        revenue = balances.get("REVENUE", Decimal("0.00"))
-        expenses = balances.get("EXPENSE", Decimal("0.00"))
-        net_income = revenue - expenses
-        metrics = [
-            KPIMetricResponse(
-                code="REVENUE",
-                label="Produits",
-                status="READY" if "REVENUE" in balances else "INCOMPLETE",
-                value=revenue,
-                unit="amount",
-                reason=None
-                if "REVENUE" in balances
-                else "No POSTED revenue account movement in the selected scope",
-            ),
-            KPIMetricResponse(
-                code="EXPENSES",
-                label="Charges",
-                status="READY" if "EXPENSE" in balances else "INCOMPLETE",
-                value=expenses,
-                unit="amount",
-                reason=None
-                if "EXPENSE" in balances
-                else "No POSTED expense account movement in the selected scope",
-            ),
-            KPIMetricResponse(
-                code="NET_INCOME",
-                label="Résultat net comptable",
-                status="READY" if revenue or expenses else "INCOMPLETE",
-                value=net_income,
-                unit="amount",
-                reason=None
-                if revenue or expenses
-                else "No POSTED income statement movement in the selected scope",
-            ),
-            KPIMetricResponse(
-                code="NET_MARGIN",
-                label="Marge nette",
-                status="READY" if revenue else "NOT_READY",
-                value=((net_income / revenue) * Decimal("100.00")).quantize(
-                    CENT, rounding=ROUND_HALF_UP
-                )
-                if revenue
-                else None,
-                unit="percent",
-                reason=None if revenue else "Revenue denominator is absent or zero",
-            ),
-        ]
-        unavailable_reason = "No organization-level account mapping distinguishes the requested KPI components"
-        metrics.extend(
-            [
-                KPIMetricResponse(
-                    code="EBITDA",
-                    label="EBITDA",
-                    status="NOT_READY",
-                    unit="amount",
-                    reason=unavailable_reason,
-                ),
-                KPIMetricResponse(
-                    code="GROSS_MARGIN",
-                    label="Marge brute",
-                    status="NOT_READY",
-                    unit="percent",
-                    reason=unavailable_reason,
-                ),
-                KPIMetricResponse(
-                    code="DSO",
-                    label="Délai moyen de recouvrement",
-                    status="NOT_READY",
-                    unit="days",
-                    reason="Customer receivables and revenue mappings are not configured",
-                ),
-                KPIMetricResponse(
-                    code="DPO",
-                    label="Délai moyen de paiement fournisseur",
-                    status="NOT_READY",
-                    unit="days",
-                    reason="Supplier payables and purchases mappings are not configured",
-                ),
-            ]
+            )
+
+        core = [metric for metric in metrics if metric.code in _CORE_CODES]
+        blockers = sorted(
+            {
+                metric.reason
+                for metric in metrics
+                if metric.reason is not None and metric.status != "READY"
+            }
         )
-        overall = (
-            "READY"
-            if any(metric.status == "READY" for metric in metrics)
-            else "NOT_READY"
-        )
+        if not core or not any(metric.status == "READY" for metric in core):
+            overall = (
+                "INCOMPLETE"
+                if any(metric.status == "INCOMPLETE" for metric in core)
+                else "NOT_READY"
+            )
+        elif all(metric.status == "READY" for metric in metrics):
+            overall = "READY"
+        else:
+            overall = "INCOMPLETE"
         return KPIResponse(
             organization_id=organization_id,
             fiscal_period_id=fiscal_period_id,
+            period_start=resolved_start,
+            period_end=resolved_end,
             status=overall,
             metrics=metrics,
+            source_modules=["Accounting", "FinancialCalculationService"],
+            blockers=blockers,
         )
