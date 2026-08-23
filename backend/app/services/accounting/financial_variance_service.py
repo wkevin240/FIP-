@@ -72,7 +72,7 @@ class FinancialVarianceService:
             mapping.account_id: mapping.category for mapping in mappings
         }
         rows = await self.session.execute(
-            select(BudgetLine)
+            select(BudgetLine, FiscalPeriod)
             .join(FiscalPeriod, FiscalPeriod.id == BudgetLine.fiscal_period_id)
             .where(
                 BudgetLine.organization_id == organization_id,
@@ -87,9 +87,23 @@ class FinancialVarianceService:
                 ),
             )
         )
+        rows = list(rows.all())
+        periods = sorted(
+            (period for _, period in rows), key=lambda item: item.start_date
+        )
+        cursor = period_start
+        for period in periods:
+            if period.start_date > cursor:
+                return {}, {}, "BUDGET_INCOMPLETE"
+            if period.end_date >= cursor:
+                cursor = period.end_date + timedelta(days=1)
+            if cursor > period_end:
+                break
+        if cursor <= period_end:
+            return {}, {}, "BUDGET_INCOMPLETE"
         values: dict[str, Decimal] = {}
         sources: dict[str, list[str]] = {}
-        for line in rows.scalars():
+        for line, _ in rows:
             category = mapping_by_account.get(line.account_id)
             if category is None:
                 continue
