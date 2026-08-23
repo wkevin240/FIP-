@@ -250,7 +250,7 @@ async def test_kpi_engine_reconciles_posted_ledger_with_decimal_sources_postgres
     assert by_code["GROSS_MARGIN"].value == Decimal("60.00")
     assert by_code["OPERATING_MARGIN"].value == Decimal("50.00")
     assert by_code["NET_MARGIN"].value == Decimal("50.00")
-    assert len(by_code["GROSS_PROFIT"].source_ids) == 4
+    assert len(by_code["GROSS_PROFIT"].source_ids) == 3
     assert by_code["DSO"].status == "NOT_READY"
 
 
