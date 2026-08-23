@@ -42,9 +42,15 @@ Chaque métrique expose sa formule, sa période, ses dimensions, son module sour
 
 Le statut global est `INCOMPLETE` lorsqu’une partie de la suite demandée reste indisponible. Le moteur ne transforme jamais une absence de données en zéro.
 
-## KPI non encore calculés
+## Métriques opérationnelles et limites
 
-`DSO`, `DPO`, `AR_OUTSTANDING`, `AP_OUTSTANDING`, `WORKING_CAPITAL`, `NET_WORKING_CAPITAL`, `LIQUIDITY` et `CASH_COVERAGE` retournent actuellement `NOT_READY` avec un blocker explicite. Le KPI Engine n’invente pas de lien entre les modules AR, AP, Inventory, Treasury et Accounting tant qu’un contrat de source réconcilié n’est pas disponible.
+`AR_OUTSTANDING` et `AP_OUTSTANDING` sont calculés à partir des factures réelles et des allocations canoniques datées. Les avoirs clients sont déduits uniquement lorsqu’un `CreditNote` réel existe dans le périmètre `as_of`. Les sorties exposent les montants bruts, payés, crédités, outstanding, overdue et les identifiants sources dans `inputs`.
+
+`DSO` utilise exclusivement `average AR / credit revenue × days`, avec Revenue fourni par `FinancialCalculationService`. `DPO` utilise `average AP / validated supplier invoice total × days`. Les deux ratios retournent `NOT_READY` si le dénominateur ou la source obligatoire manque ou est nul.
+
+`WORKING_CAPITAL` et `NET_WORKING_CAPITAL` utilisent `AR + Inventory - AP`. La valorisation Inventory est consommée depuis `StockBalance` uniquement pour un snapshot courant, car le modèle ne fournit pas encore d’historique de valorisation fiable. `LIQUIDITY` consomme directement `LiquidityControlService` et reste `INCOMPLETE` si le contrôle Treasury/Banking sous-jacent n’est pas READY. `CASH_COVERAGE` reste `NOT_READY` avec `CASH_COVERAGE_DEFINITION_NOT_CONFIGURED`, aucune formule silencieuse n’étant introduite.
+
+La métrique `RECONCILIATION` consomme `AccountingTreasuryReconciliationService` et expose ses blockers, notamment les paiements non rapprochés, les écritures comptables absentes ou non POSTED, les différences de montant et les transactions bancaires orphelines.
 
 ## API
 
