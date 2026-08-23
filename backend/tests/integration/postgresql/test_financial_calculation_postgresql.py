@@ -242,7 +242,7 @@ async def test_kpi_engine_reconciles_posted_ledger_with_decimal_sources_postgres
         period_end=date(2026, 1, 31),
     )
     by_code = {metric.code: metric for metric in result.metrics}
-    assert result.status == "READY"
+    assert result.status == "INCOMPLETE"
     assert by_code["REVENUE"].value == Decimal("1000.01")
     assert by_code["GROSS_PROFIT"].value == Decimal("600.01")
     assert by_code["OPERATING_INCOME"].value == Decimal("500.00")
