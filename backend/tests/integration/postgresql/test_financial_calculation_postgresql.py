@@ -449,9 +449,18 @@ async def test_variance_budget_statuses_and_tenant_scope_postgresql(
     other_org = Organization(name=f"Budget tenant isolation {uuid4().hex[:8]}")
     postgres_session.add(other_org)
     await postgres_session.flush()
+    other_year = FiscalYear(
+        organization_id=other_org.id,
+        name=f"Other tenant FY {uuid4().hex[:8]}",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        status=FiscalYearStatus.OPEN,
+    )
+    postgres_session.add(other_year)
+    await postgres_session.flush()
     other_budget = Budget(
         organization_id=other_org.id,
-        fiscal_year_id=period.fiscal_year_id,
+        fiscal_year_id=other_year.id,
         name="Other tenant budget",
         status="APPROVED",
     )
