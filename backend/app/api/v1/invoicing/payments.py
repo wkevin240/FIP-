@@ -1,11 +1,17 @@
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.invoicing.payment import PaymentCreate, PaymentResponse
+from app.schemas.invoicing.payment import (
+    PaymentAllocationCreate,
+    PaymentAllocationResponse,
+    PaymentCreate,
+    PaymentResponse,
+)
 from app.schemas.invoicing.settlement_accounting import (
     PaymentPostingCreate,
     PaymentPostingResponse,
 )
 from app.services.invoicing.payment_service import PaymentService
+from app.services.invoicing.receivable_service import ReceivableService
 from app.services.invoicing.settlement_accounting_service import (
     SettlementAccountingService,
 )
@@ -17,6 +23,12 @@ router = APIRouter()
 
 async def get_service(session: AsyncSession = Depends(get_db)) -> PaymentService:
     return PaymentService(session)
+
+
+async def get_receivable_service(
+    session: AsyncSession = Depends(get_db),
+) -> ReceivableService:
+    return ReceivableService(session)
 
 
 async def get_accounting_service(
@@ -44,7 +56,19 @@ async def create_payment(
     service: PaymentService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("payment:create")),
 ) -> PaymentResponse:
-    return await service.create_payment(tenant.organization_id, data)
+    return await service.create_payment(tenant.organization_id, data, tenant.user_id)
+
+
+@router.post("/{payment_id}/allocations", response_model=PaymentAllocationResponse)
+async def allocate_payment(
+    payment_id: str,
+    data: PaymentAllocationCreate,
+    service: ReceivableService = Depends(get_receivable_service),
+    tenant: CurrentTenant = Depends(require_permission("payment:allocate")),
+) -> PaymentAllocationResponse:
+    return await service.allocate_payment(
+        tenant.organization_id, tenant.user_id, payment_id, data
+    )
 
 
 @router.get("/invoices/{invoice_id}", response_model=list[PaymentResponse])
