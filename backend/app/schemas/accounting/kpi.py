@@ -22,6 +22,7 @@ class KPIMetricResponse(BaseModel):
     denominator: Decimal | None = None
     days: Decimal | None = None
     blockers: list[str] = Field(default_factory=list)
+    inputs: dict[str, Decimal | str | int] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)
 

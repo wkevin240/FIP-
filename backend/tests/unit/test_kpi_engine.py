@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from app.core.enums.users import MembershipRole
@@ -111,9 +112,53 @@ async def test_kpi_calculation_consumes_central_profitability_metrics():
     service = KPIService(None)
     service.calculation = AsyncMock()
     service.calculation.profitability.return_value = profitability
+    service._ar_snapshot = AsyncMock(
+        return_value=(
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+            [],
+            [],
+        )
+    )
+    service._ap_snapshot = AsyncMock(
+        return_value=(
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+            [],
+            [],
+        )
+    )
+    service.liquidity.control = AsyncMock(
+        return_value=SimpleNamespace(
+            status="INCOMPLETE",
+            current_period_blockers=["NO_BANK_TRANSACTION_SOURCE"],
+            net_liquidity=Decimal("0.00"),
+        )
+    )
+    service.reconciliation.report = AsyncMock(
+        return_value=SimpleNamespace(
+            status="NOT_READY",
+            blockers=["NO_PAYMENT_SOURCE"],
+            bank_transactions=0,
+            payments=0,
+            matched_payments=0,
+            unmatched_payments=0,
+            missing_postings=0,
+            unresolved_bank_transactions=0,
+            amount_differences=Decimal("0.00"),
+        )
+    )
 
     result = await service.calculate(
-        "organization-real", period_start=period_start, period_end=period_end
+        "organization-real",
+        period_start=period_start,
+        period_end=period_end,
+        as_of=date(2026, 1, 15),
     )
     by_code = {metric.code: metric for metric in result.metrics}
     assert result.status == "INCOMPLETE"
@@ -121,9 +166,11 @@ async def test_kpi_calculation_consumes_central_profitability_metrics():
     assert by_code["GROSS_MARGIN"].value == Decimal("60.00")
     assert by_code["NET_MARGIN"].value == Decimal("40.00")
     assert by_code["DSO"].status == "NOT_READY"
+    assert by_code["RECONCILIATION"].status == "NOT_READY"
     assert by_code["GROSS_PROFIT"].source_modules == ["Accounting"]
+    assert result.period_end == date(2026, 1, 15)
     service.calculation.profitability.assert_awaited_once_with(
-        "organization-real", period_start, period_end, None, None
+        "organization-real", period_start, date(2026, 1, 15), None, None
     )
 
 
