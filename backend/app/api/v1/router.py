@@ -14,6 +14,9 @@ from app.api.v1.accounting.control_center import router as control_center_router
 from app.api.v1.accounting.financial_calculation import (
     router as financial_calculation_router,
 )
+from app.api.v1.accounting.financial_closing_control import (
+    router as financial_closing_control_router,
+)
 from app.api.v1.accounting.financial_variance import (
     router as financial_variance_router,
 )
@@ -136,6 +139,11 @@ api_router.include_router(
     closing_readiness_router,
     prefix="/accounting/closing-readiness",
     tags=["Accounting - Closing Readiness"],
+)
+api_router.include_router(
+    financial_closing_control_router,
+    prefix="/accounting/closing-control",
+    tags=["Accounting - Financial Closing Control"],
 )
 api_router.include_router(
     journals_router, prefix="/accounting/journals", tags=["Accounting - Journals"]

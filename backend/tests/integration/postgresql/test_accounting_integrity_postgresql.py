@@ -28,6 +28,9 @@ from app.services.accounting.cash_flow_configuration_service import (
 )
 from app.services.accounting.cash_flow_service import CashFlowService
 from app.services.accounting.closing_service import ClosingService
+from app.services.accounting.financial_closing_control_service import (
+    FinancialClosingControlService,
+)
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
 from app.services.accounting.syscohada_liasse_service import SyscohadaLiasseService
@@ -150,6 +153,51 @@ async def _create_posted_entry(
         entry.id,
         actor_user_id="postgres-integrity-tester",
     )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_financial_closing_control_is_read_only_and_tenant_scoped(
+    postgres_session: AsyncSession,
+) -> None:
+    organization, period, debit_account, credit_account = await _create_context(
+        postgres_session
+    )
+    entry = await _create_posted_entry(
+        postgres_session, organization, period, debit_account, credit_account
+    )
+    before = await JournalEntryService(postgres_session).get_entry(
+        organization.id, entry.id
+    )
+
+    result = await FinancialClosingControlService(postgres_session).assess(
+        organization.id,
+        period.fiscal_year_id,
+        period.id,
+    )
+
+    assert result.organization_id == organization.id
+    assert result.fiscal_period_id == period.id
+    assert result.status in {"NOT_READY", "INCOMPLETE"}
+    assert any(
+        control.control_code == "REPORTING_TRIAL_BALANCE"
+        and control.difference == Decimal("0.00")
+        for control in result.controls
+    )
+    after = await JournalEntryService(postgres_session).get_entry(
+        organization.id, entry.id
+    )
+    assert after.status.value == "POSTED"
+    assert after.entry_number == before.entry_number
+    assert sum(line.debit for line in after.lines) == Decimal("100.00")
+    assert sum(line.credit for line in after.lines) == Decimal("100.00")
+
+    _, other_period, _, _ = await _create_context(postgres_session)
+    with pytest.raises(HTTPException, match="Fiscal period not found"):
+        await FinancialClosingControlService(postgres_session).assess(
+            organization.id,
+            other_period.fiscal_year_id,
+            other_period.id,
+        )
 
 
 @pytest.mark.asyncio
