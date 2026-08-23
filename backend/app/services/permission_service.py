@@ -153,6 +153,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "closing_readiness:read",
                 "financial_control:read",
             }
         ),
@@ -212,6 +213,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "closing_readiness:read",
                 "financial_control:read",
             }
         ),
@@ -269,6 +271,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "closing_readiness:read",
                 "financial_control:read",
             }
         ),
