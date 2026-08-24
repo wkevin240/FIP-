@@ -10,6 +10,8 @@ from app.schemas.accounting.financial_closing_control import (
 from app.services.accounting.closing_readiness_service import ClosingReadinessService
 from app.services.accounting.kpi_service import KPIService
 from app.services.accounting.reporting_service import ReportingService
+from app.services.accounting.syscohada_liasse_service import SyscohadaLiasseService
+from app.services.accounting.vat_service import VATService
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +26,8 @@ class FinancialClosingControlService:
         self.readiness = ClosingReadinessService(session)
         self.kpi = KPIService(session)
         self.reporting = ReportingService(session)
+        self.syscohada = SyscohadaLiasseService(session)
+        self.vat = VATService(session)
 
     async def assess(
         self,
@@ -47,6 +51,13 @@ class FinancialClosingControlService:
             start_date=period.start_date,
             end_date=period.end_date,
         )
+        liasse = await self.syscohada.get_liasse(
+            organization_id, period.start_date, period.end_date
+        )
+        vat_rates = await self.vat.list_rates(organization_id)
+        vat_summary = await self.vat.summary(
+            organization_id, period.start_date, period.end_date
+        )
 
         controls: list[ClosingControlCheck] = []
         controls.append(self._readiness_control(year_readiness))
@@ -60,6 +71,8 @@ class FinancialClosingControlService:
                 [line.account_id for line in trial_balance.lines],
             )
         )
+        controls.append(self._vat_control(vat_rates, vat_summary, period))
+        controls.append(self._syscohada_control(liasse))
         blockers = [blocker for control in controls for blocker in control.blockers]
         statuses = {control.status for control in controls}
         if "INCOMPLETE" in statuses:
@@ -207,6 +220,79 @@ class FinancialClosingControlService:
                 )
             )
         return controls
+
+    def _vat_control(self, vat_rates, vat_summary, period) -> ClosingControlCheck:
+        active_rates = [
+            rate
+            for rate in vat_rates
+            if rate.is_active
+            and rate.effective_from <= period.end_date
+            and (rate.effective_to is None or rate.effective_to >= period.start_date)
+        ]
+        source_ids = [rate.id for rate in active_rates]
+        incomplete_rates = [
+            rate
+            for rate in active_rates
+            if rate.input_vat_account_id is None or rate.output_vat_account_id is None
+        ]
+        if not active_rates or incomplete_rates:
+            code = (
+                "VAT_CONFIGURATION_ABSENT"
+                if not active_rates
+                else "VAT_CONFIGURATION_INCOMPLETE"
+            )
+            description = (
+                "No active VAT rate is configured for the requested period."
+                if not active_rates
+                else "An active VAT rate is missing an input or output tax account."
+            )
+            return ClosingControlCheck(
+                control_code="VAT_READINESS",
+                status="NOT_READY",
+                formula="output_vat - input_vat",
+                actual=None,
+                expected="AVAILABLE",
+                source_ids=[],
+                blockers=[
+                    self._blocker(
+                        code,
+                        "VAT",
+                        description,
+                        source_ids,
+                    )
+                ],
+            )
+        net = vat_summary.net_vat_payable.quantize(Decimal("0.01"))
+        return ClosingControlCheck(
+            control_code="VAT_READINESS",
+            status="READY",
+            formula="total_output_vat - total_input_vat",
+            actual=net,
+            expected="CALCULABLE",
+            difference=Decimal("0.00"),
+            source_ids=source_ids,
+        )
+
+    def _syscohada_control(self, liasse) -> ClosingControlCheck:
+        status_value = getattr(
+            liasse.readiness.status, "value", liasse.readiness.status
+        )
+        blockers = [
+            self._blocker(
+                "SYSCOHADA_" + reason,
+                "SYSCOHADA",
+                reason,
+            )
+            for reason in liasse.readiness.reasons
+        ]
+        return ClosingControlCheck(
+            control_code="SYSCOHADA_READINESS",
+            status=status_value,
+            actual=liasse.readiness.posted_entry_count,
+            expected="POSTED_ENTRIES_AVAILABLE",
+            source_ids=[],
+            blockers=blockers,
+        )
 
     def _reporting_control(
         self,
