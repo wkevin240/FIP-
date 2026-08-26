@@ -13,6 +13,9 @@ from app.api.v1.accounting.control_center import router as control_center_router
 from app.api.v1.accounting.financial_calculation import (
     router as financial_calculation_router,
 )
+from app.api.v1.accounting.financial_variance import (
+    router as financial_variance_router,
+)
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.forecasts import router as forecasts_router
@@ -90,6 +93,11 @@ api_router.include_router(
     financial_calculation_router,
     prefix="/accounting/financial-calculation",
     tags=["Accounting - Financial Calculation Engine"],
+)
+api_router.include_router(
+    financial_variance_router,
+    prefix="/accounting/financial-variance",
+    tags=["Accounting - Financial Variance Engine"],
 )
 api_router.include_router(
     kpis_router,

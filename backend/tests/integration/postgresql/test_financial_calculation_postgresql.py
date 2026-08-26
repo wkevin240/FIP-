@@ -6,16 +6,21 @@ from uuid import uuid4
 import pytest
 from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.account import Account
+from app.models.accounting.budget import Budget, BudgetLine
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.profitability_mapping import ProfitabilityAccountMapping
+from app.models.accounting.scenario import Scenario, ScenarioAssumption
 from app.models.organization import Organization
+from app.models.user import User
+from app.schemas.accounting.financial_variance import VarianceComparison
 from app.schemas.accounting.journal import JournalCreate
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 from app.schemas.accounting.journal_entry_line import JournalEntryLineCreate
 from app.services.accounting.financial_calculation_service import (
     FinancialCalculationService,
 )
+from app.services.accounting.financial_variance_service import FinancialVarianceService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
 from fastapi import HTTPException
@@ -275,3 +280,269 @@ async def test_profitability_engine_excludes_draft_and_future_entries(
     baseline = next(metric for metric in result.metrics if metric.code == "REVENUE")
     assert baseline.value == Decimal("1000.01")
     assert baseline.status == "READY"
+
+
+@pytest.mark.asyncio
+async def test_variance_engine_compares_actual_budget_and_forecast_with_decimal(
+    postgres_session: AsyncSession,
+):
+    organization, posted_entries = await _create_profitability_fixture(postgres_session)
+    revenue_mapping = await postgres_session.scalar(
+        select(ProfitabilityAccountMapping).where(
+            ProfitabilityAccountMapping.organization_id == organization.id,
+            ProfitabilityAccountMapping.category == "REVENUE",
+        )
+    )
+    assert revenue_mapping is not None
+    period = await postgres_session.scalar(
+        select(FiscalPeriod).where(
+            FiscalPeriod.id == posted_entries[0].fiscal_period_id
+        )
+    )
+    assert period is not None
+    user = User(
+        email=f"variance-{uuid4().hex}@test.invalid",
+        full_name="Variance test actor",
+        hashed_password="fixture-only",
+    )
+    budget = Budget(
+        organization_id=organization.id,
+        fiscal_year_id=period.fiscal_year_id,
+        name=f"Approved budget {uuid4().hex[:8]}",
+        status="APPROVED",
+    )
+    scenario = Scenario(
+        organization_id=organization.id,
+        fiscal_year_id=period.fiscal_year_id,
+        code=f"BASE-{uuid4().hex[:8]}",
+        name="Approved forecast scenario",
+        status="APPROVED",
+    )
+    postgres_session.add_all([user, budget, scenario])
+    await postgres_session.flush()
+    budget_line = BudgetLine(
+        organization_id=organization.id,
+        budget_id=budget.id,
+        fiscal_period_id=period.id,
+        account_id=revenue_mapping.account_id,
+        amount=Decimal("1200.01"),
+    )
+    assumption = ScenarioAssumption(
+        organization_id=organization.id,
+        scenario_id=scenario.id,
+        fiscal_period_id=period.id,
+        account_id=revenue_mapping.account_id,
+        amount=Decimal("900.01"),
+        rationale="Fixture assumption to produce the approved forecast source",
+        created_by_user_id=user.id,
+    )
+    postgres_session.add_all([budget_line, assumption])
+    await postgres_session.commit()
+
+    service = FinancialVarianceService(postgres_session)
+    budget_result = await service.calculate(
+        organization.id,
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        VarianceComparison.BUDGET,
+        budget_id=budget.id,
+    )
+    forecast_result = await service.calculate(
+        organization.id,
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        VarianceComparison.FORECAST,
+        budget_id=budget.id,
+        scenario_id=scenario.id,
+    )
+    budget_metric = next(
+        metric for metric in budget_result.metrics if metric.metric == "REVENUE"
+    )
+    forecast_metric = next(
+        metric for metric in forecast_result.metrics if metric.metric == "REVENUE"
+    )
+
+    assert budget_result.status == "READY"
+    assert budget_metric.actual == Decimal("1000.01")
+    assert budget_metric.comparison == Decimal("1200.01")
+    assert budget_metric.variance == Decimal("-200.00")
+    assert budget_metric.variance_percentage == Decimal("-0.17")
+    assert budget_metric.source_budget_lines == [budget_line.id]
+    assert forecast_result.status == "READY"
+    assert forecast_metric.actual == Decimal("1000.01")
+    assert forecast_metric.comparison == Decimal("1100.01")
+    assert forecast_metric.variance == Decimal("-100.00")
+    assert forecast_metric.variance_percentage == Decimal("-0.09")
+    assert forecast_metric.source_forecast_data
+
+
+async def _create_budget_source(
+    session: AsyncSession,
+    organization_id: str,
+    fiscal_year_id: str,
+    period_id: str,
+    account_id: str,
+    status: str,
+) -> Budget:
+    budget = Budget(
+        organization_id=organization_id,
+        fiscal_year_id=fiscal_year_id,
+        name=f"Budget {status} {uuid4().hex[:8]}",
+        status=status,
+    )
+    session.add(budget)
+    await session.flush()
+    session.add(
+        BudgetLine(
+            organization_id=organization_id,
+            budget_id=budget.id,
+            fiscal_period_id=period_id,
+            account_id=account_id,
+            amount=Decimal("1200.01"),
+        )
+    )
+    await session.commit()
+    return budget
+
+
+@pytest.mark.asyncio
+async def test_variance_budget_statuses_and_tenant_scope_postgresql(
+    postgres_session: AsyncSession,
+):
+    organization, posted_entries = await _create_profitability_fixture(postgres_session)
+    mapping = await postgres_session.scalar(
+        select(ProfitabilityAccountMapping).where(
+            ProfitabilityAccountMapping.organization_id == organization.id,
+            ProfitabilityAccountMapping.category == "REVENUE",
+        )
+    )
+    period = await postgres_session.scalar(
+        select(FiscalPeriod).where(
+            FiscalPeriod.id == posted_entries[0].fiscal_period_id
+        )
+    )
+    assert mapping is not None and period is not None
+    service = FinancialVarianceService(postgres_session)
+
+    for budget_status, expected in (
+        ("DRAFT", "NOT_READY"),
+        ("APPROVED", "READY"),
+        ("LOCKED", "READY"),
+    ):
+        budget = await _create_budget_source(
+            postgres_session,
+            organization.id,
+            period.fiscal_year_id,
+            period.id,
+            mapping.account_id,
+            budget_status,
+        )
+        result = await service.calculate(
+            organization.id,
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+            VarianceComparison.BUDGET,
+            budget_id=budget.id,
+        )
+        assert result.status == expected
+
+    other_org = Organization(name=f"Budget tenant isolation {uuid4().hex[:8]}")
+    postgres_session.add(other_org)
+    await postgres_session.flush()
+    other_year = FiscalYear(
+        organization_id=other_org.id,
+        name=f"Other tenant FY {uuid4().hex[:8]}",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        status=FiscalYearStatus.OPEN,
+    )
+    postgres_session.add(other_year)
+    await postgres_session.flush()
+    other_budget = Budget(
+        organization_id=other_org.id,
+        fiscal_year_id=other_year.id,
+        name="Other tenant budget",
+        status="APPROVED",
+    )
+    postgres_session.add(other_budget)
+    await postgres_session.commit()
+    isolated = await service.calculate(
+        organization.id,
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        VarianceComparison.BUDGET,
+        budget_id=other_budget.id,
+    )
+    assert isolated.status == "NOT_READY"
+    assert isolated.reason == "BUDGET_NOT_AVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_variance_forecast_scenario_statuses_postgresql(
+    postgres_session: AsyncSession,
+):
+    organization, posted_entries = await _create_profitability_fixture(postgres_session)
+    mapping = await postgres_session.scalar(
+        select(ProfitabilityAccountMapping).where(
+            ProfitabilityAccountMapping.organization_id == organization.id,
+            ProfitabilityAccountMapping.category == "REVENUE",
+        )
+    )
+    period = await postgres_session.scalar(
+        select(FiscalPeriod).where(
+            FiscalPeriod.id == posted_entries[0].fiscal_period_id
+        )
+    )
+    assert mapping is not None and period is not None
+    budget = await _create_budget_source(
+        postgres_session,
+        organization.id,
+        period.fiscal_year_id,
+        period.id,
+        mapping.account_id,
+        "APPROVED",
+    )
+    user = User(
+        email=f"scenario-{uuid4().hex}@test.invalid",
+        full_name="Scenario fixture actor",
+        hashed_password="fixture-only",
+    )
+    postgres_session.add(user)
+    await postgres_session.flush()
+    service = FinancialVarianceService(postgres_session)
+
+    for scenario_status, expected in (
+        ("DRAFT", "NOT_READY"),
+        ("APPROVED", "READY"),
+        ("LOCKED", "READY"),
+    ):
+        scenario = Scenario(
+            organization_id=organization.id,
+            fiscal_year_id=period.fiscal_year_id,
+            code=f"SC-{scenario_status}-{uuid4().hex[:8]}",
+            name=f"Scenario {scenario_status}",
+            status=scenario_status,
+        )
+        postgres_session.add(scenario)
+        await postgres_session.flush()
+        postgres_session.add(
+            ScenarioAssumption(
+                organization_id=organization.id,
+                scenario_id=scenario.id,
+                fiscal_period_id=period.id,
+                account_id=mapping.account_id,
+                amount=Decimal("900.01"),
+                rationale="Fixture scenario assumption",
+                created_by_user_id=user.id,
+            )
+        )
+        await postgres_session.commit()
+        result = await service.calculate(
+            organization.id,
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+            VarianceComparison.FORECAST,
+            budget_id=budget.id,
+            scenario_id=scenario.id,
+        )
+        assert result.status == expected
