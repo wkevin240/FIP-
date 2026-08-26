@@ -15,6 +15,7 @@ from app.models.accounting.bank_transaction import BankTransaction
 from app.models.accounting.budget import Budget, BudgetLine
 from app.models.accounting.cash_flow_account_mapping import CashFlowAccountMapping
 from app.models.accounting.closing import PeriodClosing
+from app.models.accounting.closing_signoff import ClosingSignoff
 from app.models.accounting.financial_statement_mapping import FinancialStatementMapping
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
@@ -125,6 +126,7 @@ __all__ = [
     "Budget",
     "BudgetLine",
     "CashFlowAccountMapping",
+    "ClosingSignoff",
     "CreditNote",
     "CreditNoteAccountingPosting",
     "DepreciationPlan",

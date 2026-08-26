@@ -155,6 +155,8 @@ class PermissionService:
                 "kpi:read",
                 "closing_readiness:read",
                 "financial_closing_control:read",
+                "closing_signoff:read",
+                "closing_signoff:create",
                 "financial_control:read",
             }
         ),
@@ -216,6 +218,7 @@ class PermissionService:
                 "kpi:read",
                 "closing_readiness:read",
                 "financial_closing_control:read",
+                "closing_signoff:read",
                 "financial_control:read",
             }
         ),
@@ -275,6 +278,7 @@ class PermissionService:
                 "kpi:read",
                 "closing_readiness:read",
                 "financial_closing_control:read",
+                "closing_signoff:read",
                 "financial_control:read",
             }
         ),
