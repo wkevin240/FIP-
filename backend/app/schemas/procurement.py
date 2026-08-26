@@ -93,7 +93,7 @@ class ProcurementAccountingProfileResponse(ProcurementAccountingProfileCreate):
 
 
 class SupplierPaymentCreate(BaseModel):
-    invoice_id: str
+    invoice_id: str | None = None
     payment_date: date
     amount: Decimal = Field(gt=Decimal(0), max_digits=18, decimal_places=2)
     method: str = Field(min_length=1, max_length=32)
@@ -105,6 +105,30 @@ class SupplierPaymentResponse(SupplierPaymentCreate):
     model_config = ConfigDict(from_attributes=True)
     id: str
     organization_id: str
+
+
+class SupplierPaymentAllocationCreate(BaseModel):
+    invoice_id: str
+    amount: Decimal = Field(gt=Decimal(0), max_digits=18, decimal_places=2)
+
+
+class SupplierPaymentAllocationResponse(SupplierPaymentAllocationCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    organization_id: str
+    payment_id: str
+    supplier_id: str
+    idempotency_key: str
+
+
+class SupplierPaymentReconciliationResponse(BaseModel):
+    payment_id: str
+    organization_id: str
+    payment_amount: Decimal
+    allocated_amount: Decimal
+    unapplied_amount: Decimal
+    allocation_count: int
+    status: str
 
 
 class AccountingPostingResponse(BaseModel):
