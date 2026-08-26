@@ -19,6 +19,7 @@ async def calculate_kpis(
     fiscal_period_id: str | None = Query(default=None),
     period_start: date | None = Query(default=None),
     period_end: date | None = Query(default=None),
+    as_of: date | None = Query(default=None),
     dimension_id: str | None = Query(default=None),
     dimension_value_id: str | None = Query(default=None),
     service: KPIService = Depends(get_service),
@@ -29,6 +30,7 @@ async def calculate_kpis(
         fiscal_period_id=fiscal_period_id,
         period_start=period_start,
         period_end=period_end,
+        as_of=as_of,
         dimension_id=dimension_id,
         dimension_value_id=dimension_value_id,
     )
