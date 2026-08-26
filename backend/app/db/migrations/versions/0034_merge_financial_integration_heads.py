@@ -1,15 +1,15 @@
 """Merge the treasury and financial integration migration branches.
 
-Revision ID: 0034_merge_financial_integration_heads
-Revises: 0028_treasury_liquidity_alerts, 0033_supplier_payment_allocation_compatibility
+Revision ID: 0034_merge_heads
+Revises: 0028_treasury_liquidity_alerts, 0033_alloc_compat
 """
 
 from collections.abc import Sequence
 
-revision: str = "0034_merge_financial_integration_heads"
+revision: str = "0034_merge_heads"
 down_revision: str | Sequence[str] | None = (
     "0028_treasury_liquidity_alerts",
-    "0033_supplier_payment_allocation_compatibility",
+    "0033_alloc_compat",
 )
 branch_labels = None
 depends_on = None

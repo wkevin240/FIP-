@@ -1,13 +1,13 @@
 """Add compatibility metadata to canonical supplier payment allocations.
 
-Revision ID: 0033_supplier_payment_allocation_compatibility
+Revision ID: 0033_alloc_compat
 Revises: 0032_profitability_mappings
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0033_supplier_payment_allocation_compatibility"
+revision = "0033_alloc_compat"
 down_revision = "0032_profitability_mappings"
 branch_labels = None
 depends_on = None
