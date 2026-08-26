@@ -51,7 +51,10 @@ from app.models.invoicing.credit_note import CreditNote
 from app.models.invoicing.invoice import Invoice
 from app.models.invoicing.invoice_line import InvoiceLine
 from app.models.invoicing.payment import Payment
-from app.models.invoicing.payment_allocation import PaymentAllocation
+from app.models.invoicing.payment_allocation import (
+    PaymentAllocation,
+    SupplierPaymentAllocation,
+)
 from app.models.invoicing.settlement_accounting import (
     CreditNoteAccountingPosting,
     PaymentAccountingPosting,
