@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from app.core.enums.accounting import JournalEntryStatus
 from app.models.accounting.bank_transaction import BankTransaction
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.procurement import SupplierPayment, SupplierPaymentAccountingPosting
@@ -75,6 +76,8 @@ class SupplierPaymentReconciliationService:
                 SupplierPayment.organization_id == organization_id,
                 SupplierPayment.payment_date.between(lower, upper),
                 SupplierPaymentAccountingPosting.status == "POSTED",
+                JournalEntry.status == JournalEntryStatus.POSTED,
+                BankTransaction.amount < 0,
                 or_(
                     SupplierPayment.amount == bank_amount,
                     SupplierPayment.external_reference == transaction.external_id,
