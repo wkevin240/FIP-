@@ -1,7 +1,7 @@
 """Advanced accounts payable allocations.
 
 Revision ID: 0029_ap_advanced_allocations
-Revises: 0027_fpa_scenarios
+Revises: 0028_accounts_receivable
 """
 
 from collections.abc import Sequence
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0029_ap_advanced_allocations"
-down_revision: str | None = "0027_fpa_scenarios"
+down_revision: str | None = "0028_accounts_receivable"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
