@@ -4,6 +4,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Numeric,
     String,
     UniqueConstraint,
@@ -31,6 +32,12 @@ class Payment(Base):
             "external_reference",
             name="uq_payment_organization_external",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "invoice_id"],
+            ["invoices.organization_id", "invoices.id"],
+            name="fk_payment_org_invoice",
+            ondelete="RESTRICT",
+        ),
     )
 
     organization_id = Column(
@@ -39,12 +46,7 @@ class Payment(Base):
         nullable=False,
         index=True,
     )
-    invoice_id = Column(
-        String,
-        ForeignKey("invoices.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
+    invoice_id = Column(String, nullable=True, index=True)
     payment_date = Column(Date, nullable=False, index=True)
     amount = Column(Numeric(18, 2), nullable=False)
     method = Column(String(32), nullable=False)
@@ -52,5 +54,17 @@ class Payment(Base):
     received_at = Column(DateTime, nullable=False)
     notes = Column(String(500), nullable=True)
 
-    organization = relationship("Organization", back_populates="payments")
-    invoice = relationship("Invoice", back_populates="payments")
+    organization = relationship(
+        "Organization", back_populates="payments", overlaps="payments"
+    )
+    invoice = relationship(
+        "Invoice",
+        back_populates="payments",
+        overlaps="organization,payments,payment_allocations",
+    )
+    allocations = relationship(
+        "PaymentAllocation",
+        back_populates="payment",
+        cascade="all, delete-orphan",
+        overlaps="payment_allocations",
+    )
