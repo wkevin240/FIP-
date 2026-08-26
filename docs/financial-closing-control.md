@@ -16,6 +16,10 @@ Les contrôles AR, AP, DSO, DPO, Working Capital, Net Working Capital, Liquidity
 
 Le contrôle `REPORTING_TRIAL_BALANCE` consomme `ReportingService.trial_balance` sur les dates exactes de la période. Il retourne `NOT_READY` sans lignes POSTED et `INCOMPLETE` lorsqu’un déséquilibre est signalé.
 
+Le contrôle `VAT_READINESS` consomme `VATService.list_rates` et `VATService.summary`. Il exige une configuration TVA active et complète sur la période, puis expose `total_output_vat - total_input_vat` en Decimal. L’absence de configuration retourne `NOT_READY` avec `VAT_CONFIGURATION_ABSENT` ; aucun taux ni montant par défaut n’est créé.
+
+Le contrôle `SYSCOHADA_READINESS` consomme `SyscohadaLiasseService.get_liasse` et relaie ses statuts et raisons sans recalculer la liasse, le bilan, le compte de résultat ou les notes annexes.
+
 ## Statuts
 
 `READY` signifie que tous les contrôles exécutés sont satisfaits. `NOT_READY` signifie qu’une source obligatoire, une configuration ou un état de période empêche la conclusion. `INCOMPLETE` signifie qu’une incohérence, un écart ou une source contradictoire est détecté. Les blockers sont tous conservés dans un ordre déterministe ; le service ne s’arrête pas au premier problème.
