@@ -23,6 +23,7 @@ from app.services.accounting.financial_calculation_service import (
 from app.services.accounting.financial_variance_service import FinancialVarianceService
 from app.services.accounting.journal_entry_service import JournalEntryService
 from app.services.accounting.journal_service import JournalService
+from app.services.accounting.kpi_service import KPIService
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -228,6 +229,29 @@ async def _create_profitability_fixture(session: AsyncSession):
         )
     await session.commit()
     return organization, posted_entries
+
+
+@pytest.mark.asyncio
+async def test_kpi_engine_reconciles_posted_ledger_with_decimal_sources_postgresql(
+    postgres_session: AsyncSession,
+):
+    organization, _ = await _create_profitability_fixture(postgres_session)
+    result = await KPIService(postgres_session).calculate(
+        organization.id,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+    )
+    by_code = {metric.code: metric for metric in result.metrics}
+    assert result.status == "INCOMPLETE"
+    assert by_code["REVENUE"].value == Decimal("1000.01")
+    assert by_code["GROSS_PROFIT"].value == Decimal("600.01")
+    assert by_code["OPERATING_INCOME"].value == Decimal("500.00")
+    assert by_code["NET_INCOME"].value == Decimal("500.00")
+    assert by_code["GROSS_MARGIN"].value == Decimal("60.00")
+    assert by_code["OPERATING_MARGIN"].value == Decimal("50.00")
+    assert by_code["NET_MARGIN"].value == Decimal("50.00")
+    assert len(by_code["GROSS_PROFIT"].source_ids) == 3
+    assert by_code["DSO"].status == "NOT_READY"
 
 
 @pytest.mark.asyncio
