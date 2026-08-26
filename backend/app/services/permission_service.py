@@ -143,6 +143,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "working_capital:read",
                 "financial_control:read",
             }
         ),
@@ -194,6 +195,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "working_capital:read",
                 "financial_control:read",
             }
         ),
@@ -248,6 +250,7 @@ class PermissionService:
                 "forecast:read",
                 "cash_forecast:read",
                 "kpi:read",
+                "working_capital:read",
                 "financial_control:read",
             }
         ),
