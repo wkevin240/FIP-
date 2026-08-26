@@ -1,14 +1,14 @@
 """Add purchase invoice approval workflow.
 
 Revision ID: 0030_purchase_invoice_approvals
-Revises: 0029_payment_allocations
+Revises: 0029_ap_advanced_allocations
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0030_purchase_invoice_approvals"
-down_revision = "0029_payment_allocations"
+down_revision = "0029_ap_advanced_allocations"
 branch_labels = None
 depends_on = None
 

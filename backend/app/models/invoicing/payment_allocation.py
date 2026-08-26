@@ -73,25 +73,22 @@ class PaymentAllocation(Base):
 
 
 class SupplierPaymentAllocation(Base):
+    """Canonical tenant-scoped allocation for supplier payments."""
+
     __tablename__ = "supplier_payment_allocations"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "id", name="uq_supplier_payment_allocation_org_id"
-        ),
         UniqueConstraint(
             "organization_id",
             "supplier_payment_id",
             "purchase_invoice_id",
-            name="uq_supplier_payment_allocation_payment_invoice",
+            name="uq_supplier_payment_allocation_pair",
         ),
         UniqueConstraint(
             "organization_id",
             "idempotency_key",
             name="uq_supplier_payment_allocation_idempotency",
         ),
-        CheckConstraint(
-            "allocated_amount > 0", name="ck_supplier_payment_allocation_positive"
-        ),
+        CheckConstraint("amount > 0", name="ck_supplier_payment_allocation_positive"),
         ForeignKeyConstraint(
             ["organization_id", "supplier_payment_id"],
             ["supplier_payments.organization_id", "supplier_payments.id"],
@@ -104,6 +101,12 @@ class SupplierPaymentAllocation(Base):
             name="fk_supplier_payment_allocation_org_invoice",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "supplier_id"],
+            ["suppliers.organization_id", "suppliers.id"],
+            name="fk_supplier_payment_allocation_org_supplier",
+            ondelete="RESTRICT",
+        ),
     )
 
     organization_id = Column(
@@ -114,6 +117,25 @@ class SupplierPaymentAllocation(Base):
     )
     supplier_payment_id = Column(String, nullable=False, index=True)
     purchase_invoice_id = Column(String, nullable=False, index=True)
-    allocated_amount = Column(Numeric(18, 2), nullable=False)
+    supplier_id = Column(String, nullable=False, index=True)
+    amount = Column(Numeric(18, 2), nullable=False)
+    allocated_amount = synonym("amount")
+    payment_id = synonym("supplier_payment_id")
+    invoice_id = synonym("purchase_invoice_id")
     idempotency_key = Column(String(128), nullable=False)
     allocation_reference = Column(String(255), nullable=True)
+    created_by_user_id = Column(
+        String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    payment = relationship(
+        "SupplierPayment", back_populates="allocations", overlaps="payment_allocations"
+    )
+    invoice = relationship(
+        "PurchaseInvoice",
+        back_populates="payment_allocations",
+        overlaps="allocations,payment",
+    )
+    supplier = relationship(
+        "Supplier", overlaps="allocations,invoice,payment,payment_allocations"
+    )

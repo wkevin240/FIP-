@@ -70,3 +70,17 @@ def test_supplier_payment_allocation_rbac_is_restricted():
     assert not PermissionService.role_allows(
         MembershipRole.USER.value, "supplier_payment:reallocate"
     )
+
+
+def test_supplier_payment_allocation_has_one_canonical_orm_class():
+    from app.models.invoicing.payment_allocation import SupplierPaymentAllocation
+    from app.models.supplier_payment_allocation import (
+        SupplierPaymentAllocation as CompatibilityAllocation,
+    )
+
+    assert CompatibilityAllocation is SupplierPaymentAllocation
+    assert SupplierPaymentAllocation.__tablename__ == "supplier_payment_allocations"
+    assert SupplierPaymentAllocation.payment_id.expression.name == "supplier_payment_id"
+    assert SupplierPaymentAllocation.invoice_id.expression.name == "purchase_invoice_id"
+    assert SupplierPaymentAllocation.amount.expression.name == "amount"
+    assert SupplierPaymentAllocation.allocated_amount.expression.name == "amount"
