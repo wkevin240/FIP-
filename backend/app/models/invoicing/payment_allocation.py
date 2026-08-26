@@ -79,8 +79,8 @@ class SupplierPaymentAllocation(Base):
     __table_args__ = (
         UniqueConstraint(
             "organization_id",
-            "supplier_payment_id",
-            "purchase_invoice_id",
+            "payment_id",
+            "invoice_id",
             name="uq_supplier_payment_allocation_pair",
         ),
         UniqueConstraint(
@@ -90,13 +90,13 @@ class SupplierPaymentAllocation(Base):
         ),
         CheckConstraint("amount > 0", name="ck_supplier_payment_allocation_positive"),
         ForeignKeyConstraint(
-            ["organization_id", "supplier_payment_id"],
+            ["organization_id", "payment_id"],
             ["supplier_payments.organization_id", "supplier_payments.id"],
             name="fk_supplier_payment_allocation_org_payment",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["organization_id", "purchase_invoice_id"],
+            ["organization_id", "invoice_id"],
             ["purchase_invoices.organization_id", "purchase_invoices.id"],
             name="fk_supplier_payment_allocation_org_invoice",
             ondelete="RESTRICT",
@@ -115,13 +115,13 @@ class SupplierPaymentAllocation(Base):
         nullable=False,
         index=True,
     )
-    supplier_payment_id = Column(String, nullable=False, index=True)
-    purchase_invoice_id = Column(String, nullable=False, index=True)
+    payment_id = Column(String, nullable=False, index=True)
+    invoice_id = Column(String, nullable=False, index=True)
     supplier_id = Column(String, nullable=False, index=True)
     amount = Column(Numeric(18, 2), nullable=False)
     allocated_amount = synonym("amount")
-    payment_id = synonym("supplier_payment_id")
-    invoice_id = synonym("purchase_invoice_id")
+    supplier_payment_id = synonym("payment_id")
+    purchase_invoice_id = synonym("invoice_id")
     idempotency_key = Column(String(128), nullable=False)
     allocation_reference = Column(String(255), nullable=True)
     created_by_user_id = Column(

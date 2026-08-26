@@ -80,7 +80,9 @@ def test_supplier_payment_allocation_has_one_canonical_orm_class():
 
     assert CompatibilityAllocation is SupplierPaymentAllocation
     assert SupplierPaymentAllocation.__tablename__ == "supplier_payment_allocations"
-    assert SupplierPaymentAllocation.payment_id.expression.name == "supplier_payment_id"
-    assert SupplierPaymentAllocation.invoice_id.expression.name == "purchase_invoice_id"
+    assert SupplierPaymentAllocation.payment_id.expression.name == "payment_id"
+    assert SupplierPaymentAllocation.invoice_id.expression.name == "invoice_id"
+    assert SupplierPaymentAllocation.supplier_payment_id.expression.name == "payment_id"
+    assert SupplierPaymentAllocation.purchase_invoice_id.expression.name == "invoice_id"
     assert SupplierPaymentAllocation.amount.expression.name == "amount"
     assert SupplierPaymentAllocation.allocated_amount.expression.name == "amount"
