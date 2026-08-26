@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import date
 from decimal import Decimal
@@ -120,3 +121,86 @@ async def test_postgresql_supplier_payment_can_allocate_across_invoices_without_
             ),
             "ap-allocation-over",
         )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_concurrent_allocations_lock_payment_and_prevent_overallocation(
+    postgres_session: AsyncSession,
+):
+    organization = Organization(name=f"AP concurrent allocation {uuid4().hex}")
+    actor = User(
+        email=f"ap-concurrent-{uuid4().hex}@example.invalid",
+        full_name="AP concurrent tester",
+        hashed_password="test-only-hash",
+    )
+    postgres_session.add_all([organization, actor])
+    await postgres_session.flush()
+    supplier = Supplier(
+        organization_id=organization.id,
+        supplier_code=f"SUP-{uuid4().hex[:10]}",
+        legal_name="Concurrent integration supplier",
+    )
+    postgres_session.add(supplier)
+    await postgres_session.flush()
+    invoices = [
+        PurchaseInvoice(
+            organization_id=organization.id,
+            supplier_id=supplier.id,
+            invoice_number=f"AP-CONCURRENT-{uuid4().hex[:10]}-{index}",
+            invoice_date=date(2026, 1, 1),
+            due_date=date(2026, 2, 1),
+            status="VALIDATED",
+            subtotal=Decimal("100.00"),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal("100.00"),
+        )
+        for index in (1, 2)
+    ]
+    postgres_session.add_all(invoices)
+    payment = SupplierPayment(
+        organization_id=organization.id,
+        payment_date=date(2026, 1, 10),
+        amount=Decimal("100.00"),
+        method="BANK",
+        external_reference=f"AP-CONCURRENT-PAY-{uuid4().hex}",
+    )
+    postgres_session.add(payment)
+    await postgres_session.commit()
+
+    engine = postgres_session.bind
+    assert engine is not None
+
+    async def allocate(invoice_id: str, key: str):
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            service = SupplierPaymentAllocationService(session)
+            return await service.allocate(
+                organization.id,
+                actor.id,
+                payment.id,
+                SupplierPaymentAllocationCreate(
+                    invoice_id=invoice_id, amount=Decimal("60.00")
+                ),
+                key,
+            )
+
+    first, second = await asyncio.gather(
+        allocate(invoices[0].id, "ap-concurrent-1"),
+        allocate(invoices[1].id, "ap-concurrent-2"),
+        return_exceptions=True,
+    )
+
+    successful = [
+        result for result in (first, second) if not isinstance(result, Exception)
+    ]
+    failures = [result for result in (first, second) if isinstance(result, Exception)]
+    assert len(successful) == 1
+    assert len(failures) == 1
+    assert isinstance(failures[0], HTTPException)
+    assert "exceeds payment amount" in str(failures[0].detail)
+
+    reconciliation = await SupplierPaymentAllocationService(postgres_session).reconcile(
+        organization.id, payment.id
+    )
+    assert reconciliation.allocated_amount == Decimal("60.00")
+    assert reconciliation.unapplied_amount == Decimal("40.00")
+    assert reconciliation.status == "PARTIALLY_ALLOCATED"
