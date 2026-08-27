@@ -130,7 +130,13 @@ class BankingControlService:
         statement_import_id: str | None = None,
         exception_status: str | None = None,
         unresolved_only: bool = True,
+        offset: int = 0,
+        limit: int = 100,
     ) -> list[BankingControlException]:
+        if offset < 0:
+            raise ValueError("offset must be non-negative")
+        if limit < 1 or limit > 500:
+            raise ValueError("limit must be between 1 and 500")
         query = select(BankingControlException).where(
             BankingControlException.organization_id == organization_id
         )
@@ -144,7 +150,12 @@ class BankingControlService:
             query = query.where(BankingControlException.status.in_(UNRESOLVED))
         return list(
             await self.session.scalars(
-                query.order_by(BankingControlException.last_seen_at.desc())
+                query.order_by(
+                    BankingControlException.last_seen_at.desc(),
+                    BankingControlException.id.asc(),
+                )
+                .offset(offset)
+                .limit(limit)
             )
         )
 
