@@ -48,6 +48,7 @@ class PurchaseInvoiceLineCreate(BaseModel):
 
 class PurchaseInvoiceCreate(BaseModel):
     supplier_id: str
+    purchase_order_id: str | None = None
     invoice_number: str = Field(min_length=1, max_length=64)
     invoice_date: date
     due_date: date | None = None
@@ -67,6 +68,7 @@ class PurchaseInvoiceResponse(BaseModel):
     id: str
     organization_id: str
     supplier_id: str
+    purchase_order_id: str | None
     invoice_number: str
     invoice_date: date
     due_date: date | None

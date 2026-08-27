@@ -9,7 +9,17 @@ from app.api.v1.accounting.budgets import router as budgets_router
 from app.api.v1.accounting.cash_flow import router as cash_flow_router
 from app.api.v1.accounting.cash_forecast import router as cash_forecast_router
 from app.api.v1.accounting.closing import router as closing_router
+from app.api.v1.accounting.closing_readiness import router as closing_readiness_router
 from app.api.v1.accounting.control_center import router as control_center_router
+from app.api.v1.accounting.financial_calculation import (
+    router as financial_calculation_router,
+)
+from app.api.v1.accounting.financial_closing_control import (
+    router as financial_closing_control_router,
+)
+from app.api.v1.accounting.financial_variance import (
+    router as financial_variance_router,
+)
 from app.api.v1.accounting.fiscal_periods import router as fiscal_periods_router
 from app.api.v1.accounting.fiscal_years import router as fiscal_years_router
 from app.api.v1.accounting.forecasts import router as forecasts_router
@@ -38,6 +48,7 @@ from app.api.v1.inventory.warehouses import router as warehouses_router
 from app.api.v1.invoicing.collections import router as collections_router
 from app.api.v1.invoicing.credit_notes import router as credit_notes_router
 from app.api.v1.invoicing.invoices import router as invoices_router
+from app.api.v1.invoicing.payment_control import router as payment_control_router
 from app.api.v1.invoicing.payments import router as invoice_payments_router
 from app.api.v1.invoicing.receivables import router as receivables_router
 from app.api.v1.payroll.configuration import router as payroll_configuration_router
@@ -83,6 +94,16 @@ api_router.include_router(
     tags=["Accounting - FP&A Forecasts"],
 )
 api_router.include_router(
+    financial_calculation_router,
+    prefix="/accounting/financial-calculation",
+    tags=["Accounting - Financial Calculation Engine"],
+)
+api_router.include_router(
+    financial_variance_router,
+    prefix="/accounting/financial-variance",
+    tags=["Accounting - Financial Variance Engine"],
+)
+api_router.include_router(
     kpis_router,
     prefix="/accounting/kpis",
     tags=["Accounting - FP&A KPIs"],
@@ -116,6 +137,16 @@ api_router.include_router(
     closing_router,
     prefix="/accounting/period-closings",
     tags=["Accounting - Period Closings"],
+)
+api_router.include_router(
+    closing_readiness_router,
+    prefix="/accounting/closing-readiness",
+    tags=["Accounting - Closing Readiness"],
+)
+api_router.include_router(
+    financial_closing_control_router,
+    prefix="/accounting/closing-control",
+    tags=["Accounting - Financial Closing Control"],
 )
 api_router.include_router(
     journals_router, prefix="/accounting/journals", tags=["Accounting - Journals"]
@@ -176,6 +207,11 @@ api_router.include_router(
     collections_router,
     prefix="/invoicing/collections",
     tags=["Invoicing - Collections"],
+)
+api_router.include_router(
+    payment_control_router,
+    prefix="/invoicing/payment-control",
+    tags=["Invoicing - Payment Control"],
 )
 api_router.include_router(
     procurement_router, prefix="/procurement", tags=["Procurement - Suppliers"]

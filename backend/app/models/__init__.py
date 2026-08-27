@@ -21,6 +21,7 @@ from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal import Journal
 from app.models.accounting.journal_entry import JournalEntry
 from app.models.accounting.journal_entry_line import JournalEntryLine
+from app.models.accounting.profitability_mapping import ProfitabilityAccountMapping
 from app.models.accounting.scenario import Scenario, ScenarioAssumption
 from app.models.accounting.vat import VATEntry, VATRate
 from app.models.accounting.vat_declaration import VATDeclaration
@@ -51,7 +52,10 @@ from app.models.invoicing.credit_note import CreditNote
 from app.models.invoicing.invoice import Invoice
 from app.models.invoicing.invoice_line import InvoiceLine
 from app.models.invoicing.payment import Payment
-from app.models.invoicing.payment_allocation import PaymentAllocation
+from app.models.invoicing.payment_allocation import (
+    PaymentAllocation,
+    SupplierPaymentAllocation,
+)
 from app.models.invoicing.settlement_accounting import (
     CreditNoteAccountingPosting,
     PaymentAccountingPosting,
@@ -83,7 +87,6 @@ from app.models.procurement import (
     SupplierPaymentAccountingPosting,
 )
 from app.models.role import Role
-from app.models.supplier_payment_allocation import SupplierPaymentAllocation
 from app.models.treasury.accounting import (
     TreasuryAccountingPosting,
     TreasuryAccountingProfile,
@@ -166,6 +169,7 @@ __all__ = [
     "Permission",
     "ProcurementAccountingProfile",
     "Product",
+    "ProfitabilityAccountMapping",
     "PurchaseInvoice",
     "PurchaseInvoiceAccountingPosting",
     "PurchaseInvoiceLine",
