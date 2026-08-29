@@ -1,7 +1,7 @@
 """Add auditable financial closing sign-offs.
 
-Revision ID: 0033_closing_signoffs
-Revises: 0032_profitability_mappings
+Revision ID: 0035_closing_signoffs
+Revises: 0034_merge_heads
 """
 
 from collections.abc import Sequence
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0033_closing_signoffs"
-down_revision: str | None = "0032_profitability_mappings"
+revision: str = "0035_closing_signoffs"
+down_revision: str | None = "0034_merge_heads"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
