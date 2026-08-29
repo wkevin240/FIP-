@@ -78,5 +78,11 @@ jobs:
       - name: Apply migrations with migration role
         run: poetry run alembic upgrade head
 
+      - name: Verify Alembic downgrade and re-upgrade with migration role
+        run: |
+          poetry run alembic downgrade base
+          poetry run alembic upgrade head
+          test "$(poetry run alembic current | grep -c '0035_closing_signoffs')" -eq 1
+
       - name: Run PostgreSQL integration tests
         run: poetry run pytest -q backend/tests/integration/postgresql
