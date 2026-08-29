@@ -86,6 +86,14 @@ from app.models.procurement import (
     SupplierPayment,
     SupplierPaymentAccountingPosting,
 )
+from app.models.procurement_flow import (
+    GoodsReceipt,
+    GoodsReceiptLine,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    PurchaseRequest,
+    PurchaseRequestLine,
+)
 from app.models.role import Role
 from app.models.treasury.accounting import (
     TreasuryAccountingPosting,
@@ -140,6 +148,8 @@ __all__ = [
     "FixedAssetCategory",
     "FixedAssetComponent",
     "FixedAssetDisposal",
+    "GoodsReceipt",
+    "GoodsReceiptLine",
     "InventoryAccountingPosting",
     "InventoryAccountingProfile",
     "Invoice",
@@ -173,6 +183,10 @@ __all__ = [
     "PurchaseInvoice",
     "PurchaseInvoiceAccountingPosting",
     "PurchaseInvoiceLine",
+    "PurchaseOrder",
+    "PurchaseOrderLine",
+    "PurchaseRequest",
+    "PurchaseRequestLine",
     "Role",
     "Scenario",
     "ScenarioAssumption",

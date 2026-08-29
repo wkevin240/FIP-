@@ -60,6 +60,8 @@ async def list_statement_exceptions(
     statement_import_id: str | None = Query(default=None),
     exception_status: str | None = Query(default=None, alias="status"),
     unresolved_only: bool = Query(default=True),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     service: BankingControlService = Depends(get_service),
     tenant: CurrentTenant = Depends(require_permission("bank_control:read")),
 ) -> list[BankingControlExceptionResponse]:
@@ -68,6 +70,8 @@ async def list_statement_exceptions(
         statement_import_id=statement_import_id,
         exception_status=exception_status,
         unresolved_only=unresolved_only,
+        offset=offset,
+        limit=limit,
     )
 
 
