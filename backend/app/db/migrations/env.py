@@ -12,6 +12,7 @@ from app.models.organization import Organization
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.fiscal_period import FiscalPeriod
+from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.async_database_uri)
