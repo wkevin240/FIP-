@@ -38,6 +38,29 @@ class JournalEntryCreate(BaseModel):
         return value
 
 
+class JournalEntryReverse(BaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=255)
+    entry_date: date | None = None
+    reference: str | None = None
+    description: str | None = None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("idempotency_key must not be blank")
+        return value
+
+    @field_validator("reference", "description")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+
 class JournalEntryLineResponse(JournalEntryLineCreate):
     id: str
     line_number: int
@@ -55,5 +78,6 @@ class JournalEntryResponse(BaseModel):
     idempotency_key: str
     posted_at: datetime | None
     posted_by: str | None
+    reversal_of_id: str | None
     lines: list[JournalEntryLineResponse]
     model_config = ConfigDict(from_attributes=True)
