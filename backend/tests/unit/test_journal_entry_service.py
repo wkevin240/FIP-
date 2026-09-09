@@ -3,9 +3,11 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import func, select
 
 from app.models import Account, FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntryStatus
+from app.models.accounting.ledger_posting import LedgerPosting
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.schemas.accounting.journal_entry import JournalEntryCreate, JournalEntryLineCreate
 from app.services.accounting.journal_entry_service import JournalEntryService
@@ -48,6 +50,11 @@ async def test_create_and_post_journal_entry(db_session):
     assert posted.status == JournalEntryStatus.POSTED
     assert posted.posted_by == "user-1"
     assert posted.posted_at is not None
+
+    postings = list(await db_session.scalars(select(LedgerPosting).where(LedgerPosting.journal_entry_id == entry.id)))
+    assert len(postings) == 2
+    assert sum((Decimal(p.debit) for p in postings), Decimal("0")) == Decimal("100.00")
+    assert sum((Decimal(p.credit) for p in postings), Decimal("0")) == Decimal("100.00")
 
 
 @pytest.mark.asyncio
