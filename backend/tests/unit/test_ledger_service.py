@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -14,8 +15,8 @@ async def test_account_balance_is_scoped_to_organization(db_session):
     db_session.add_all([a1, a2])
     await db_session.flush()
     db_session.add_all([
-        LedgerPosting(id="lp-1", organization_id="org-1", fiscal_period_id="p-1", journal_entry_id="e-1", journal_entry_line_id="l-1", account_id="a-1", posting_date="2026-01-10", line_number=1, debit=Decimal("100.00"), credit=Decimal("0.00")),
-        LedgerPosting(id="lp-2", organization_id="org-2", fiscal_period_id="p-2", journal_entry_id="e-2", journal_entry_line_id="l-2", account_id="a-2", posting_date="2026-01-10", line_number=1, debit=Decimal("900.00"), credit=Decimal("0.00")),
+        LedgerPosting(id="lp-1", organization_id="org-1", fiscal_period_id="p-1", journal_entry_id="e-1", journal_entry_line_id="l-1", account_id="a-1", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("100.00"), credit=Decimal("0.00")),
+        LedgerPosting(id="lp-2", organization_id="org-2", fiscal_period_id="p-2", journal_entry_id="e-2", journal_entry_line_id="l-2", account_id="a-2", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("900.00"), credit=Decimal("0.00")),
     ])
     await db_session.commit()
 
@@ -29,8 +30,8 @@ async def test_trial_balance_preserves_double_entry(db_session):
     db_session.add_all([debit, credit])
     await db_session.flush()
     db_session.add_all([
-        LedgerPosting(id="lp-3", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-3", account_id="a-3", posting_date="2026-01-10", line_number=1, debit=Decimal("250.00"), credit=Decimal("0.00")),
-        LedgerPosting(id="lp-4", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-4", account_id="a-4", posting_date="2026-01-10", line_number=2, debit=Decimal("0.00"), credit=Decimal("250.00")),
+        LedgerPosting(id="lp-3", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-3", account_id="a-3", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("250.00"), credit=Decimal("0.00")),
+        LedgerPosting(id="lp-4", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-4", account_id="a-4", posting_date=date(2026, 1, 10), line_number=2, debit=Decimal("0.00"), credit=Decimal("250.00")),
     ])
     await db_session.commit()
 
