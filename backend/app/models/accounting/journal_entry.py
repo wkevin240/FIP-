@@ -1,7 +1,7 @@
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -42,7 +42,7 @@ class JournalEntryLine(Base):
     )
 
     journal_entry_id = Column(String, ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True)
-    line_number = Column(String(20), nullable=False)
+    line_number = Column(Integer, nullable=False)
     account_id = Column(String, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False, index=True)
     description = Column(Text, nullable=True)
     debit = Column(Numeric(20, 2), nullable=False, default=Decimal("0.00"))
