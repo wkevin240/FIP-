@@ -31,13 +31,23 @@ class JournalEntryService:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
+    async def _load_with_lines(self, organization_id: str, entry_id: str) -> JournalEntry:
+        entry = await self.session.scalar(
+            select(JournalEntry)
+            .options(selectinload(JournalEntry.lines))
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
+        )
+        if entry is None:
+            raise HTTPException(status_code=404, detail="Journal entry not found")
+        return entry
+
     async def create(self, organization_id: str, data: JournalEntryCreate) -> JournalEntry:
         request_hash = self._request_hash(data)
         existing = await self.repository.get_by_idempotency_key(organization_id, data.idempotency_key)
         if existing:
             if existing.idempotency_hash != request_hash:
                 raise HTTPException(status_code=409, detail="Idempotency key was already used for a different journal entry")
-            return existing
+            return await self._load_with_lines(organization_id, existing.id)
         period = await self.session.scalar(select(FiscalPeriod).where(FiscalPeriod.organization_id == organization_id, FiscalPeriod.id == data.fiscal_period_id))
         if period is None:
             raise HTTPException(status_code=404, detail="Fiscal period not found")
@@ -67,16 +77,12 @@ class JournalEntryService:
             await self.session.rollback()
             existing = await self.repository.get_by_idempotency_key(organization_id, data.idempotency_key)
             if existing and existing.idempotency_hash == request_hash:
-                return existing
+                return await self._load_with_lines(organization_id, existing.id)
             raise HTTPException(status_code=409, detail="Journal entry conflicts with an existing idempotency key") from exc
-        await self.session.refresh(entry)
-        return entry
+        return await self._load_with_lines(organization_id, entry.id)
 
     async def get(self, organization_id: str, entry_id: str) -> JournalEntry:
-        entry = await self.repository.get_by_id(organization_id, entry_id)
-        if entry is None:
-            raise HTTPException(status_code=404, detail="Journal entry not found")
-        return entry
+        return await self._load_with_lines(organization_id, entry_id)
 
     async def post(self, organization_id: str, entry_id: str, actor_id: str) -> JournalEntry:
         entry = await self.session.scalar(select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id).with_for_update())
@@ -86,7 +92,7 @@ class JournalEntryService:
             ledger_exists = await self.session.scalar(select(LedgerPosting.id).where(LedgerPosting.organization_id == organization_id, LedgerPosting.journal_entry_id == entry.id).limit(1))
             if ledger_exists is None:
                 raise HTTPException(status_code=409, detail="Posted journal entry has no ledger postings")
-            return entry
+            return await self._load_with_lines(organization_id, entry.id)
         if entry.status != JournalEntryStatus.DRAFT:
             raise HTTPException(status_code=409, detail="Only draft journal entries can be posted")
         period = await self.session.scalar(select(FiscalPeriod).where(FiscalPeriod.organization_id == organization_id, FiscalPeriod.id == entry.fiscal_period_id))
@@ -113,8 +119,7 @@ class JournalEntryService:
         except IntegrityError as exc:
             await self.session.rollback()
             raise HTTPException(status_code=409, detail="Journal entry could not be posted safely") from exc
-        await self.session.refresh(entry)
-        return entry
+        return await self._load_with_lines(organization_id, entry.id)
 
     async def reverse(self, organization_id: str, entry_id: str, actor_id: str, data: JournalEntryReverse) -> JournalEntry:
         original = await self.session.scalar(select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id).with_for_update())
@@ -127,7 +132,7 @@ class JournalEntryService:
         if existing:
             if existing.idempotency_hash != request_hash:
                 raise HTTPException(status_code=409, detail="Idempotency key was already used for a different journal entry")
-            return existing
+            return await self._load_with_lines(organization_id, existing.id)
         already_reversed = await self.session.scalar(select(JournalEntry.id).where(JournalEntry.organization_id == organization_id, JournalEntry.reversal_of_id == original.id))
         if already_reversed:
             raise HTTPException(status_code=409, detail="Journal entry has already been reversed")
@@ -152,4 +157,4 @@ class JournalEntryService:
         if original is not None:
             original.status = JournalEntryStatus.REVERSED
             await self.session.commit()
-        return reversal
+        return await self._load_with_lines(organization_id, reversal.id)
