@@ -26,6 +26,7 @@ class JournalEntry(Base):
     description = Column(Text, nullable=False)
     status = Column(SQLEnum(JournalEntryStatus), nullable=False, default=JournalEntryStatus.DRAFT, index=True)
     idempotency_key = Column(String(255), nullable=False)
+    idempotency_hash = Column(String(64), nullable=False)
     posted_at = Column(DateTime, nullable=True)
     posted_by = Column(String, nullable=True)
 
