@@ -1,4 +1,4 @@
-"""Import mapped models so Alembic can discover their metadata."""
+"""Import mapped models so Alembic discovers the complete accounting metadata."""
 
 from app.models.organization import Organization
 from app.models.user import User
@@ -12,15 +12,7 @@ from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
 from app.models.accounting.ledger_posting import LedgerPosting
 
 __all__ = [
-    "Organization",
-    "User",
-    "OrganizationMembership",
-    "Role",
-    "Permission",
-    "Account",
-    "FiscalYear",
-    "FiscalPeriod",
-    "JournalEntry",
-    "JournalEntryLine",
+    "Organization", "User", "OrganizationMembership", "Role", "Permission",
+    "Account", "FiscalYear", "FiscalPeriod", "JournalEntry", "JournalEntryLine",
     "LedgerPosting",
 ]
