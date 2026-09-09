@@ -28,3 +28,12 @@ async def account_balance(
     service: LedgerService = Depends(get_ledger_service),
 ):
     return {"account_id": account_id, "balance": await service.account_balance(tenant.organization_id, account_id)}
+
+
+@router.get("/accounts/{account_id}/movements")
+async def account_movements(
+    account_id: str,
+    tenant: CurrentTenant = Depends(require_permission("ledger:read")),
+    service: LedgerService = Depends(get_ledger_service),
+):
+    return await service.general_ledger(tenant.organization_id, account_id)
