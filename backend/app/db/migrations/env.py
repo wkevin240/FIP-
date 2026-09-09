@@ -1,19 +1,14 @@
 import asyncio
 from logging.config import fileConfig
+
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from alembic import context
+
 from app.core.config import settings
 from app.db.base import Base
-
-# Import all models to ensure Alembic sees their metadata
-from app.models.organization import Organization
-from app.models.accounting.account import Account
-from app.models.accounting.fiscal_year import FiscalYear
-from app.models.accounting.fiscal_period import FiscalPeriod
-from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
-from app.models.accounting.ledger_posting import LedgerPosting
+from app.models import (Account, FiscalPeriod, FiscalYear, JournalEntry, JournalEntryLine, LedgerPosting, Organization)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.async_database_uri)
