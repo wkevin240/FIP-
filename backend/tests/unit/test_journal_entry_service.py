@@ -4,7 +4,8 @@ from decimal import Decimal
 import pytest
 from fastapi import HTTPException
 
-from app.models import Account, FiscalPeriod, JournalEntryStatus
+from app.models import Account, FiscalPeriod
+from app.models.accounting.journal_entry import JournalEntryStatus
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.schemas.accounting.journal_entry import JournalEntryCreate, JournalEntryLineCreate
 from app.services.accounting.journal_entry_service import JournalEntryService
