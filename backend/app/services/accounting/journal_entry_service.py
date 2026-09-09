@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.domain.accounting.journal_entry.validators import JournalEntry as DomainJournalEntry
 from app.domain.accounting.journal_entry.validators import JournalEntryValidationError, JournalLine
@@ -102,6 +103,7 @@ class JournalEntryService:
     async def post(self, organization_id: str, entry_id: str, actor_id: str) -> JournalEntry:
         entry = await self.session.scalar(
             select(JournalEntry)
+            .options(selectinload(JournalEntry.lines))
             .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
             .with_for_update()
         )
@@ -109,7 +111,12 @@ class JournalEntryService:
             raise HTTPException(status_code=404, detail="Journal entry not found")
         if entry.status == JournalEntryStatus.POSTED:
             ledger_exists = await self.session.scalar(
-                select(LedgerPosting.id).where(LedgerPosting.journal_entry_id == entry.id).limit(1)
+                select(LedgerPosting.id)
+                .where(
+                    LedgerPosting.organization_id == organization_id,
+                    LedgerPosting.journal_entry_id == entry.id,
+                )
+                .limit(1)
             )
             if ledger_exists is None:
                 raise HTTPException(status_code=409, detail="Posted journal entry has no ledger postings")
@@ -139,7 +146,12 @@ class JournalEntryService:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         existing = await self.session.scalar(
-            select(LedgerPosting.id).where(LedgerPosting.journal_entry_id == entry.id).limit(1)
+            select(LedgerPosting.id)
+            .where(
+                LedgerPosting.organization_id == organization_id,
+                LedgerPosting.journal_entry_id == entry.id,
+            )
+            .limit(1)
         )
         if existing:
             raise HTTPException(status_code=409, detail="Journal entry already has ledger postings")
