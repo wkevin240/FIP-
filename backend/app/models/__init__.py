@@ -9,6 +9,7 @@ from app.models.accounting.account import Account
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
+from app.models.accounting.ledger_posting import LedgerPosting
 
 __all__ = [
     "Organization",
@@ -21,4 +22,5 @@ __all__ = [
     "FiscalPeriod",
     "JournalEntry",
     "JournalEntryLine",
+    "LedgerPosting",
 ]
