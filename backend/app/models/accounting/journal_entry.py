@@ -17,6 +17,7 @@ class JournalEntry(Base):
     __tablename__ = "journal_entries"
     __table_args__ = (
         UniqueConstraint("organization_id", "idempotency_key", name="uq_journal_entry_org_idempotency"),
+        UniqueConstraint("reversal_of_id", name="uq_journal_entry_reversal_of"),
     )
 
     organization_id = Column(String, ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -29,9 +30,11 @@ class JournalEntry(Base):
     idempotency_hash = Column(String(64), nullable=False)
     posted_at = Column(DateTime, nullable=True)
     posted_by = Column(String, nullable=True)
+    reversal_of_id = Column(String, ForeignKey("journal_entries.id", ondelete="RESTRICT"), nullable=True, index=True)
 
     fiscal_period = relationship("FiscalPeriod")
     lines = relationship("JournalEntryLine", back_populates="journal_entry", cascade="all, delete-orphan", order_by="JournalEntryLine.line_number")
+    reversal_of = relationship("JournalEntry", remote_side="JournalEntry.id", foreign_keys=[reversal_of_id], uselist=False)
 
 
 class JournalEntryLine(Base):
