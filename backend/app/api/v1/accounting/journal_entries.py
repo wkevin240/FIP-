@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.accounting.journal_entry import JournalEntryCreate, JournalEntryResponse
+from app.schemas.accounting.journal_entry import JournalEntryCreate, JournalEntryResponse, JournalEntryReverse
 from app.services.accounting.journal_entry_service import JournalEntryService
 
 router = APIRouter()
@@ -38,3 +38,13 @@ async def post_journal_entry(
     service: JournalEntryService = Depends(get_journal_entry_service),
 ):
     return await service.post(tenant.organization_id, entry_id, tenant.user_id)
+
+
+@router.post("/{entry_id}/reverse", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
+async def reverse_journal_entry(
+    entry_id: str,
+    reverse_in: JournalEntryReverse,
+    tenant: CurrentTenant = Depends(require_permission("journal_entry:reverse")),
+    service: JournalEntryService = Depends(get_journal_entry_service),
+):
+    return await service.reverse(tenant.organization_id, entry_id, tenant.user_id, reverse_in)
