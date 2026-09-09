@@ -14,6 +14,7 @@ from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
+from app.models.accounting.ledger_posting import LedgerPosting
 from app.repositories.accounting.journal_entry_repository import JournalEntryRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate
 
@@ -99,13 +100,29 @@ class JournalEntryService:
         return entry
 
     async def post(self, organization_id: str, entry_id: str, actor_id: str) -> JournalEntry:
-        entry = await self.get(organization_id, entry_id)
+        entry = await self.session.scalar(
+            select(JournalEntry)
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
+            .with_for_update()
+        )
+        if entry is None:
+            raise HTTPException(status_code=404, detail="Journal entry not found")
         if entry.status == JournalEntryStatus.POSTED:
+            ledger_exists = await self.session.scalar(
+                select(LedgerPosting.id).where(LedgerPosting.journal_entry_id == entry.id).limit(1)
+            )
+            if ledger_exists is None:
+                raise HTTPException(status_code=409, detail="Posted journal entry has no ledger postings")
             return entry
         if entry.status != JournalEntryStatus.DRAFT:
             raise HTTPException(status_code=409, detail="Only draft journal entries can be posted")
 
-        period = await self.session.scalar(select(FiscalPeriod).where(FiscalPeriod.organization_id == organization_id, FiscalPeriod.id == entry.fiscal_period_id))
+        period = await self.session.scalar(
+            select(FiscalPeriod).where(
+                FiscalPeriod.organization_id == organization_id,
+                FiscalPeriod.id == entry.fiscal_period_id,
+            )
+        )
         if period is None:
             raise HTTPException(status_code=404, detail="Fiscal period not found")
         if period.status != FiscalPeriodStatus.OPEN:
@@ -114,13 +131,42 @@ class JournalEntryService:
             raise HTTPException(status_code=422, detail="Entry date must fall within the fiscal period")
 
         try:
-            DomainJournalEntry.from_lines([JournalLine(account_id=line.account_id, debit=Decimal(line.debit), credit=Decimal(line.credit)) for line in entry.lines])
+            DomainJournalEntry.from_lines([
+                JournalLine(account_id=line.account_id, debit=Decimal(line.debit), credit=Decimal(line.credit))
+                for line in entry.lines
+            ])
         except JournalEntryValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        existing = await self.session.scalar(
+            select(LedgerPosting.id).where(LedgerPosting.journal_entry_id == entry.id).limit(1)
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="Journal entry already has ledger postings")
+
+        for line in entry.lines:
+            self.session.add(
+                LedgerPosting(
+                    organization_id=entry.organization_id,
+                    fiscal_period_id=entry.fiscal_period_id,
+                    journal_entry_id=entry.id,
+                    journal_entry_line_id=line.id,
+                    account_id=line.account_id,
+                    posting_date=entry.entry_date,
+                    line_number=line.line_number,
+                    description=line.description,
+                    debit=line.debit,
+                    credit=line.credit,
+                )
+            )
 
         entry.status = JournalEntryStatus.POSTED
         entry.posted_at = datetime.now(timezone.utc).replace(tzinfo=None)
         entry.posted_by = actor_id
-        await self.session.commit()
+        try:
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            raise HTTPException(status_code=409, detail="Journal entry could not be posted safely") from exc
         await self.session.refresh(entry)
         return entry
