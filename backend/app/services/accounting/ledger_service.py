@@ -8,12 +8,17 @@ from app.models.accounting.ledger_posting import LedgerPosting
 
 
 class LedgerService:
-    """Financial read model built only from immutable ledger postings."""
+    """Read-only financial reporting over immutable posted ledger movements."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def account_balance(self, organization_id: str, account_id: str) -> Decimal:
+        account_exists = await self.db.scalar(
+            select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
+        )
+        if account_exists is None:
+            return Decimal("0.00")
         result = await self.db.execute(
             select(
                 func.coalesce(func.sum(LedgerPosting.debit), 0)
@@ -53,3 +58,28 @@ class LedgerService:
             }
             for row in result
         ]
+
+    async def general_ledger(self, organization_id: str, account_id: str) -> list[dict[str, object]]:
+        result = await self.db.execute(
+            select(LedgerPosting)
+            .where(
+                LedgerPosting.organization_id == organization_id,
+                LedgerPosting.account_id == account_id,
+            )
+            .order_by(LedgerPosting.posting_date, LedgerPosting.journal_entry_id, LedgerPosting.line_number)
+        )
+        running = Decimal("0.00")
+        rows: list[dict[str, object]] = []
+        for posting in result.scalars():
+            running += Decimal(str(posting.debit)) - Decimal(str(posting.credit))
+            rows.append({
+                "id": posting.id,
+                "journal_entry_id": posting.journal_entry_id,
+                "posting_date": posting.posting_date,
+                "line_number": posting.line_number,
+                "description": posting.description,
+                "debit": Decimal(str(posting.debit)),
+                "credit": Decimal(str(posting.credit)),
+                "balance": running,
+            })
+        return rows
