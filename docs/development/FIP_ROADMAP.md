@@ -58,19 +58,24 @@ FIP is being developed as a financial operating system, not as a collection of C
 - [x] Decimal-based accounting calculations
 - [x] Tamper-evident audit record primitive
 - [x] Domain event primitive
-- [ ] Persisted journal posting transaction
-- [ ] Fiscal-period posting guard
-- [ ] Idempotency key for financial commands
-- [ ] Trial balance query
-- [ ] General ledger query
+- [x] Persisted journal posting transaction
+- [x] Fiscal-period posting guard
+- [x] Idempotency key for journal-entry creation
+- [x] Trial balance query
+- [x] General ledger query
+- [x] Fiscal-period close preconditions and close endpoint
+- [ ] Journal master data and controlled numbering
+- [ ] Durable audit-event persistence
+- [ ] Controlled reopening with mandatory reason and audit trail
+- [ ] Database migrations for the accounting kernel
 
 ### Phase 2 — Controls and reconciliation
 
-- [ ] Period close state machine
-- [ ] Controlled reopening with audit trail
 - [ ] Bank statement import boundary
 - [ ] Reconciliation matching engine
 - [ ] Unreconciled-items workflow
+- [ ] Period-end control checklist
+- [ ] Closing/reopening segregation of duties
 
 ### Phase 3 — Commercial modules
 
