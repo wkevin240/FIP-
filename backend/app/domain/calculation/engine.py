@@ -102,6 +102,16 @@ class CalculationEngine:
                 raise CalculationContextError(
                     f"input {code} has an incompatible analytical dimension context"
                 )
+            if source_context.currency != context.currency:
+                raise CalculationContextError(
+                    f"input {code} has currency {source_context.currency!r}, "
+                    f"expected {context.currency!r}"
+                )
+            if source_context.rule_version != context.rule_version:
+                raise CalculationContextError(
+                    f"input {code} uses rule version {source_context.rule_version!r}, "
+                    f"expected {context.rule_version!r}"
+                )
 
     def execute(
         self,
