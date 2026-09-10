@@ -2,15 +2,15 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
 
-from app.api.v1.accounting.profitability import profitability_report
 from app.api.dependencies import CurrentTenant
+from app.api.v1.accounting.profitability import profitability_report
 from app.domain.calculation.contracts import (
     CalculationContext,
     CalculationDefinition,
     CalculationResult,
 )
-from app.domain.calculation.contracts import CalculationStatus
 from app.services.accounting.profitability_service import LedgerProfitabilityIntegrityError
 
 
@@ -74,7 +74,7 @@ async def test_profitability_report_does_not_hide_ledger_integrity_failure():
         error=LedgerProfitabilityIntegrityError("ledger mismatch")
     )
 
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         await profitability_report(
             start_date=date(2026, 1, 1),
             end_date=date(2026, 1, 31),
