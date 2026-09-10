@@ -214,14 +214,14 @@ class LedgerService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> dict[str, object]:
-        """Detect drift between non-draft journal lines and immutable ledger postings."""
+        """Detect drift between POSTED journal lines and immutable ledger postings."""
         period = await self._validate_period(organization_id, fiscal_period_id)
         self._validate_dates(start_date, end_date)
         self._validate_dates_within_period(period, start_date, end_date)
 
         journal_filters: list[object] = [
             JournalEntry.organization_id == organization_id,
-            JournalEntry.status != JournalEntryStatus.DRAFT,
+            JournalEntry.status == JournalEntryStatus.POSTED,
         ]
         posting_filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
         if fiscal_period_id is not None:
