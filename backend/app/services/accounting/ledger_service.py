@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.calculation.ledger_profitability import LedgerProfitabilityFact
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
@@ -92,6 +93,44 @@ class LedgerService:
         if end_date is not None:
             filters.append(JournalEntry.entry_date <= end_date)
         return filters
+
+    async def profitability_facts(
+        self,
+        organization_id: str,
+        *,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[LedgerProfitabilityFact]:
+        """Extract tenant-scoped immutable ledger facts for profitability calculation.
+
+        This is an adapter boundary only: it does not classify accounts or calculate
+        profitability. Account-to-category rules are supplied separately to the
+        domain resolver so an unmapped account can never become a guessed P&L fact.
+        """
+        period = await self._validate_period(organization_id, fiscal_period_id)
+        self._validate_dates(start_date, end_date)
+        self._validate_dates_within_period(period, start_date, end_date)
+
+        result = await self.db.execute(
+            select(LedgerPosting)
+            .where(*self._posting_filters(organization_id, fiscal_period_id, start_date, end_date))
+            .order_by(
+                LedgerPosting.posting_date,
+                LedgerPosting.journal_entry_id,
+                LedgerPosting.line_number,
+                LedgerPosting.id,
+            )
+        )
+        return [
+            LedgerProfitabilityFact(
+                posting_id=posting.id,
+                account_id=posting.account_id,
+                debit=Decimal(str(posting.debit)),
+                credit=Decimal(str(posting.credit)),
+            )
+            for posting in result.scalars()
+        ]
 
     async def account_balance(
         self,
