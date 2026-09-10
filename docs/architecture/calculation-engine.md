@@ -30,7 +30,7 @@ The kernel must not become a multi-month platform project detached from business
 5. Source provenance and an execution trace sufficient to reproduce the result.
 6. Tests against real repository schemas and PostgreSQL fixtures where integration coverage exists.
 
-The profitability formula slice is now implemented as `ProfitabilityCalculationEngine`. It consumes already-resolved category facts and computes Gross Profit, Operating Income, Net Income and margins through the shared DAG. It deliberately does **not** access the database or invent account mappings. The next integration step is to adapt the existing profitability service's posted-ledger query into these kernel inputs, rather than maintaining a second data-access implementation.
+The profitability formula slice is intentionally small. It must be connected to the existing posted-ledger query path rather than maintaining a second data-access implementation. The existing profitability service is the candidate branch integration point; its synthetic test fixture is **not** accepted as proof of the kernel against a real grand livre.
 
 Only capabilities proven necessary by that vertical slice should be promoted into the kernel.
 
@@ -39,9 +39,49 @@ Only capabilities proven necessary by that vertical slice should be promoted int
 - `READY`: all dependencies are valid and the calculation produced a value.
 - `NOT_READY`: a required business input is unavailable or not configured. This is a data/readiness condition, not a computational failure.
 - `INCOMPLETE`: the calculation cannot be considered complete because required source coverage or reconciliation is incomplete.
-- `ERROR`: the inputs were otherwise ready, but execution failed, for example an invalid operator result. A business engine may intentionally classify a known business condition such as a zero ratio denominator as `NOT_READY` instead of allowing it to become an arithmetic error.
+- `ERROR`: the inputs were otherwise ready, but execution failed, for example division by zero or an invalid operator result.
 
-A status must never be silently converted to zero. In particular, `NOT_READY` must propagate as `NOT_READY`, while an execution failure must remain `ERROR` so user-facing alerts and operational monitoring can distinguish missing data from a broken calculation.
+For a calculated node, dependency status is monotonic and uses the worst dependency status with this priority:
+
+`ERROR > NOT_READY > INCOMPLETE > READY`
+
+Therefore an `ERROR` at a leaf must remain `ERROR` through every downstream node. It must never be downgraded to `NOT_READY` or `READY`. Likewise, `NOT_READY` must not become zero or `READY` merely because another dependency is available.
+
+A status must never be silently converted to zero. User-facing alerts and operational monitoring must distinguish missing data (`NOT_READY`) from a broken calculation (`ERROR`).
+
+## Proof gates before extension
+
+No new generic kernel module or business engine should be added until these three test categories are present and passing:
+
+### 1. Non-regression
+
+A frozen, authoritative posted grand-ledger snapshot with an independently verified expected result must be checked on every run. The first P&L proof must calculate Gross Profit, Operating Income and Net Income from that same posted ledger and compare the kernel output with an independent manual or Sage 100 calculation to the centime.
+
+The current repository does not contain an authoritative real grand-ledger snapshot and the connected Supabase project is currently inactive. Therefore the P&L proof is a **blocked verification gate**, not a fabricated fixture. The existing generated PostgreSQL profitability fixture may test plumbing but must not be described as real-world proof.
+
+Required evidence for closing this gate:
+
+```text
+same posted grand ledger
+        |
+        +--> FIP posted-ledger extraction --> kernel DAG --> P&L result
+        |
+        +--> independent manual/Sage 100 calculation --> P&L result
+        |
+        +--> cent-level comparison --> PASS
+```
+
+### 2. Property
+
+Accounting write-generation tests must generate many randomized balanced journal cases and assert the invariant `SUM(DEBITS) == SUM(CREDITS)` for every case. This is an invariant test, not a hand-written example test. Where the repository's journal-entry service is available to the test, the generated cases should pass through that service rather than bypassing it.
+
+### 3. Status propagation
+
+At minimum:
+
+- remove a required source -> downstream result is `NOT_READY`, with `value is None`, without a crash and without substituting zero;
+- force division by zero while inputs are `READY` -> downstream result is `ERROR`, with `value is None`, without a crash;
+- force a leaf `ERROR` in a three-level DAG -> intermediate and final metrics remain `ERROR`.
 
 ## Branch responsibilities
 
@@ -89,12 +129,13 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 2. Every result has an explicit period and organization context.
 3. Every result identifies its calculation definition and rule version.
 4. Results can be `READY`, `NOT_READY`, `INCOMPLETE`, or `ERROR` with distinct semantics.
-5. Unavailable source data must never be replaced with guessed values or zero.
-6. Calculation results retain source references so a metric can be traced to authoritative records.
-7. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
-8. The accounting ledger remains the source of truth for posted accounting state.
-9. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
-10. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
+5. Dependency status is monotonic under `ERROR > NOT_READY > INCOMPLETE > READY`.
+6. Unavailable source data must never be replaced with guessed values or zero.
+7. Calculation results retain source references so a metric can be traced to authoritative records.
+8. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
+9. The accounting ledger remains the source of truth for posted accounting state.
+10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
+11. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 
 ## Implementation order
 
