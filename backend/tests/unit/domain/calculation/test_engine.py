@@ -210,3 +210,30 @@ def test_engine_rejects_input_from_another_analytical_dimension() -> None:
 
     with pytest.raises(CalculationContextError, match="dimension"):
         engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
+
+
+def test_engine_rejects_input_from_another_currency() -> None:
+    foreign_context = CalculationContext(
+        organization_id="org-1",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        currency="EUR",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),))
+
+    with pytest.raises(CalculationContextError, match="currency"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
+
+
+def test_engine_rejects_input_from_another_rule_version() -> None:
+    foreign_context = CalculationContext(
+        organization_id="org-1",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        currency="XAF",
+        rule_version="2",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),))
+
+    with pytest.raises(CalculationContextError, match="rule version"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
