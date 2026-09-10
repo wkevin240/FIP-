@@ -74,6 +74,8 @@ A zero revenue denominator is therefore an execution `ERROR` rather than a synth
 
 The database boundary is now explicit: `LedgerService.profitability_facts()` is the tenant- and period/date-scoped extraction point. It returns only immutable `LedgerProfitabilityFact` values and performs no account classification or profitability calculation. The domain resolver then consumes those facts together with explicitly supplied `ProfitabilityAccountRule` values. This keeps SQL access in the accounting service while keeping mapping and formulas deterministic and database-free.
 
+`LedgerProfitabilityService` now composes those three boundaries for an executable application path: it derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with the supplied explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. It does not persist, mutate, infer mappings, or replace missing categories. This is orchestration only; production account classification still requires an authorized configuration source.
+
 ## Calculation status semantics
 
 - `READY`: all dependencies are valid and the calculation produced a value.
