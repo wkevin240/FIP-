@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.fiscal_period import FiscalPeriod
+from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
 from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRepository
@@ -20,10 +21,31 @@ class FiscalPeriodService:
 
     async def create_fiscal_period(self, organization_id: str, data: FiscalPeriodCreate) -> FiscalPeriod:
         FiscalPeriodRules.validate_dates(data.start_date, data.end_date)
-        fiscal_year = await self.year_repository.get_by_id(organization_id, data.fiscal_year_id)
+        fiscal_year = await self.session.scalar(
+            select(FiscalYear)
+            .where(
+                FiscalYear.organization_id == organization_id,
+                FiscalYear.id == data.fiscal_year_id,
+            )
+            .with_for_update()
+        )
         if fiscal_year is None:
             raise HTTPException(status_code=404, detail="Fiscal year not found")
         FiscalPeriodRules.validate_within_year(data.start_date, data.end_date, fiscal_year.start_date, fiscal_year.end_date)
+
+        overlap = await self.session.scalar(
+            select(FiscalPeriod.id)
+            .where(
+                FiscalPeriod.organization_id == organization_id,
+                FiscalPeriod.fiscal_year_id == data.fiscal_year_id,
+                FiscalPeriod.start_date <= data.end_date,
+                FiscalPeriod.end_date >= data.start_date,
+            )
+            .limit(1)
+        )
+        if overlap is not None:
+            raise HTTPException(status_code=409, detail="Fiscal period dates overlap an existing period")
+
         period = await self.repository.create(organization_id, data)
         await self.session.commit()
         await self.session.refresh(period)
