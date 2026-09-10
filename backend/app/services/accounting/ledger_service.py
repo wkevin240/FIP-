@@ -35,6 +35,19 @@ class LedgerService:
             raise HTTPException(status_code=422, detail="start_date must be on or before end_date")
 
     @staticmethod
+    def _validate_dates_within_period(
+        period: FiscalPeriod | None,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> None:
+        if period is None:
+            return
+        if start_date is not None and start_date < period.start_date:
+            raise HTTPException(status_code=422, detail="start_date must fall within the selected fiscal period")
+        if end_date is not None and end_date > period.end_date:
+            raise HTTPException(status_code=422, detail="end_date must fall within the selected fiscal period")
+
+    @staticmethod
     def _posting_filters(
         organization_id: str,
         fiscal_period_id: str | None = None,
@@ -59,8 +72,9 @@ class LedgerService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> Decimal:
-        await self._validate_period(organization_id, fiscal_period_id)
+        period = await self._validate_period(organization_id, fiscal_period_id)
         self._validate_dates(start_date, end_date)
+        self._validate_dates_within_period(period, start_date, end_date)
         account_exists = await self.db.scalar(
             select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
         )
@@ -85,8 +99,9 @@ class LedgerService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> list[dict[str, object]]:
-        await self._validate_period(organization_id, fiscal_period_id)
+        period = await self._validate_period(organization_id, fiscal_period_id)
         self._validate_dates(start_date, end_date)
+        self._validate_dates_within_period(period, start_date, end_date)
         result = await self.db.execute(
             select(
                 Account.id,
@@ -123,23 +138,40 @@ class LedgerService:
         fiscal_period_id: str | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> list[dict[str, object]]:
-        await self._validate_period(organization_id, fiscal_period_id)
+    ) -> dict[str, object]:
+        period = await self._validate_period(organization_id, fiscal_period_id)
         self._validate_dates(start_date, end_date)
+        self._validate_dates_within_period(period, start_date, end_date)
         account_exists = await self.db.scalar(
             select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
         )
         if account_exists is None:
             raise HTTPException(status_code=404, detail="Account not found")
+
+        filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
+        opening_balance = Decimal("0.00")
+        if start_date is not None:
+            opening_filters: list[object] = [
+                LedgerPosting.organization_id == organization_id,
+                LedgerPosting.account_id == account_id,
+                LedgerPosting.posting_date < start_date,
+            ]
+            if fiscal_period_id is not None:
+                opening_filters.append(LedgerPosting.fiscal_period_id == fiscal_period_id)
+            opening_result = await self.db.execute(
+                select(
+                    func.coalesce(func.sum(LedgerPosting.debit), 0)
+                    - func.coalesce(func.sum(LedgerPosting.credit), 0)
+                ).where(*opening_filters)
+            )
+            opening_balance = Decimal(str(opening_result.scalar_one()))
+
         result = await self.db.execute(
             select(LedgerPosting)
-            .where(
-                *self._posting_filters(organization_id, fiscal_period_id, start_date, end_date),
-                LedgerPosting.account_id == account_id,
-            )
+            .where(*filters, LedgerPosting.account_id == account_id)
             .order_by(LedgerPosting.posting_date, LedgerPosting.journal_entry_id, LedgerPosting.line_number)
         )
-        running = Decimal("0.00")
+        running = opening_balance
         rows: list[dict[str, object]] = []
         for posting in result.scalars():
             running += Decimal(str(posting.debit)) - Decimal(str(posting.credit))
@@ -156,4 +188,12 @@ class LedgerService:
                 "credit": Decimal(str(posting.credit)),
                 "balance": running,
             })
-        return rows
+        return {
+            "account_id": account_id,
+            "fiscal_period_id": fiscal_period_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "opening_balance": opening_balance,
+            "closing_balance": running,
+            "movements": rows,
+        }
