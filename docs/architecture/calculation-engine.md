@@ -60,7 +60,7 @@ This distinction keeps a fiscal-period grand ledger faithful to the account's ca
 
 The accounting read side also exposes a reconciliation control between POSTED journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports missing postings, orphan postings and postings whose account, debit, credit or fiscal-period identity differs from the journal line. `is_reconciled` is true only when all discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction.
 
-A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
+Profitability orchestration treats this reconciliation state as a hard source-integrity gate. `LedgerProfitabilityService` refuses to calculate P&L from an unreconciled selected slice and raises `LedgerProfitabilityIntegrityError` with the detected discrepancy identifiers. This prevents a downstream financial result from appearing valid when the posted-ledger source is known to have drifted from its POSTED journal source.
 
 ## Profitability vertical slice
 
@@ -74,7 +74,7 @@ A zero revenue denominator is therefore an execution `ERROR` rather than a synth
 
 The database boundary is now explicit: `LedgerService.profitability_facts()` is the tenant- and period/date-scoped extraction point. It returns only immutable `LedgerProfitabilityFact` values and performs no account classification or profitability calculation. The domain resolver then consumes those facts together with explicitly supplied `ProfitabilityAccountRule` values. This keeps SQL access in the accounting service while keeping mapping and formulas deterministic and database-free.
 
-`LedgerProfitabilityService` now composes those three boundaries for an executable application path: it derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with the supplied explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. It does not persist, mutate, infer mappings, or replace missing categories. This is orchestration only; production account classification still requires an authorized configuration source.
+`LedgerProfitabilityService` composes those boundaries for an executable application path: it first reconciles the selected POSTED journal/ledger slice, refuses to continue when reconciliation detects drift, derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with the supplied explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. It does not persist, mutate, infer mappings, or replace missing categories. This is orchestration only; production account classification still requires an authorized configuration source.
 
 ## Calculation status semantics
 
@@ -179,6 +179,7 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
 11. Currency and rule-version context must match before financial results are combined or executed.
 12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
+13. Profitability must not be calculated from a selected ledger slice whose POSTED journal-to-ledger reconciliation has detected drift.
 
 ## Implementation order
 
