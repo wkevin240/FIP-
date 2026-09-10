@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
 
 from app.models.accounting.account import Account
 from app.models.accounting.ledger_posting import LedgerPosting
@@ -21,6 +22,14 @@ async def test_account_balance_is_scoped_to_organization(db_session):
     await db_session.commit()
 
     assert await LedgerService(db_session).account_balance("org-1", "a-1") == Decimal("100.00")
+
+
+@pytest.mark.asyncio
+async def test_unknown_account_is_not_reported_as_zero(db_session):
+    with pytest.raises(HTTPException) as exc_info:
+        await LedgerService(db_session).account_balance("org-1", "missing")
+
+    assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
