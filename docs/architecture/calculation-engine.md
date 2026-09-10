@@ -48,6 +48,18 @@ This layer does not reconstruct draft journal entries and does not silently incl
 
 For an account movement report, a partial range now exposes an explicit `opening_balance` computed from postings before `start_date`, then applies only movements inside the requested range. `closing_balance` is the resulting cumulative balance. This prevents a partial-range running balance from being mistaken for an opening balance. When no `start_date` is supplied, the opening balance is zero because the selected result begins at the first available posting under the supplied filters.
 
+## Posting reconciliation control
+
+The accounting read side also exposes a reconciliation control between non-draft journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports:
+
+- expected non-draft journal-line count;
+- actual ledger-posting count;
+- missing postings;
+- orphan postings;
+- postings whose account, debit, credit or fiscal-period identity differs from the journal line.
+
+`is_reconciled` is true only when all three discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction. A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
+
 ## Calculation status semantics
 
 - `READY`: all dependencies are valid and the calculation produced a value.
@@ -156,11 +168,12 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 1. Harden the accounting kernel and fiscal closing controls.
 2. Prove the minimal calculation kernel with a real profitability/P&L vertical slice.
 3. Make the posted-ledger reporting surface explicitly period/date scoped and regression-test its query boundary.
-4. Move only the abstractions required by that vertical slice into the shared kernel.
-5. Consolidate existing profitability, KPI and variance work around the proven contracts.
-6. Extend the Finance engine with working capital, liquidity and forecasting calculations.
-7. Build Banking and Tax engines against real, validated source contracts.
-8. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
+4. Add ledger-to-journal reconciliation controls and feed reconciliation state into calculation readiness.
+5. Move only the abstractions required by that vertical slice into the shared kernel.
+6. Consolidate existing profitability, KPI and variance work around the proven contracts.
+7. Extend the Finance engine with working capital, liquidity and forecasting calculations.
+8. Build Banking and Tax engines against real, validated source contracts.
+9. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
 
 ## Existing work to consolidate
 
