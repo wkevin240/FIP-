@@ -11,6 +11,7 @@ from app.domain.calculation.contracts import (
     CalculationStatus,
 )
 from app.domain.calculation.engine import (
+    CalculationContextError,
     CalculationEngine,
     CalculationGraphError,
     CalculationNode,
@@ -26,9 +27,11 @@ def context() -> CalculationContext:
     )
 
 
-def result(code: str, value: Decimal) -> CalculationResult:
+def result(code: str, value: Decimal, *, execution_context: CalculationContext | None = None) -> CalculationResult:
     return CalculationResult.ready(
-        CalculationDefinition(code=code, formula=code), context(), value
+        CalculationDefinition(code=code, formula=code),
+        execution_context or context(),
+        value,
     )
 
 
@@ -166,3 +169,44 @@ def test_cycle_is_rejected() -> None:
                 node("B", ("A",), lambda values: values[0]),
             )
         )
+
+
+def test_engine_rejects_input_from_another_organization() -> None:
+    foreign_context = CalculationContext(
+        organization_id="org-2",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        currency="XAF",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),))
+
+    with pytest.raises(CalculationContextError, match="organization"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
+
+
+def test_engine_rejects_input_from_another_period() -> None:
+    foreign_context = CalculationContext(
+        organization_id="org-1",
+        period_start=date(2026, 2, 1),
+        period_end=date(2026, 2, 28),
+        currency="XAF",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),))
+
+    with pytest.raises(CalculationContextError, match="period"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
+
+
+def test_engine_rejects_input_from_another_analytical_dimension() -> None:
+    foreign_context = CalculationContext(
+        organization_id="org-1",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        currency="XAF",
+        dimension_id="department",
+        dimension_value_id="sales",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),))
+
+    with pytest.raises(CalculationContextError, match="dimension"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
