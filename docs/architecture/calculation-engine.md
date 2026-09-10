@@ -58,17 +58,19 @@ This distinction keeps a fiscal-period grand ledger faithful to the account's ca
 
 ## Posting reconciliation control
 
-The accounting read side also exposes a reconciliation control between non-draft journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports missing postings, orphan postings and postings whose account, debit, credit or fiscal-period identity differs from the journal line. `is_reconciled` is true only when all discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction.
+The accounting read side also exposes a reconciliation control between POSTED journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports missing postings, orphan postings and postings whose account, debit, credit or fiscal-period identity differs from the journal line. `is_reconciled` is true only when all discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction.
 
 A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
 
 ## Profitability vertical slice
 
-`ProfitabilityCalculationEngine` now expresses Gross Profit, Operating Income, Net Income, Gross Margin, Operating Margin and Net Margin as a single kernel DAG. Category facts (`REVENUE`, `COGS`, `OPERATING_EXPENSE`, `OTHER_INCOME`, `OTHER_EXPENSE`) are explicit external inputs; all six derived metrics are calculation nodes. Monetary outputs are quantized to cents and ratios use the same deterministic Decimal operator boundary as the kernel.
+`ProfitabilityCalculationEngine` expresses Gross Profit, Operating Income, Net Income, Gross Margin, Operating Margin and Net Margin as a single kernel DAG. Category facts (`REVENUE`, `COGS`, `OPERATING_EXPENSE`, `OTHER_INCOME`, `OTHER_EXPENSE`) are explicit external inputs; all six derived metrics are calculation nodes. Monetary outputs are quantized to cents and ratios use the same deterministic Decimal operator boundary as the kernel.
+
+`LedgerProfitabilityInputResolver` is the accounting-to-kernel boundary for this slice. It consumes only already-authorized posted-ledger movements plus an explicit account-to-category configuration. It applies the normal-debit/normal-credit sign convention needed to turn mapped ledger movements into positive P&L source facts, retains each contributing `LedgerPosting` as provenance, and returns `NOT_READY` when a category has no mapped posted movement. It never infers a category from an account code and never substitutes an unmapped category with zero.
 
 A zero revenue denominator is therefore an execution `ERROR` rather than a synthetic zero or a missing-data substitution. If an upstream profitability fact is `NOT_READY` or `ERROR`, the corresponding downstream metrics inherit that status through normal DAG propagation. This keeps the business engine aligned with the kernel's status contract instead of maintaining a parallel status implementation.
 
-The engine still deliberately does not access the database or invent account mappings. The integration step is to adapt the existing posted-ledger extraction into these external inputs.
+The resolver is intentionally database-free. The remaining integration work is to adapt the existing tenant-scoped `LedgerService` query path and explicit mapping configuration into `LedgerProfitabilityFact` and `ProfitabilityAccountRule` records, then feed those facts into the DAG. No account classification is hardcoded into the resolver.
 
 ## Calculation status semantics
 
@@ -100,7 +102,7 @@ Required evidence for closing this gate:
 ```text
 same posted grand ledger
         |
-        +--> FIP posted-ledger extraction --> kernel DAG --> P&L result
+        +--> FIP posted-ledger extraction --> explicit account mapping --> kernel DAG --> P&L result
         |
         +--> independent manual/Sage 100 calculation --> P&L result
         |
