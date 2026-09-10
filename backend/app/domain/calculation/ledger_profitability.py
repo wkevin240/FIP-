@@ -20,6 +20,14 @@ class LedgerProfitabilityFact:
     debit: Decimal
     credit: Decimal
 
+    def __post_init__(self) -> None:
+        if not self.posting_id.strip():
+            raise ValueError("posting_id is required")
+        if not self.account_id.strip():
+            raise ValueError("account_id is required")
+        if not isinstance(self.debit, Decimal) or not isinstance(self.credit, Decimal):
+            raise TypeError("ledger amounts must use Decimal")
+
 
 @dataclass(frozen=True, slots=True)
 class ProfitabilityAccountRule:
@@ -27,6 +35,12 @@ class ProfitabilityAccountRule:
 
     account_id: str
     category: str
+
+    def __post_init__(self) -> None:
+        if not self.account_id.strip():
+            raise ValueError("account_id is required")
+        if not self.category.strip():
+            raise ValueError("category is required")
 
 
 class LedgerProfitabilityInputResolver:
@@ -38,8 +52,12 @@ class LedgerProfitabilityInputResolver:
     """
 
     @staticmethod
-    def _definition(category: str) -> CalculationDefinition:
-        return CalculationDefinition(code=category, formula="posted ledger fact")
+    def _definition(category: str, rule_version: str) -> CalculationDefinition:
+        return CalculationDefinition(
+            code=category,
+            formula="posted ledger fact",
+            rule_version=rule_version,
+        )
 
     @staticmethod
     def resolve(
@@ -87,7 +105,7 @@ class LedgerProfitabilityInputResolver:
 
         results: dict[str, CalculationResult] = {}
         for category in CATEGORY_CODES:
-            definition = LedgerProfitabilityInputResolver._definition(category)
+            definition = LedgerProfitabilityInputResolver._definition(category, context.rule_version)
             if not sources[category]:
                 results[category] = CalculationResult.not_ready(
                     definition=definition,
