@@ -1,4 +1,6 @@
+from datetime import date
 from decimal import Decimal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -24,3 +26,27 @@ class TrialBalanceRow(BaseModel):
     debit: Decimal
     credit: Decimal
     balance: Decimal
+
+
+class GeneralLedgerRow(BaseModel):
+    id: str
+    account_id: str
+    journal_entry_id: str
+    journal_entry_line_id: str
+    fiscal_period_id: str
+    posting_date: date
+    line_number: int
+    description: str | None
+    debit: Decimal
+    credit: Decimal
+    balance: Decimal
+
+
+class GeneralLedgerResponse(BaseModel):
+    account_id: str
+    fiscal_period_id: str | None
+    start_date: date | None
+    end_date: date | None
+    opening_balance: Decimal
+    closing_balance: Decimal
+    movements: list[GeneralLedgerRow]
