@@ -11,7 +11,7 @@ Financial Calculation Kernel
       +-- Decimal arithmetic boundary
       +-- status propagation
       +-- provenance
-      +-- execution context
+      +-- execution context validation
       |
       +-- Accounting Calculation Engine
       +-- Finance Calculation Engine
@@ -34,6 +34,12 @@ The profitability formula slice is intentionally small. It must be connected to 
 
 Only capabilities proven necessary by that vertical slice should be promoted into the kernel.
 
+## Execution context integrity
+
+Every calculation execution has an immutable `CalculationContext` containing at least organization and period boundaries, with optional currency and analytical dimension. Before any DAG node executes, the kernel verifies that every supplied input result belongs to the same organization, period and analytical dimension context as the execution context.
+
+This is a hard boundary, not an informational warning. A cross-organization or cross-period result is rejected instead of being combined with otherwise valid amounts. This prevents a valid number from one tenant, period or analytical slice from contaminating another calculation. The kernel does not silently coerce or transform the mismatched input.
+
 ## Accounting reporting boundary
 
 The accounting read side derives reporting exclusively from immutable `LedgerPosting` rows. The reporting endpoints support three explicit filters:
@@ -50,15 +56,9 @@ For an account movement report, a partial range now exposes an explicit `opening
 
 ## Posting reconciliation control
 
-The accounting read side also exposes a reconciliation control between non-draft journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports:
+The accounting read side also exposes a reconciliation control between non-draft journal lines and immutable ledger postings. For a selected organization and optional period/date scope, it reports missing postings, orphan postings and postings whose account, debit, credit or fiscal-period identity differs from the journal line. `is_reconciled` is true only when all discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction.
 
-- expected non-draft journal-line count;
-- actual ledger-posting count;
-- missing postings;
-- orphan postings;
-- postings whose account, debit, credit or fiscal-period identity differs from the journal line.
-
-`is_reconciled` is true only when all three discrepancy sets are empty. This is a detection control: it does not mutate either side or manufacture a correction. A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
+A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
 
 ## Calculation status semantics
 
@@ -161,7 +161,8 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 8. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
 9. The accounting ledger remains the source of truth for posted accounting state.
 10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
-11. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
+11. Calculation inputs must match the execution organization's period and analytical dimension context.
+12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 
 ## Implementation order
 
@@ -169,11 +170,12 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 2. Prove the minimal calculation kernel with a real profitability/P&L vertical slice.
 3. Make the posted-ledger reporting surface explicitly period/date scoped and regression-test its query boundary.
 4. Add ledger-to-journal reconciliation controls and feed reconciliation state into calculation readiness.
-5. Move only the abstractions required by that vertical slice into the shared kernel.
-6. Consolidate existing profitability, KPI and variance work around the proven contracts.
-7. Extend the Finance engine with working capital, liquidity and forecasting calculations.
-8. Build Banking and Tax engines against real, validated source contracts.
-9. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
+5. Enforce calculation context integrity across tenant, period and analytical dimensions.
+6. Move only the abstractions required by that vertical slice into the shared kernel.
+7. Consolidate existing profitability, KPI and variance work around the proven contracts.
+8. Extend the Finance engine with working capital, liquidity and forecasting calculations.
+9. Build Banking and Tax engines against real, validated source contracts.
+10. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
 
 ## Existing work to consolidate
 
