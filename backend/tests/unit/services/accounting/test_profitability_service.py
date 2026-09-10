@@ -14,6 +14,7 @@ from app.domain.calculation.ledger_profitability import (
 from app.services.accounting.profitability_service import (
     LedgerProfitabilityIntegrityError,
     LedgerProfitabilityService,
+    ProfitabilityMappingAmbiguityError,
 )
 
 
@@ -146,6 +147,24 @@ async def test_calculate_from_persisted_mappings_scopes_lookup_to_context() -> N
     assert result["REVENUE"].status is CalculationStatus.NOT_READY
     assert result["REVENUE"].value is None
     ledger.reconcile_postings.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_calculate_from_persisted_mappings_refuses_temporal_ambiguity() -> None:
+    ledger = AsyncMock()
+    mappings = AsyncMock()
+    mappings.list_for_period.return_value = [
+        SimpleNamespace(account_id="account-1", category="REVENUE"),
+        SimpleNamespace(account_id="account-1", category="OTHER_INCOME"),
+    ]
+    service = LedgerProfitabilityService(ledger, mappings)
+    context = profitability_context("org-1", date(2026, 1, 1), date(2026, 12, 31))
+
+    with pytest.raises(ProfitabilityMappingAmbiguityError, match="account-1"):
+        await service.calculate_from_persisted_mappings(context)
+
+    ledger.reconcile_postings.assert_not_awaited()
+    ledger.profitability_facts.assert_not_awaited()
 
 
 def test_rules_from_persisted_mappings_preserves_explicit_classification() -> None:
