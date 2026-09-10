@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +19,7 @@ class LedgerService:
             select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
         )
         if account_exists is None:
-            return Decimal("0.00")
+            raise HTTPException(status_code=404, detail="Account not found")
         result = await self.db.execute(
             select(
                 func.coalesce(func.sum(LedgerPosting.debit), 0)
@@ -60,6 +61,11 @@ class LedgerService:
         ]
 
     async def general_ledger(self, organization_id: str, account_id: str) -> list[dict[str, object]]:
+        account_exists = await self.db.scalar(
+            select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
+        )
+        if account_exists is None:
+            raise HTTPException(status_code=404, detail="Account not found")
         result = await self.db.execute(
             select(LedgerPosting)
             .where(
