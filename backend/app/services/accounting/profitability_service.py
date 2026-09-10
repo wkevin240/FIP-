@@ -6,6 +6,7 @@ from app.domain.calculation.ledger_profitability import (
     LedgerProfitabilityInputResolver,
     ProfitabilityAccountRule,
 )
+from app.models.accounting.profitability_mapping import ProfitabilityAccountMapping
 from app.repositories.accounting.profitability_mapping_repository import ProfitabilityMappingRepository
 from app.services.accounting.ledger_service import LedgerService
 
@@ -32,7 +33,9 @@ class LedgerProfitabilityService:
         self.mapping_repository = mapping_repository
 
     @staticmethod
-    def _rules_from_mappings(mappings: Iterable[object]) -> tuple[ProfitabilityAccountRule, ...]:
+    def _rules_from_mappings(
+        mappings: Iterable[ProfitabilityAccountMapping],
+    ) -> tuple[ProfitabilityAccountRule, ...]:
         return tuple(
             ProfitabilityAccountRule(
                 account_id=mapping.account_id,
