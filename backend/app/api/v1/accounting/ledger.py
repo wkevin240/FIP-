@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.accounting.ledger import TrialBalanceRow
+from app.schemas.accounting.ledger import GeneralLedgerResponse, TrialBalanceRow
 from app.services.accounting.ledger_service import LedgerService
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def account_balance(
     }
 
 
-@router.get("/accounts/{account_id}/movements")
+@router.get("/accounts/{account_id}/movements", response_model=GeneralLedgerResponse)
 async def account_movements(
     account_id: str,
     fiscal_period_id: str | None = Query(default=None),
