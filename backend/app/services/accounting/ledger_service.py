@@ -151,19 +151,19 @@ class LedgerService:
 
         filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
         opening_balance = Decimal("0.00")
-        if start_date is not None:
-            opening_filters: list[object] = [
-                LedgerPosting.organization_id == organization_id,
-                LedgerPosting.account_id == account_id,
-                LedgerPosting.posting_date < start_date,
-            ]
-            if fiscal_period_id is not None:
-                opening_filters.append(LedgerPosting.fiscal_period_id == fiscal_period_id)
+        opening_date = start_date
+        if opening_date is None and period is not None:
+            opening_date = period.start_date
+        if opening_date is not None:
             opening_result = await self.db.execute(
                 select(
                     func.coalesce(func.sum(LedgerPosting.debit), 0)
                     - func.coalesce(func.sum(LedgerPosting.credit), 0)
-                ).where(*opening_filters)
+                ).where(
+                    LedgerPosting.organization_id == organization_id,
+                    LedgerPosting.account_id == account_id,
+                    LedgerPosting.posting_date < opening_date,
+                )
             )
             opening_balance = Decimal(str(opening_result.scalar_one()))
 
