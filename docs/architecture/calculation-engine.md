@@ -34,6 +34,18 @@ The profitability formula slice is intentionally small. It must be connected to 
 
 Only capabilities proven necessary by that vertical slice should be promoted into the kernel.
 
+## Accounting reporting boundary
+
+The accounting read side derives reporting exclusively from immutable `LedgerPosting` rows. The reporting endpoints support three explicit filters:
+
+- `fiscal_period_id` for an organization-owned fiscal period;
+- `start_date` as an inclusive posting-date lower bound;
+- `end_date` as an inclusive posting-date upper bound.
+
+A supplied fiscal-period identifier is tenant-validated before it is used. Date ranges reject `start_date > end_date`. Without filters, the existing all-postings behavior is preserved for backward compatibility.
+
+This layer does not reconstruct draft journal entries and does not silently include unposted state. Account balances, trial balance totals and account movements therefore remain projections of the posted ledger source of truth. The general-ledger running balance is calculated over the selected result set; callers that need a cumulative closing balance should request the corresponding complete period/range rather than interpreting a partial-range running balance as an opening balance.
+
 ## Calculation status semantics
 
 - `READY`: all dependencies are valid and the calculation produced a value.
@@ -45,7 +57,7 @@ For a calculated node, dependency status is monotonic and uses the worst depende
 
 `ERROR > NOT_READY > INCOMPLETE > READY`
 
-Therefore an `ERROR` at a leaf must remain `ERROR` through every downstream node. It must never be downgraded to `NOT_READY` or `READY`. Likewise, `NOT_READY` must not become zero or `READY` merely because another dependency is available.
+Therefore an `ERROR` at a leaf must remain `ERROR` through every downstream node. Likewise, `NOT_READY` must not become zero or `READY` merely because another dependency is available.
 
 A status must never be silently converted to zero. User-facing alerts and operational monitoring must distinguish missing data (`NOT_READY`) from a broken calculation (`ERROR`).
 
@@ -141,11 +153,12 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 
 1. Harden the accounting kernel and fiscal closing controls.
 2. Prove the minimal calculation kernel with a real profitability/P&L vertical slice.
-3. Move only the abstractions required by that vertical slice into the shared kernel.
-4. Consolidate existing profitability, KPI and variance work around the proven contracts.
-5. Extend the Finance engine with working capital, liquidity and forecasting calculations.
-6. Build Banking and Tax engines against real, validated source contracts.
-7. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
+3. Make the posted-ledger reporting surface explicitly period/date scoped and regression-test its query boundary.
+4. Move only the abstractions required by that vertical slice into the shared kernel.
+5. Consolidate existing profitability, KPI and variance work around the proven contracts.
+6. Extend the Finance engine with working capital, liquidity and forecasting calculations.
+7. Build Banking and Tax engines against real, validated source contracts.
+8. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
 
 ## Existing work to consolidate
 
