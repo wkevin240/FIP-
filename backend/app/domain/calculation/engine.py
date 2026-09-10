@@ -31,7 +31,7 @@ class CalculationGraphError(ValueError):
 
 
 class CalculationContextError(ValueError):
-    """Raised when inputs do not belong to the execution context."""
+    """Raised when inputs or definitions do not belong to the execution context."""
 
 
 class CalculationEngine:
@@ -132,6 +132,11 @@ class CalculationEngine:
                     f"input {code} uses rule version {source_context.rule_version!r}, "
                     f"expected {context.rule_version!r}"
                 )
+            if result.definition.rule_version != context.rule_version:
+                raise CalculationContextError(
+                    f"input {code} uses calculation definition rule version "
+                    f"{result.definition.rule_version!r}, expected {context.rule_version!r}"
+                )
 
     def execute(
         self,
@@ -139,6 +144,12 @@ class CalculationEngine:
         inputs: Mapping[str, CalculationResult],
     ) -> dict[str, CalculationResult]:
         self._validate_context(context, inputs)
+        for node in self._nodes.values():
+            if node.definition.rule_version != context.rule_version:
+                raise CalculationContextError(
+                    f"calculation {node.definition.code} uses rule version "
+                    f"{node.definition.rule_version!r}, expected {context.rule_version!r}"
+                )
         missing_external = self._external_input_codes - inputs.keys()
         if missing_external:
             raise CalculationGraphError(
