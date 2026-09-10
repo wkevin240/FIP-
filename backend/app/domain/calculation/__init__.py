@@ -1,3 +1,7 @@
+from app.domain.calculation.accounting_profitability import (
+    ProfitabilityCalculationEngine,
+    profitability_context,
+)
 from app.domain.calculation.contracts import (
     CalculationContext,
     CalculationDefinition,
@@ -19,5 +23,7 @@ __all__ = [
     "CalculationNode",
     "CalculationResult",
     "CalculationStatus",
+    "ProfitabilityCalculationEngine",
     "SourceReference",
+    "profitability_context",
 ]
