@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -110,3 +111,52 @@ async def test_calculate_does_not_bypass_missing_source_status() -> None:
     assert result["COGS"].status is CalculationStatus.NOT_READY
     assert result["GROSS_PROFIT"].status is CalculationStatus.NOT_READY
     assert result["GROSS_PROFIT"].value is None
+
+
+@pytest.mark.asyncio
+async def test_calculate_from_persisted_mappings_scopes_lookup_to_context() -> None:
+    ledger = AsyncMock()
+    ledger.reconcile_postings.return_value = {
+        "is_reconciled": True,
+        "missing_postings": [],
+        "orphan_postings": [],
+        "mismatched_postings": [],
+    }
+    ledger.profitability_facts.return_value = []
+    mappings = AsyncMock()
+    mappings.list_for_period.return_value = [
+        SimpleNamespace(account_id="account-1", category="REVENUE"),
+    ]
+    service = LedgerProfitabilityService(ledger, mappings)
+    context = profitability_context(
+        "org-7",
+        date(2026, 4, 1),
+        date(2026, 6, 30),
+        rule_version="2026.2",
+    )
+
+    result = await service.calculate_from_persisted_mappings(context, fiscal_period_id="period-7")
+
+    mappings.list_for_period.assert_awaited_once_with(
+        "org-7",
+        "2026.2",
+        date(2026, 4, 1),
+        date(2026, 6, 30),
+    )
+    assert result["REVENUE"].status is CalculationStatus.NOT_READY
+    assert result["REVENUE"].value is None
+    ledger.reconcile_postings.assert_awaited_once()
+
+
+def test_rules_from_persisted_mappings_preserves_explicit_classification() -> None:
+    mappings = [
+        SimpleNamespace(account_id="account-1", category="REVENUE"),
+        SimpleNamespace(account_id="account-2", category="COGS"),
+    ]
+
+    rules = LedgerProfitabilityService._rules_from_mappings(mappings)
+
+    assert rules == (
+        ProfitabilityAccountRule("account-1", "REVENUE"),
+        ProfitabilityAccountRule("account-2", "COGS"),
+    )
