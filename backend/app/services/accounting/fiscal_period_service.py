@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
-from app.core.enums.accounting import FiscalPeriodStatus
+from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
@@ -31,6 +31,8 @@ class FiscalPeriodService:
         )
         if fiscal_year is None:
             raise HTTPException(status_code=404, detail="Fiscal year not found")
+        if fiscal_year.status != FiscalYearStatus.OPEN:
+            raise HTTPException(status_code=409, detail="Fiscal periods can only be created in an open fiscal year")
         FiscalPeriodRules.validate_within_year(data.start_date, data.end_date, fiscal_year.start_date, fiscal_year.end_date)
 
         overlap = await self.session.scalar(
