@@ -13,7 +13,8 @@ from app.domain.calculation.ledger_profitability import (
 from app.services.accounting.profitability_service import LedgerProfitabilityService
 
 
-def test_calculate_uses_context_window_and_explicit_mapping() -> None:
+@pytest.mark.asyncio
+async def test_calculate_uses_context_window_and_explicit_mapping() -> None:
     ledger = AsyncMock()
     ledger.profitability_facts.return_value = [
         LedgerProfitabilityFact("p-revenue", "a-revenue", Decimal("0.00"), Decimal("150.00")),
@@ -34,7 +35,7 @@ def test_calculate_uses_context_window_and_explicit_mapping() -> None:
         ProfitabilityAccountRule("a-opex", "OPERATING_EXPENSE"),
     )
 
-    result = __import__("asyncio").run(service.calculate(context, rules, fiscal_period_id="period-1"))
+    result = await service.calculate(context, rules, fiscal_period_id="period-1")
 
     ledger.profitability_facts.assert_awaited_once_with(
         "org-1",
