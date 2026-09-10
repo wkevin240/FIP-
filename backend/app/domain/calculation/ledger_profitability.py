@@ -101,10 +101,12 @@ class LedgerProfitabilityInputResolver:
                 value=amounts[category],
                 sources=tuple(sources[category]),
                 metadata={
-                    "account_ids": sorted(
-                        account_id
-                        for account_id in matched_accounts
-                        if rules_by_account[account_id].category == category
+                    "account_ids": ",".join(
+                        sorted(
+                            account_id
+                            for account_id in matched_accounts
+                            if rules_by_account[account_id].category == category
+                        )
                     )
                 },
             )
