@@ -17,7 +17,7 @@ def context() -> CalculationContext:
         period_start=date(2026, 1, 1),
         period_end=date(2026, 12, 31),
         currency="XAF",
-        rule_version="1",
+        rule_version="7",
     )
 
 
@@ -39,6 +39,7 @@ def test_resolver_uses_explicit_mapping_and_preserves_posting_provenance() -> No
     assert result["REVENUE"].value == Decimal("150.00")
     assert result["REVENUE"].sources[0].record_id == "posting-revenue"
     assert result["REVENUE"].metadata["account_ids"] == "account-revenue"
+    assert result["REVENUE"].definition.rule_version == "7"
     assert result["COGS"].value == Decimal("60.00")
     assert result["OPERATING_EXPENSE"].value == Decimal("20.00")
     assert result["OTHER_INCOME"].status is CalculationStatus.NOT_READY
@@ -84,3 +85,19 @@ def test_unsupported_category_is_rejected() -> None:
             (),
             (ProfitabilityAccountRule("account-1", "UNKNOWN"),),
         )
+
+
+def test_ledger_fact_requires_identifiers_and_decimal_amounts() -> None:
+    with pytest.raises(ValueError, match="posting_id is required"):
+        LedgerProfitabilityFact("", "account-1", Decimal("1.00"), Decimal("0.00"))
+    with pytest.raises(ValueError, match="account_id is required"):
+        LedgerProfitabilityFact("posting-1", "", Decimal("1.00"), Decimal("0.00"))
+    with pytest.raises(TypeError, match="ledger amounts must use Decimal"):
+        LedgerProfitabilityFact("posting-1", "account-1", 1, Decimal("0.00"))
+
+
+def test_profitability_rule_requires_identifiers() -> None:
+    with pytest.raises(ValueError, match="account_id is required"):
+        ProfitabilityAccountRule("", "REVENUE")
+    with pytest.raises(ValueError, match="category is required"):
+        ProfitabilityAccountRule("account-1", "")
