@@ -6,6 +6,7 @@ from app.domain.calculation.ledger_profitability import (
     LedgerProfitabilityInputResolver,
     ProfitabilityAccountRule,
 )
+from app.repositories.accounting.profitability_mapping_repository import ProfitabilityMappingRepository
 from app.services.accounting.ledger_service import LedgerService
 
 
@@ -22,8 +23,23 @@ class LedgerProfitabilityService:
     responsible for deterministic formulas and status propagation.
     """
 
-    def __init__(self, ledger_service: LedgerService) -> None:
+    def __init__(
+        self,
+        ledger_service: LedgerService,
+        mapping_repository: ProfitabilityMappingRepository | None = None,
+    ) -> None:
         self.ledger_service = ledger_service
+        self.mapping_repository = mapping_repository
+
+    @staticmethod
+    def _rules_from_mappings(mappings: Iterable[object]) -> tuple[ProfitabilityAccountRule, ...]:
+        return tuple(
+            ProfitabilityAccountRule(
+                account_id=mapping.account_id,
+                category=mapping.category,
+            )
+            for mapping in mappings
+        )
 
     async def calculate(
         self,
@@ -61,3 +77,21 @@ class LedgerProfitabilityService:
         )
         inputs = LedgerProfitabilityInputResolver.resolve(context, facts, rules)
         return ProfitabilityCalculationEngine.calculate(context, inputs)
+
+    async def calculate_from_persisted_mappings(
+        self,
+        context: CalculationContext,
+        *,
+        fiscal_period_id: str | None = None,
+    ) -> dict[str, CalculationResult]:
+        """Calculate using only mappings persisted for this tenant and rule version."""
+        if self.mapping_repository is None:
+            raise RuntimeError("profitability mapping repository is required for persisted mappings")
+        mappings = await self.mapping_repository.list_for_period(
+            context.organization_id,
+            context.rule_version,
+            context.period_start,
+            context.period_end,
+        )
+        rules = self._rules_from_mappings(mappings)
+        return await self.calculate(context, rules, fiscal_period_id=fiscal_period_id)
