@@ -30,6 +30,10 @@ class CalculationGraphError(ValueError):
     """Raised when a calculation graph is structurally invalid."""
 
 
+class CalculationContextError(ValueError):
+    """Raised when inputs do not belong to the execution context."""
+
+
 class CalculationEngine:
     """Small deterministic DAG executor used by all FIP calculation branches.
 
@@ -70,11 +74,41 @@ class CalculationEngine:
         for code in self._nodes:
             visit(code)
 
+    @staticmethod
+    def _validate_context(
+        context: CalculationContext,
+        inputs: Mapping[str, CalculationResult],
+    ) -> None:
+        for code, result in inputs.items():
+            source_context = result.context
+            if source_context.organization_id != context.organization_id:
+                raise CalculationContextError(
+                    f"input {code} belongs to organization "
+                    f"{source_context.organization_id}, expected {context.organization_id}"
+                )
+            if (
+                source_context.period_start != context.period_start
+                or source_context.period_end != context.period_end
+            ):
+                raise CalculationContextError(
+                    f"input {code} belongs to period "
+                    f"{source_context.period_start}..{source_context.period_end}, "
+                    f"expected {context.period_start}..{context.period_end}"
+                )
+            if (
+                source_context.dimension_id != context.dimension_id
+                or source_context.dimension_value_id != context.dimension_value_id
+            ):
+                raise CalculationContextError(
+                    f"input {code} has an incompatible analytical dimension context"
+                )
+
     def execute(
         self,
         context: CalculationContext,
         inputs: Mapping[str, CalculationResult],
     ) -> dict[str, CalculationResult]:
+        self._validate_context(context, inputs)
         results = dict(inputs)
         for code in self._topological_order():
             if code in results:
