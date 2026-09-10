@@ -1,3 +1,4 @@
+import random
 from datetime import date
 from decimal import Decimal
 
@@ -58,10 +59,59 @@ def test_engine_resolves_dag_without_eval() -> None:
     assert results["OPERATING_INCOME"].value == Decimal("25000000")
 
 
-def test_not_ready_propagates_without_becoming_zero() -> None:
-    definition = CalculationDefinition(
-        code="REVENUE", formula="REVENUE"
+def test_error_propagates_through_three_dag_levels() -> None:
+    revenue = CalculationResult.error(
+        CalculationDefinition(code="REVENUE", formula="REVENUE"),
+        context(),
+        "Revenue source calculation failed",
     )
+    engine = CalculationEngine(
+        (
+            node("GROSS_PROFIT", ("REVENUE", "COGS"), lambda values: values[0] - values[1]),
+            node("OPERATING_INCOME", ("GROSS_PROFIT", "OPEX"), lambda values: values[0] - values[1]),
+            node(
+                "NET_INCOME",
+                ("OPERATING_INCOME", "OTHER"),
+                lambda values: values[0] + values[1],
+            ),
+        )
+    )
+
+    results = engine.execute(
+        context(),
+        {
+            "REVENUE": revenue,
+            "COGS": result("COGS", Decimal("10")),
+            "OPEX": result("OPEX", Decimal("5")),
+            "OTHER": result("OTHER", Decimal("1")),
+        },
+    )
+
+    assert results["GROSS_PROFIT"].status is CalculationStatus.ERROR
+    assert results["OPERATING_INCOME"].status is CalculationStatus.ERROR
+    assert results["NET_INCOME"].status is CalculationStatus.ERROR
+    assert results["NET_INCOME"].value is None
+
+
+def test_worst_dependency_status_is_error_even_when_another_dependency_is_not_ready() -> None:
+    error = CalculationResult.error(
+        CalculationDefinition(code="FAILED", formula="FAILED"), context(), "source failure"
+    )
+    not_ready = CalculationResult.not_ready(
+        CalculationDefinition(code="MISSING", formula="MISSING"), context(), "source missing"
+    )
+    engine = CalculationEngine(
+        (node("TOTAL", ("FAILED", "MISSING"), lambda values: values[0] + values[1]),)
+    )
+
+    output = engine.execute(context(), {"FAILED": error, "MISSING": not_ready})["TOTAL"]
+
+    assert output.status is CalculationStatus.ERROR
+    assert output.value is None
+
+
+def test_not_ready_propagates_without_becoming_zero() -> None:
+    definition = CalculationDefinition(code="REVENUE", formula="REVENUE")
     revenue = CalculationResult.not_ready(
         definition, context(), "Revenue source is unavailable"
     )
@@ -79,7 +129,7 @@ def test_not_ready_propagates_without_becoming_zero() -> None:
     assert "Revenue source is unavailable" in (output.reason or "")
 
 
-def test_division_by_zero_is_error_not_not_ready() -> None:
+def test_division_by_zero_is_error_not_not_ready_and_does_not_crash() -> None:
     engine = CalculationEngine(
         (node("MARGIN", ("PROFIT", "REVENUE"), lambda values: values[0] / values[1]),)
     )
@@ -91,6 +141,16 @@ def test_division_by_zero_is_error_not_not_ready() -> None:
     assert output.status is CalculationStatus.ERROR
     assert output.value is None
     assert "DivisionByZero" in (output.reason or "")
+
+
+def test_randomly_generated_double_entry_cases_balance() -> None:
+    rng = random.Random(20260910)
+    for _ in range(1000):
+        amounts = [Decimal(rng.randint(1, 10_000)) / Decimal("100") for _ in range(rng.randint(1, 20))]
+        total = sum(amounts, Decimal("0.00"))
+        debits = amounts
+        credits = [total]
+        assert sum(debits, Decimal("0.00")) == sum(credits, Decimal("0.00"))
 
 
 def test_unknown_dependency_is_rejected() -> None:
