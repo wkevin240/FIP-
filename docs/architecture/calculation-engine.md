@@ -11,7 +11,7 @@ Financial Calculation Kernel
       +-- Decimal arithmetic boundary
       +-- status propagation
       +-- provenance
-      +-- execution context validation
+      +-- execution context
       |
       +-- Accounting Calculation Engine
       +-- Finance Calculation Engine
@@ -52,7 +52,9 @@ A supplied fiscal-period identifier is tenant-validated before it is used. When 
 
 This layer does not reconstruct draft journal entries and does not silently include unposted state. Account balances and trial balance totals remain projections of the selected posted movements.
 
-For an account movement report, a partial range now exposes an explicit `opening_balance` computed from postings before `start_date`, then applies only movements inside the requested range. `closing_balance` is the resulting cumulative balance. This prevents a partial-range running balance from being mistaken for an opening balance. When no `start_date` is supplied, the opening balance is zero because the selected result begins at the first available posting under the supplied filters.
+For an account movement report, the selected range determines the movements displayed. When `start_date` is supplied, `opening_balance` is calculated from all prior posted movements for the account in the organization, not merely from the selected fiscal period. When only a fiscal period is supplied, the opening balance is calculated from postings before that period's start date, allowing balances to carry forward across fiscal periods. The selected range movements are then applied to derive `closing_balance`. When neither a start date nor fiscal period is supplied, opening balance is zero because the report starts at the first available posting in its scope.
+
+This distinction keeps a fiscal-period grand ledger faithful to the account's carried-forward balance while preserving the period/date filter for the displayed movements.
 
 ## Posting reconciliation control
 
@@ -161,21 +163,18 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 8. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
 9. The accounting ledger remains the source of truth for posted accounting state.
 10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
-11. Calculation inputs must match the execution organization's period and analytical dimension context.
-12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
+11. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 
 ## Implementation order
 
 1. Harden the accounting kernel and fiscal closing controls.
 2. Prove the minimal calculation kernel with a real profitability/P&L vertical slice.
 3. Make the posted-ledger reporting surface explicitly period/date scoped and regression-test its query boundary.
-4. Add ledger-to-journal reconciliation controls and feed reconciliation state into calculation readiness.
-5. Enforce calculation context integrity across tenant, period and analytical dimensions.
-6. Move only the abstractions required by that vertical slice into the shared kernel.
-7. Consolidate existing profitability, KPI and variance work around the proven contracts.
-8. Extend the Finance engine with working capital, liquidity and forecasting calculations.
-9. Build Banking and Tax engines against real, validated source contracts.
-10. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
+4. Move only the abstractions required by that vertical slice into the shared kernel.
+5. Consolidate existing profitability, KPI and variance work around the proven contracts.
+6. Extend the Finance engine with working capital, liquidity and forecasting calculations.
+7. Build Banking and Tax engines against real, validated source contracts.
+8. Put AI analysis above verified calculation results; AI must not become the source of financial truth.
 
 ## Existing work to consolidate
 
