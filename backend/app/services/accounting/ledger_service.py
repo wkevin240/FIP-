@@ -49,6 +49,15 @@ class LedgerService:
             raise HTTPException(status_code=422, detail="end_date must fall within the selected fiscal period")
 
     @staticmethod
+    def _opening_date(period: FiscalPeriod | None, start_date: date | None) -> date | None:
+        """Return the first date whose prior postings form the opening balance."""
+        if start_date is not None:
+            return start_date
+        if period is not None:
+            return period.start_date
+        return None
+
+    @staticmethod
     def _posting_filters(
         organization_id: str,
         fiscal_period_id: str | None = None,
@@ -151,9 +160,7 @@ class LedgerService:
 
         filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
         opening_balance = Decimal("0.00")
-        opening_date = start_date
-        if opening_date is None and period is not None:
-            opening_date = period.start_date
+        opening_date = self._opening_date(period, start_date)
         if opening_date is not None:
             opening_result = await self.db.execute(
                 select(
