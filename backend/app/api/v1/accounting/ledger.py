@@ -5,9 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
+from app.domain.accounting.ledger.trial_balance_control import trial_balance_control
 from app.schemas.accounting.ledger import (
     GeneralLedgerResponse,
     PostingReconciliationResponse,
+    TrialBalanceControlResponse,
     TrialBalanceRow,
 )
 from app.services.accounting.ledger_service import LedgerService
@@ -33,6 +35,29 @@ async def trial_balance(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.get("/trial-balance/control", response_model=TrialBalanceControlResponse)
+async def trial_balance_control_report(
+    fiscal_period_id: str | None = Query(default=None),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    tenant: CurrentTenant = Depends(require_permission("ledger:read")),
+    service: LedgerService = Depends(get_ledger_service),
+):
+    rows = await service.trial_balance(
+        tenant.organization_id,
+        fiscal_period_id=fiscal_period_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return {
+        "organization_id": tenant.organization_id,
+        "fiscal_period_id": fiscal_period_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        **trial_balance_control(rows),
+    }
 
 
 @router.get("/accounts/{account_id}/balance")
