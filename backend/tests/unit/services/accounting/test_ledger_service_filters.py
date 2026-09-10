@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 from fastapi import HTTPException
 
+from app.models.accounting.journal_entry import JournalEntryStatus
 from app.services.accounting.ledger_service import LedgerService
 
 
@@ -36,3 +37,17 @@ def test_invalid_date_range_is_rejected() -> None:
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == "start_date must be on or before end_date"
+
+
+def test_reconciliation_scope_accepts_only_posted_entries() -> None:
+    filters = LedgerService._journal_reconciliation_filters(
+        "org-1",
+        fiscal_period_id="period-1",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 3, 31),
+    )
+
+    rendered = {str(condition) for condition in filters}
+    assert len(filters) == 4
+    assert any("journal_entries.status" in condition for condition in rendered)
+    assert JournalEntryStatus.POSTED.value == "POSTED"
