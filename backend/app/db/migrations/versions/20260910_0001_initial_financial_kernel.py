@@ -21,11 +21,6 @@ def upgrade() -> None:
     fiscal_period_status = sa.Enum("OPEN", "CLOSING", "CLOSED", "LOCKED", name="fiscalperiodstatus")
     journal_entry_status = sa.Enum("DRAFT", "POSTED", "REVERSED", name="journalentrystatus")
 
-    bind = op.get_bind()
-    fiscal_year_status.create(bind, checkfirst=True)
-    fiscal_period_status.create(bind, checkfirst=True)
-    journal_entry_status.create(bind, checkfirst=True)
-
     op.create_table(
         "organizations",
         sa.Column("id", sa.String(), nullable=False),
