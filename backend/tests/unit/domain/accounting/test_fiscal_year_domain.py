@@ -1,14 +1,18 @@
 import pytest
 from datetime import date
-from app.domain.accounting.fiscal_year.rules import FiscalYearRules, FiscalPeriodRules
+
+from app.core.enums.accounting import FiscalPeriodStatus
+from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules, FiscalYearRules
+
 
 def test_fiscal_year_valid_dates():
-    # Should not raise exception
     FiscalYearRules.validate_dates(date(2025, 1, 1), date(2025, 12, 31))
+
 
 def test_fiscal_year_invalid_dates():
     with pytest.raises(ValueError, match="strictly after"):
         FiscalYearRules.validate_dates(date(2025, 12, 31), date(2025, 1, 1))
+
 
 def test_fiscal_year_overlap():
     existing = [
@@ -17,15 +21,33 @@ def test_fiscal_year_overlap():
     with pytest.raises(ValueError, match="overlap"):
         FiscalYearRules.check_overlap(date(2024, 6, 1), date(2025, 5, 31), existing)
 
+
+def test_fiscal_year_cannot_close_without_periods():
+    with pytest.raises(ValueError, match="without fiscal periods"):
+        FiscalYearRules.validate_periods_closed([])
+
+
+def test_fiscal_year_requires_all_periods_closed():
+    with pytest.raises(ValueError, match="All fiscal periods must be closed"):
+        FiscalYearRules.validate_periods_closed(
+            [FiscalPeriodStatus.CLOSED, FiscalPeriodStatus.OPEN]
+        )
+
+
+def test_fiscal_year_accepts_only_closed_periods():
+    FiscalYearRules.validate_periods_closed(
+        [FiscalPeriodStatus.CLOSED, FiscalPeriodStatus.CLOSED]
+    )
+
+
 def test_fiscal_period_within_year():
-    # Valid
     FiscalPeriodRules.validate_within_year(
         date(2025, 1, 1), date(2025, 1, 31),
         date(2025, 1, 1), date(2025, 12, 31)
     )
-    
+
+
 def test_fiscal_period_outside_year():
-    # Invalid
     with pytest.raises(ValueError, match="within the fiscal year"):
         FiscalPeriodRules.validate_within_year(
             date(2024, 12, 1), date(2024, 12, 31),
