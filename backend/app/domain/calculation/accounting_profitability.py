@@ -76,7 +76,9 @@ class ProfitabilityCalculationEngine:
                 lambda values: values[0] + values[1] - values[2],
             ),
         )
-        results = CalculationEngine(nodes).execute(context, inputs)
+        results = CalculationEngine(
+            nodes, external_input_codes=CATEGORY_CODES
+        ).execute(context, inputs)
         revenue = inputs["REVENUE"]
         derived = {
             code: results[code]
