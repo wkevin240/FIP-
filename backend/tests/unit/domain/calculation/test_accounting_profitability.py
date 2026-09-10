@@ -11,13 +11,26 @@ from app.domain.calculation.accounting_profitability import (
 from app.domain.calculation.contracts import CalculationStatus, SourceReference
 
 
-def context():
-    return profitability_context("org-a", date(2026, 1, 1), date(2026, 1, 31), currency="XAF")
+def context(*, rule_version: str = "1"):
+    return profitability_context(
+        "org-a",
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        currency="XAF",
+        rule_version=rule_version,
+    )
 
 
-def source(code: str, value: Decimal | None, reason: str | None = None):
+def source(
+    code: str,
+    value: Decimal | None,
+    reason: str | None = None,
+    *,
+    rule_version: str = "1",
+):
+    source_context = context(rule_version=rule_version)
     return ProfitabilityCalculationEngine.source_result(
-        context(),
+        source_context,
         code,
         value,
         reason=reason,
@@ -50,6 +63,21 @@ def test_profitability_dag_calculates_income_statement_from_resolved_facts():
         "line-other_income",
         "line-other_expense",
     }
+
+
+def test_non_default_rule_version_is_bound_to_every_calculation_definition():
+    execution_context = context(rule_version="2026.1")
+    inputs = {
+        code: source(code, Decimal("1.00"), rule_version="2026.1")
+        for code in CATEGORY_CODES
+    }
+
+    results = ProfitabilityCalculationEngine.calculate(execution_context, inputs)
+
+    assert all(
+        result.definition.rule_version == "2026.1" for result in results.values()
+    )
+    assert all(result.context.rule_version == "2026.1" for result in results.values())
 
 
 def test_missing_operating_expense_blocks_dependent_metrics_without_zero_substitution():
