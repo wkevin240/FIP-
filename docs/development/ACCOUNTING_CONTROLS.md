@@ -28,6 +28,8 @@ Financial commands carry an idempotency key scoped to the organisation. Reusing 
 
 A posted entry is never edited to undo its financial effect. The reversal command creates a new journal entry with the debit and credit sides swapped, posts that entry, and links it to the original through `reversal_of_id`.
 
+Reversal creation, reversal ledger posting and marking the original entry `REVERSED` are committed as one database transaction. If a database integrity error occurs, the transaction is rolled back rather than leaving a posted reversal without the corresponding lifecycle update on the original entry.
+
 Only one reversal is allowed for an original entry. A reversal requires an open fiscal period and a date inside that period. The original entry is then marked `REVERSED` for lifecycle visibility; its original ledger postings remain intact.
 
 The current implementation intentionally does not pretend that reversal approval, segregation of duties, durable audit events, or cross-period reversal policy are complete. Those are separate control layers still required for production accounting operations.
