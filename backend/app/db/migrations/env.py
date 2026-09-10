@@ -18,6 +18,7 @@ from app.models import (
     Organization,
     OrganizationMembership,
     Permission,
+    ProfitabilityAccountMapping,
     Role,
     User,
 )
