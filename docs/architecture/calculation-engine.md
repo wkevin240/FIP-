@@ -62,6 +62,14 @@ The accounting read side also exposes a reconciliation control between non-draft
 
 A reconciliation failure must remain visible to downstream reporting and calculation consumers rather than being silently treated as balanced.
 
+## Profitability vertical slice
+
+`ProfitabilityCalculationEngine` now expresses Gross Profit, Operating Income, Net Income, Gross Margin, Operating Margin and Net Margin as a single kernel DAG. Category facts (`REVENUE`, `COGS`, `OPERATING_EXPENSE`, `OTHER_INCOME`, `OTHER_EXPENSE`) are explicit external inputs; all six derived metrics are calculation nodes. Monetary outputs are quantized to cents and ratios use the same deterministic Decimal operator boundary as the kernel.
+
+A zero revenue denominator is therefore an execution `ERROR` rather than a synthetic zero or a missing-data substitution. If an upstream profitability fact is `NOT_READY` or `ERROR`, the corresponding downstream metrics inherit that status through normal DAG propagation. This keeps the business engine aligned with the kernel's status contract instead of maintaining a parallel status implementation.
+
+The engine still deliberately does not access the database or invent account mappings. The integration step is to adapt the existing posted-ledger extraction into these external inputs.
+
 ## Calculation status semantics
 
 - `READY`: all dependencies are valid and the calculation produced a value.
