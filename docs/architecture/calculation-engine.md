@@ -30,6 +30,8 @@ The kernel must not become a multi-month platform project detached from business
 5. Source provenance and an execution trace sufficient to reproduce the result.
 6. Tests against real repository schemas and PostgreSQL fixtures where integration coverage exists.
 
+The profitability formula slice is now implemented as `ProfitabilityCalculationEngine`. It consumes already-resolved category facts and computes Gross Profit, Operating Income, Net Income and margins through the shared DAG. It deliberately does **not** access the database or invent account mappings. The next integration step is to adapt the existing profitability service's posted-ledger query into these kernel inputs, rather than maintaining a second data-access implementation.
+
 Only capabilities proven necessary by that vertical slice should be promoted into the kernel.
 
 ## Calculation status semantics
@@ -37,7 +39,7 @@ Only capabilities proven necessary by that vertical slice should be promoted int
 - `READY`: all dependencies are valid and the calculation produced a value.
 - `NOT_READY`: a required business input is unavailable or not configured. This is a data/readiness condition, not a computational failure.
 - `INCOMPLETE`: the calculation cannot be considered complete because required source coverage or reconciliation is incomplete.
-- `ERROR`: the inputs were otherwise ready, but execution failed, for example division by zero or an invalid operator result.
+- `ERROR`: the inputs were otherwise ready, but execution failed, for example an invalid operator result. A business engine may intentionally classify a known business condition such as a zero ratio denominator as `NOT_READY` instead of allowing it to become an arithmetic error.
 
 A status must never be silently converted to zero. In particular, `NOT_READY` must propagate as `NOT_READY`, while an execution failure must remain `ERROR` so user-facing alerts and operational monitoring can distinguish missing data from a broken calculation.
 
@@ -63,7 +65,7 @@ Consumes validated taxable facts and versioned tax rules. Owns tax bases, liabil
 
 Jurisdiction is **not a single interchangeable attribute across all engines**.
 
-Accounting rules can reference a reporting framework such as `OHADA_SYSCOHADA`, `IFRS`, or a sector-specific framework, with an applicable scope and effective version. The official OHADA AUDCIF incorporates the revised SYSCOHADA and establishes the accounting rules, chart of accounts and financial reporting framework for the OHADA States. citeturn0search0
+Accounting rules can reference a reporting framework such as `OHADA_SYSCOHADA`, `IFRS`, or a sector-specific framework, with an applicable scope and effective version. The official OHADA AUDCIF incorporates the revised SYSCOHADA and establishes the accounting rules, chart of accounts and financial reporting framework for the OHADA States.
 
 Tax rules require a separate legal scope because taxation remains tied to national legislation and administration. Therefore the Tax engine must model at least:
 
@@ -79,7 +81,7 @@ TaxRuleScope
 └── source_provenance
 ```
 
-The calculation kernel should carry only a neutral `rule_scope_id` or equivalent reference. It must not assume that `OHADA` is a sufficient tax jurisdiction. OHADA currently has 17 Member States, so country-level tax scoping is mandatory for a multi-country product. citeturn0search8
+The calculation kernel should carry only a neutral `rule_scope_id` or equivalent reference. It must not assume that `OHADA` is a sufficient tax jurisdiction.
 
 ## Non-negotiable invariants
 
