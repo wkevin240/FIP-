@@ -80,7 +80,7 @@ def test_zero_revenue_propagates_as_error_through_margin_dag():
     assert results["NET_INCOME"].value == Decimal("0.00")
     assert results["NET_MARGIN"].status is CalculationStatus.ERROR
     assert results["NET_MARGIN"].value is None
-    assert "DivisionByZero" in (results["NET_MARGIN"].reason or "")
+    assert "DivisionUndefined" in (results["NET_MARGIN"].reason or "")
 
 
 def test_unknown_profitability_input_is_rejected():
