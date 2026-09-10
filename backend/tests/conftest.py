@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -16,13 +14,6 @@ TestingSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(scope="function")
