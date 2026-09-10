@@ -10,9 +10,10 @@ from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
 from app.models.accounting.ledger_posting import LedgerPosting
+from app.models.accounting.profitability_mapping import ProfitabilityAccountMapping
 
 __all__ = [
     "Organization", "User", "OrganizationMembership", "Role", "Permission",
     "Account", "FiscalYear", "FiscalPeriod", "JournalEntry", "JournalEntryLine",
-    "LedgerPosting",
+    "LedgerPosting", "ProfitabilityAccountMapping",
 ]
