@@ -39,6 +39,8 @@ def test_profitability_dag_calculates_income_statement_from_resolved_facts():
     assert results["GROSS_PROFIT"].value == Decimal("600.01")
     assert results["OPERATING_INCOME"].value == Decimal("500.00")
     assert results["NET_INCOME"].value == Decimal("520.00")
+    assert results["GROSS_MARGIN"].value == Decimal("0.60")
+    assert results["OPERATING_MARGIN"].value == Decimal("0.50")
     assert results["NET_MARGIN"].value == Decimal("0.52")
     assert results["NET_INCOME"].status is CalculationStatus.READY
     assert {source.record_id for source in results["NET_INCOME"].sources} == {
@@ -68,7 +70,7 @@ def test_missing_operating_expense_blocks_dependent_metrics_without_zero_substit
     assert results["NET_MARGIN"].status is CalculationStatus.NOT_READY
 
 
-def test_zero_revenue_makes_margin_not_ready_not_error():
+def test_zero_revenue_propagates_as_error_through_margin_dag():
     inputs = {
         code: source(code, Decimal("0.00"))
         for code in CATEGORY_CODES
@@ -76,8 +78,9 @@ def test_zero_revenue_makes_margin_not_ready_not_error():
     results = ProfitabilityCalculationEngine.calculate(context(), inputs)
 
     assert results["NET_INCOME"].value == Decimal("0.00")
-    assert results["NET_MARGIN"].status is CalculationStatus.NOT_READY
-    assert results["NET_MARGIN"].reason == "Revenue is zero; ratio denominator is zero"
+    assert results["NET_MARGIN"].status is CalculationStatus.ERROR
+    assert results["NET_MARGIN"].value is None
+    assert "DivisionByZero" in (results["NET_MARGIN"].reason or "")
 
 
 def test_unknown_profitability_input_is_rejected():
