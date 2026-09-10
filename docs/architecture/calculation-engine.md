@@ -36,9 +36,9 @@ Only capabilities proven necessary by that vertical slice should be promoted int
 
 ## Execution context integrity
 
-Every calculation execution has an immutable `CalculationContext` containing organization, period boundaries, rule version, and optional currency and analytical dimension. Before any DAG node executes, the kernel verifies that every supplied input result belongs to the same organization, period, analytical dimension, currency and rule-version context as the execution context.
+Every calculation execution has an immutable `CalculationContext` containing organization, period boundaries, rule version, and optional currency and analytical dimension. Before any DAG node executes, the kernel verifies that every supplied input result belongs to the same organization, period, analytical dimension, currency and rule-version context as the execution context. It also requires each input's calculation definition and every executable node definition to use the same rule version as the execution context.
 
-This is a hard boundary, not an informational warning. A cross-organization, cross-period, cross-currency, cross-rule-version or cross-analytical-slice result is rejected instead of being combined with otherwise valid amounts. This prevents a valid number from one tenant, accounting context or valuation basis from contaminating another calculation. The kernel does not silently coerce or transform the mismatched input.
+This is a hard boundary, not an informational warning. A cross-organization, cross-period, cross-currency, cross-rule-version or cross-analytical-slice result is rejected instead of being combined with otherwise valid amounts. A calculation definition from another rule version is rejected as well. The kernel does not silently coerce or transform the mismatched input or execute a node under an unrelated rule version.
 
 ## Accounting reporting boundary
 
@@ -171,7 +171,7 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 8. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
 9. The accounting ledger remains the source of truth for posted accounting state.
 10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
-11. Currency and rule-version context must match before financial results are combined.
+11. Currency and rule-version context must match before financial results are combined or executed.
 12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 
 ## Implementation order
