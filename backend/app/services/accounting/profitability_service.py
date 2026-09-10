@@ -15,6 +15,17 @@ class LedgerProfitabilityIntegrityError(RuntimeError):
     """Raised when the selected ledger slice cannot be trusted for P&L calculation."""
 
 
+class ProfitabilityMappingAmbiguityError(RuntimeError):
+    """Raised when more than one effective mapping intersects the calculation window."""
+
+    def __init__(self, account_ids: Iterable[str]) -> None:
+        self.account_ids = tuple(sorted(set(account_ids)))
+        super().__init__(
+            "profitability mapping is ambiguous for calculation period; "
+            f"multiple effective mappings intersect account(s): {', '.join(self.account_ids)}"
+        )
+
+
 class LedgerProfitabilityService:
     """Compose the authoritative ledger adapter with the deterministic P&L kernel.
 
@@ -43,6 +54,24 @@ class LedgerProfitabilityService:
             )
             for mapping in mappings
         )
+
+    @staticmethod
+    def _ensure_unambiguous_mappings(
+        mappings: Iterable[ProfitabilityAccountMapping],
+    ) -> tuple[ProfitabilityAccountMapping, ...]:
+        materialized = tuple(mappings)
+        by_account: dict[str, list[ProfitabilityAccountMapping]] = {}
+        for mapping in materialized:
+            by_account.setdefault(mapping.account_id, []).append(mapping)
+
+        ambiguous = [
+            account_id
+            for account_id, account_mappings in by_account.items()
+            if len(account_mappings) > 1
+        ]
+        if ambiguous:
+            raise ProfitabilityMappingAmbiguityError(ambiguous)
+        return materialized
 
     async def calculate(
         self,
@@ -96,5 +125,6 @@ class LedgerProfitabilityService:
             context.period_start,
             context.period_end,
         )
+        mappings = self._ensure_unambiguous_mappings(mappings)
         rules = self._rules_from_mappings(mappings)
         return await self.calculate(context, rules, fiscal_period_id=fiscal_period_id)
