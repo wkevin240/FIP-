@@ -3,8 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.enums.accounting import JournalEntryStatus
-from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
+from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
 from app.services.accounting.ledger_service import LedgerService
 
