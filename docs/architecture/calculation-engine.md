@@ -42,9 +42,11 @@ The accounting read side derives reporting exclusively from immutable `LedgerPos
 - `start_date` as an inclusive posting-date lower bound;
 - `end_date` as an inclusive posting-date upper bound.
 
-A supplied fiscal-period identifier is tenant-validated before it is used. Date ranges reject `start_date > end_date`. Without filters, the existing all-postings behavior is preserved for backward compatibility.
+A supplied fiscal-period identifier is tenant-validated before it is used. When a period is selected, explicit dates must remain inside that period. Date ranges reject `start_date > end_date`. Without filters, the existing all-postings behavior is preserved for backward compatibility.
 
-This layer does not reconstruct draft journal entries and does not silently include unposted state. Account balances, trial balance totals and account movements therefore remain projections of the posted ledger source of truth. The general-ledger running balance is calculated over the selected result set; callers that need a cumulative closing balance should request the corresponding complete period/range rather than interpreting a partial-range running balance as an opening balance.
+This layer does not reconstruct draft journal entries and does not silently include unposted state. Account balances and trial balance totals remain projections of the selected posted movements.
+
+For an account movement report, a partial range now exposes an explicit `opening_balance` computed from postings before `start_date`, then applies only movements inside the requested range. `closing_balance` is the resulting cumulative balance. This prevents a partial-range running balance from being mistaken for an opening balance. When no `start_date` is supplied, the opening balance is zero because the selected result begins at the first available posting under the supplied filters.
 
 ## Calculation status semantics
 
