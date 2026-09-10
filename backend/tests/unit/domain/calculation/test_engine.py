@@ -27,17 +27,17 @@ def context() -> CalculationContext:
     )
 
 
-def result(code: str, value: Decimal, *, execution_context: CalculationContext | None = None) -> CalculationResult:
+def result(code: str, value: Decimal, *, execution_context: CalculationContext | None = None, rule_version: str = "1") -> CalculationResult:
     return CalculationResult.ready(
-        CalculationDefinition(code=code, formula=code),
+        CalculationDefinition(code=code, formula=code, rule_version=rule_version),
         execution_context or context(),
         value,
     )
 
 
-def node(code: str, dependencies: tuple[str, ...], operation):
+def node(code: str, dependencies: tuple[str, ...], operation, *, rule_version: str = "1"):
     return CalculationNode(
-        CalculationDefinition(code=code, formula=code, dependencies=dependencies),
+        CalculationDefinition(code=code, formula=code, dependencies=dependencies, rule_version=rule_version),
         operation,
     )
 
@@ -75,8 +75,7 @@ def test_error_propagates_through_three_dag_levels() -> None:
         external_input_codes=("REVENUE", "COGS", "OPEX", "OTHER"),
     )
     results = engine.execute(
-        context(),
-        {"REVENUE": revenue, "COGS": result("COGS", Decimal("10")), "OPEX": result("OPEX", Decimal("5")), "OTHER": result("OTHER", Decimal("1"))},
+        context(), {"REVENUE": revenue, "COGS": result("COGS", Decimal("10")), "OPEX": result("OPEX", Decimal("5")), "OTHER": result("OTHER", Decimal("1"))},
     )
     assert results["GROSS_PROFIT"].status is CalculationStatus.ERROR
     assert results["OPERATING_INCOME"].status is CalculationStatus.ERROR
@@ -172,4 +171,23 @@ def test_engine_rejects_input_from_another_rule_version() -> None:
     foreign_context = CalculationContext(organization_id="org-1", period_start=date(2026, 1, 1), period_end=date(2026, 1, 31), currency="XAF", rule_version="2")
     engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),), external_input_codes=("SOURCE",))
     with pytest.raises(CalculationContextError, match="rule version"):
-        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context)})
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), execution_context=foreign_context, rule_version="2")})
+
+
+def test_engine_rejects_input_definition_from_another_rule_version() -> None:
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),), external_input_codes=("SOURCE",))
+    with pytest.raises(CalculationContextError, match="calculation definition rule version"):
+        engine.execute(context(), {"SOURCE": result("SOURCE", Decimal("10"), rule_version="2")})
+
+
+def test_engine_rejects_node_definition_from_another_rule_version() -> None:
+    execution_context = CalculationContext(
+        organization_id="org-1",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        currency="XAF",
+        rule_version="2",
+    )
+    engine = CalculationEngine((node("TOTAL", ("SOURCE",), lambda values: values[0]),), external_input_codes=("SOURCE",))
+    with pytest.raises(CalculationContextError, match="calculation TOTAL uses rule version"):
+        engine.execute(execution_context, {"SOURCE": result("SOURCE", Decimal("10"), execution_context=execution_context, rule_version="2")})
