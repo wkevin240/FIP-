@@ -5,10 +5,9 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums.accounting import JournalEntryStatus
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
-from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine
+from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
 
 
@@ -217,9 +216,7 @@ class LedgerService:
             JournalEntry.organization_id == organization_id,
             JournalEntry.status != JournalEntryStatus.DRAFT,
         ]
-        posting_filters = self._posting_filters(
-            organization_id, fiscal_period_id, start_date, end_date
-        )
+        posting_filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
         if fiscal_period_id is not None:
             journal_filters.append(JournalEntry.fiscal_period_id == fiscal_period_id)
         if start_date is not None:
