@@ -78,6 +78,14 @@ The database boundary is now explicit: `LedgerService.profitability_facts()` is 
 
 `LedgerProfitabilityService` composes those boundaries for an executable application path: it first reconciles the selected POSTED journal/ledger slice, refuses to continue when reconciliation detects drift, derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. `calculate_from_persisted_mappings()` additionally loads only mappings for the context organization and rule version before invoking that same path. It does not persist, mutate, infer mappings, or replace missing categories.
 
+## Read-only P&L API boundary
+
+The accounting API now exposes `GET /accounting/profitability/p-and-l` as a read-only projection over the same persisted-mapping orchestration. The endpoint requires the existing `ledger:read` permission, takes an explicit inclusive `start_date`/`end_date`, and optionally accepts a tenant-owned `fiscal_period_id` plus an explicit `rule_version`. It builds `CalculationContext` from the authenticated tenant rather than accepting an organization identifier from the caller.
+
+The endpoint returns each kernel result with its definition code/formula, rule version, status, value or readiness/error reason, and source references. `NOT_READY` remains a first-class response state. Known source-integrity or mapping-ambiguity failures return HTTP 409 instead of being converted into a financial value. The endpoint does not create mappings, persist calculations, infer account classifications, or encode jurisdiction-specific accounting or tax rules.
+
+This is intentionally a read surface, not proof of accounting correctness. The endpoint becomes production-evidence-ready only after the same posted grand ledger can be independently verified against FIP and an external/manual calculation to the centime.
+
 ## Calculation status semantics
 
 - `READY`: all dependencies are valid and the calculation produced a value.
@@ -184,6 +192,7 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 13. Profitability must not be calculated from a selected ledger slice whose POSTED journal-to-ledger reconciliation has detected drift.
 14. Persisted profitability mappings must be tenant-scoped and rule-version scoped; ambiguous effective mappings must fail closed.
 15. Profitability mapping writes must verify tenant ownership of the account and reject overlapping effective ranges; PostgreSQL enforces the non-overlap invariant transaction-safely.
+16. The read-only profitability API must derive organization scope from authenticated tenant context and must not accept organization identifiers from callers.
 
 ## Implementation order
 
