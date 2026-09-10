@@ -36,9 +36,9 @@ Only capabilities proven necessary by that vertical slice should be promoted int
 
 ## Execution context integrity
 
-Every calculation execution has an immutable `CalculationContext` containing at least organization and period boundaries, with optional currency and analytical dimension. Before any DAG node executes, the kernel verifies that every supplied input result belongs to the same organization, period and analytical dimension context as the execution context.
+Every calculation execution has an immutable `CalculationContext` containing organization, period boundaries, rule version, and optional currency and analytical dimension. Before any DAG node executes, the kernel verifies that every supplied input result belongs to the same organization, period, analytical dimension, currency and rule-version context as the execution context.
 
-This is a hard boundary, not an informational warning. A cross-organization or cross-period result is rejected instead of being combined with otherwise valid amounts. This prevents a valid number from one tenant, period or analytical slice from contaminating another calculation. The kernel does not silently coerce or transform the mismatched input.
+This is a hard boundary, not an informational warning. A cross-organization, cross-period, cross-currency, cross-rule-version or cross-analytical-slice result is rejected instead of being combined with otherwise valid amounts. This prevents a valid number from one tenant, accounting context or valuation basis from contaminating another calculation. The kernel does not silently coerce or transform the mismatched input.
 
 ## Accounting reporting boundary
 
@@ -48,7 +48,7 @@ The accounting read side derives reporting exclusively from immutable `LedgerPos
 - `start_date` as an inclusive posting-date lower bound;
 - `end_date` as an inclusive posting-date upper bound.
 
-A supplied fiscal-period identifier is tenant-validated before it is used. When a period is selected, explicit dates must remain inside that period. Date ranges reject `start_date > end_date`. Without filters, the existing all-postings behavior is preserved for backward compatibility.
+A supplied fiscal-period identifier is tenant-validated before it is used. When a period is selected, explicit dates must remain within that period. Date ranges reject `start_date > end_date`. Without filters, the existing all-postings behavior is preserved for backward compatibility.
 
 This layer does not reconstruct draft journal entries and does not silently include unposted state. Account balances and trial balance totals remain projections of the selected posted movements.
 
@@ -163,7 +163,8 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 8. Calculation engines are read-side consumers unless a specific business workflow explicitly requires a persisted calculation artifact.
 9. The accounting ledger remains the source of truth for posted accounting state.
 10. Tenant isolation is part of the calculation context and must also be enforced by underlying queries.
-11. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
+11. Currency and rule-version context must match before financial results are combined.
+12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 
 ## Implementation order
 
