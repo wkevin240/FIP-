@@ -3,7 +3,12 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.domain.calculation.accounting_profitability import CATEGORY_CODES
-from app.domain.calculation.contracts import CalculationContext, CalculationResult, SourceReference
+from app.domain.calculation.contracts import (
+    CalculationContext,
+    CalculationDefinition,
+    CalculationResult,
+    SourceReference,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +36,10 @@ class LedgerProfitabilityInputResolver:
     query the database, infer account classes from account codes, or manufacture
     zero-valued categories. Classification is supplied explicitly by configuration.
     """
+
+    @staticmethod
+    def _definition(category: str) -> CalculationDefinition:
+        return CalculationDefinition(code=category, formula="posted ledger fact")
 
     @staticmethod
     def resolve(
@@ -78,23 +87,26 @@ class LedgerProfitabilityInputResolver:
 
         results: dict[str, CalculationResult] = {}
         for category in CATEGORY_CODES:
+            definition = LedgerProfitabilityInputResolver._definition(category)
             if not sources[category]:
                 results[category] = CalculationResult.not_ready(
-                    definition=CalculationResult.source_result_definition(category),
+                    definition=definition,
                     context=context,
                     reason=f"no posted ledger movement is mapped to {category}",
                 )
                 continue
             results[category] = CalculationResult.ready(
-                definition=CalculationResult.source_result_definition(category),
+                definition=definition,
                 context=context,
                 value=amounts[category],
                 sources=tuple(sources[category]),
-                metadata={"account_ids": sorted(
-                    account_id
-                    for account_id in matched_accounts
-                    if rules_by_account[account_id].category == category
-                )},
+                metadata={
+                    "account_ids": sorted(
+                        account_id
+                        for account_id in matched_accounts
+                        if rules_by_account[account_id].category == category
+                    )
+                },
             )
 
         return results
