@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.accounting.ledger import GeneralLedgerResponse, TrialBalanceRow
+from app.schemas.accounting.ledger import (
+    GeneralLedgerResponse,
+    PostingReconciliationResponse,
+    TrialBalanceRow,
+)
 from app.services.accounting.ledger_service import LedgerService
 
 router = APIRouter()
@@ -64,6 +68,22 @@ async def account_movements(
     return await service.general_ledger(
         tenant.organization_id,
         account_id,
+        fiscal_period_id=fiscal_period_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+@router.get("/reconciliation", response_model=PostingReconciliationResponse)
+async def posting_reconciliation(
+    fiscal_period_id: str | None = Query(default=None),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    tenant: CurrentTenant = Depends(require_permission("ledger:read")),
+    service: LedgerService = Depends(get_ledger_service),
+):
+    return await service.reconcile_postings(
+        tenant.organization_id,
         fiscal_period_id=fiscal_period_id,
         start_date=start_date,
         end_date=end_date,
