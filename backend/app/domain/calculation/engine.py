@@ -12,6 +12,13 @@ from app.domain.calculation.contracts import (
 
 Operation = Callable[[tuple[Decimal, ...]], Decimal]
 
+_STATUS_PRIORITY = {
+    CalculationStatus.READY: 0,
+    CalculationStatus.INCOMPLETE: 1,
+    CalculationStatus.NOT_READY: 2,
+    CalculationStatus.ERROR: 3,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class CalculationNode:
@@ -28,7 +35,8 @@ class CalculationEngine:
 
     The engine deliberately knows nothing about accounting, tax, banking or finance.
     Branch engines supply definitions and typed operations; the kernel resolves
-    dependencies, propagates source status and never substitutes missing values.
+    dependencies, propagates the worst dependency status and never substitutes
+    missing values.
     """
 
     def __init__(self, nodes: tuple[CalculationNode, ...]) -> None:
@@ -78,10 +86,7 @@ class CalculationEngine:
                 for result in dependencies
                 for source in result.sources
             )
-            blocked = next(
-                (result for result in dependencies if result.status != CalculationStatus.READY),
-                None,
-            )
+            blocked = self._worst_dependency(dependencies)
             if blocked is not None:
                 results[code] = CalculationResult(
                     definition=node.definition,
@@ -112,6 +117,19 @@ class CalculationEngine:
                 node.definition, context, value, sources=sources
             )
         return results
+
+    @staticmethod
+    def _worst_dependency(
+        dependencies: tuple[CalculationResult, ...],
+    ) -> CalculationResult | None:
+        blocked = [
+            result
+            for result in dependencies
+            if result.status is not CalculationStatus.READY
+        ]
+        if not blocked:
+            return None
+        return max(blocked, key=lambda result: _STATUS_PRIORITY[result.status])
 
     def _topological_order(self) -> tuple[str, ...]:
         order: list[str] = []
