@@ -9,7 +9,61 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
+from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.services.accounting.fiscal_period_service import FiscalPeriodService
+
+
+@pytest.mark.asyncio
+async def test_create_period_rejects_overlapping_dates(db_session):
+    year = FiscalYear(id="fy-overlap", organization_id="org-overlap", name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+    existing = FiscalPeriod(
+        id="p-overlap-existing",
+        organization_id="org-overlap",
+        fiscal_year_id="fy-overlap",
+        name="January",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+    )
+    db_session.add_all([year, existing])
+    await db_session.commit()
+
+    data = FiscalPeriodCreate(
+        fiscal_year_id="fy-overlap",
+        name="January duplicate range",
+        start_date=date(2026, 1, 15),
+        end_date=date(2026, 2, 15),
+    )
+    with pytest.raises(HTTPException) as exc:
+        await FiscalPeriodService(db_session).create_fiscal_period("org-overlap", data)
+
+    assert exc.value.status_code == 409
+    assert "overlap" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_period_allows_adjacent_dates(db_session):
+    year = FiscalYear(id="fy-adjacent", organization_id="org-adjacent", name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+    existing = FiscalPeriod(
+        id="p-adjacent-existing",
+        organization_id="org-adjacent",
+        fiscal_year_id="fy-adjacent",
+        name="January",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+    )
+    db_session.add_all([year, existing])
+    await db_session.commit()
+
+    data = FiscalPeriodCreate(
+        fiscal_year_id="fy-adjacent",
+        name="February",
+        start_date=date(2026, 2, 1),
+        end_date=date(2026, 2, 28),
+    )
+    created = await FiscalPeriodService(db_session).create_fiscal_period("org-adjacent", data)
+
+    assert created.start_date == date(2026, 2, 1)
+    assert created.end_date == date(2026, 2, 28)
 
 
 @pytest.mark.asyncio
