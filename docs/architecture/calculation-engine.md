@@ -72,7 +72,7 @@ The adapter's input contract is strict: posting and account identifiers must be 
 
 A zero revenue denominator is therefore an execution `ERROR` rather than a synthetic zero or a missing-data substitution. If an upstream profitability fact is `NOT_READY` or `ERROR`, the corresponding downstream metrics inherit that status through normal DAG propagation. This keeps the business engine aligned with the kernel's status contract instead of maintaining a parallel status implementation.
 
-The resolver is intentionally database-free. The remaining integration work is to adapt the existing tenant-scoped `LedgerService` query path and explicit mapping configuration into `LedgerProfitabilityFact` and `ProfitabilityAccountRule` records, then feed those facts into the DAG. No account classification is hardcoded into the resolver.
+The database boundary is now explicit: `LedgerService.profitability_facts()` is the tenant- and period/date-scoped extraction point. It returns only immutable `LedgerProfitabilityFact` values and performs no account classification or profitability calculation. The domain resolver then consumes those facts together with explicitly supplied `ProfitabilityAccountRule` values. This keeps SQL access in the accounting service while keeping mapping and formulas deterministic and database-free.
 
 ## Calculation status semantics
 
