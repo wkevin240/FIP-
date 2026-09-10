@@ -9,13 +9,17 @@ from app.domain.calculation.ledger_profitability import (
 from app.services.accounting.ledger_service import LedgerService
 
 
+class LedgerProfitabilityIntegrityError(RuntimeError):
+    """Raised when the selected ledger slice cannot be trusted for P&L calculation."""
+
+
 class LedgerProfitabilityService:
     """Compose the authoritative ledger adapter with the deterministic P&L kernel.
 
     The service owns orchestration only. LedgerService remains responsible for
-    tenant-scoped persistence reads; account classification remains explicit
-    configuration; ProfitabilityCalculationEngine remains responsible for
-    deterministic formulas and status propagation.
+    tenant-scoped persistence reads and reconciliation; account classification
+    remains explicit configuration; ProfitabilityCalculationEngine remains
+    responsible for deterministic formulas and status propagation.
     """
 
     def __init__(self, ledger_service: LedgerService) -> None:
@@ -28,12 +32,27 @@ class LedgerProfitabilityService:
         *,
         fiscal_period_id: str | None = None,
     ) -> dict[str, CalculationResult]:
-        """Calculate profitability from the selected posted-ledger slice.
+        """Calculate profitability from a reconciled posted-ledger slice.
 
-        The calculation window is taken directly from the immutable execution
-        context. No account mapping is inferred and no missing category is
-        converted to zero by this orchestration layer.
+        Reconciliation is a hard integrity gate: a P&L result must not be
+        produced from a ledger slice that is known to differ from its POSTED
+        journal source. No account mapping is inferred and no missing category
+        is converted to zero by this orchestration layer.
         """
+        reconciliation = await self.ledger_service.reconcile_postings(
+            context.organization_id,
+            fiscal_period_id=fiscal_period_id,
+            start_date=context.period_start,
+            end_date=context.period_end,
+        )
+        if not reconciliation["is_reconciled"]:
+            raise LedgerProfitabilityIntegrityError(
+                "cannot calculate profitability from an unreconciled ledger slice: "
+                f"missing={reconciliation['missing_postings']}, "
+                f"orphan={reconciliation['orphan_postings']}, "
+                f"mismatched={reconciliation['mismatched_postings']}"
+            )
+
         facts = await self.ledger_service.profitability_facts(
             context.organization_id,
             fiscal_period_id=fiscal_period_id,
