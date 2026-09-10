@@ -141,20 +141,17 @@ async def test_update_is_tenant_scoped() -> None:
     session.flush.assert_not_awaited()
 
 
-def test_list_for_period_rejects_inverted_range_without_database_access() -> None:
+@pytest.mark.asyncio
+async def test_list_for_period_rejects_inverted_range_without_database_access() -> None:
     session = AsyncMock()
     repository = ProfitabilityMappingRepository(session)
 
     with pytest.raises(ValueError, match="period_start"):
-        import asyncio
-
-        asyncio.run(
-            repository.list_for_period(
-                "org-1",
-                "2026.1",
-                date(2026, 12, 31),
-                date(2026, 1, 1),
-            )
+        await repository.list_for_period(
+            "org-1",
+            "2026.1",
+            date(2026, 12, 31),
+            date(2026, 1, 1),
         )
 
     session.scalars.assert_not_awaited()
