@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from fastapi import HTTPException
 
-from app.core.enums.accounting import FiscalPeriodStatus
+from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
@@ -64,6 +64,32 @@ async def test_create_period_allows_adjacent_dates(db_session):
 
     assert created.start_date == date(2026, 2, 1)
     assert created.end_date == date(2026, 2, 28)
+
+
+@pytest.mark.asyncio
+async def test_create_period_rejects_closed_fiscal_year(db_session):
+    year = FiscalYear(
+        id="fy-closed",
+        organization_id="org-closed",
+        name="2025",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        status=FiscalYearStatus.CLOSED,
+    )
+    db_session.add(year)
+    await db_session.commit()
+
+    data = FiscalPeriodCreate(
+        fiscal_year_id="fy-closed",
+        name="Late period",
+        start_date=date(2025, 12, 1),
+        end_date=date(2025, 12, 31),
+    )
+    with pytest.raises(HTTPException) as exc:
+        await FiscalPeriodService(db_session).create_fiscal_period("org-closed", data)
+
+    assert exc.value.status_code == 409
+    assert "open fiscal year" in exc.value.detail.lower()
 
 
 @pytest.mark.asyncio
