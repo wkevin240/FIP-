@@ -29,38 +29,35 @@ class ProfitabilityCalculationEngine:
     calculation layer.
     """
 
-    _DEFINITIONS = {
-        "GROSS_PROFIT": CalculationDefinition(
-            code="GROSS_PROFIT",
-            formula="REVENUE - COGS",
-            dependencies=("REVENUE", "COGS"),
+    _FORMULAS = {
+        "GROSS_PROFIT": ("REVENUE - COGS", ("REVENUE", "COGS")),
+        "OPERATING_INCOME": (
+            "GROSS_PROFIT - OPERATING_EXPENSE",
+            ("GROSS_PROFIT", "OPERATING_EXPENSE"),
         ),
-        "OPERATING_INCOME": CalculationDefinition(
-            code="OPERATING_INCOME",
-            formula="GROSS_PROFIT - OPERATING_EXPENSE",
-            dependencies=("GROSS_PROFIT", "OPERATING_EXPENSE"),
+        "NET_INCOME": (
+            "OPERATING_INCOME + OTHER_INCOME - OTHER_EXPENSE",
+            ("OPERATING_INCOME", "OTHER_INCOME", "OTHER_EXPENSE"),
         ),
-        "NET_INCOME": CalculationDefinition(
-            code="NET_INCOME",
-            formula="OPERATING_INCOME + OTHER_INCOME - OTHER_EXPENSE",
-            dependencies=("OPERATING_INCOME", "OTHER_INCOME", "OTHER_EXPENSE"),
+        "GROSS_MARGIN": ("GROSS_PROFIT / REVENUE", ("GROSS_PROFIT", "REVENUE")),
+        "OPERATING_MARGIN": (
+            "OPERATING_INCOME / REVENUE",
+            ("OPERATING_INCOME", "REVENUE"),
         ),
-        "GROSS_MARGIN": CalculationDefinition(
-            code="GROSS_MARGIN",
-            formula="GROSS_PROFIT / REVENUE",
-            dependencies=("GROSS_PROFIT", "REVENUE"),
-        ),
-        "OPERATING_MARGIN": CalculationDefinition(
-            code="OPERATING_MARGIN",
-            formula="OPERATING_INCOME / REVENUE",
-            dependencies=("OPERATING_INCOME", "REVENUE"),
-        ),
-        "NET_MARGIN": CalculationDefinition(
-            code="NET_MARGIN",
-            formula="NET_INCOME / REVENUE",
-            dependencies=("NET_INCOME", "REVENUE"),
-        ),
+        "NET_MARGIN": ("NET_INCOME / REVENUE", ("NET_INCOME", "REVENUE")),
     }
+
+    @classmethod
+    def _definitions(cls, rule_version: str) -> dict[str, CalculationDefinition]:
+        return {
+            code: CalculationDefinition(
+                code=code,
+                formula=formula,
+                dependencies=dependencies,
+                rule_version=rule_version,
+            )
+            for code, (formula, dependencies) in cls._FORMULAS.items()
+        }
 
     @classmethod
     def calculate(
@@ -75,6 +72,8 @@ class ProfitabilityCalculationEngine:
                 + ", ".join(sorted(missing))
             )
 
+        definitions = cls._definitions(context.rule_version)
+
         def money_subtract(values: tuple[Decimal, ...]) -> Decimal:
             return (values[0] - values[1]).quantize(CENT, rounding=ROUND_HALF_UP)
 
@@ -85,12 +84,12 @@ class ProfitabilityCalculationEngine:
             return (values[0] / values[1]).quantize(CENT, rounding=ROUND_HALF_UP)
 
         nodes = (
-            CalculationNode(cls._DEFINITIONS["GROSS_PROFIT"], money_subtract),
-            CalculationNode(cls._DEFINITIONS["OPERATING_INCOME"], money_subtract),
-            CalculationNode(cls._DEFINITIONS["NET_INCOME"], money_income),
-            CalculationNode(cls._DEFINITIONS["GROSS_MARGIN"], ratio),
-            CalculationNode(cls._DEFINITIONS["OPERATING_MARGIN"], ratio),
-            CalculationNode(cls._DEFINITIONS["NET_MARGIN"], ratio),
+            CalculationNode(definitions["GROSS_PROFIT"], money_subtract),
+            CalculationNode(definitions["OPERATING_INCOME"], money_subtract),
+            CalculationNode(definitions["NET_INCOME"], money_income),
+            CalculationNode(definitions["GROSS_MARGIN"], ratio),
+            CalculationNode(definitions["OPERATING_MARGIN"], ratio),
+            CalculationNode(definitions["NET_MARGIN"], ratio),
         )
         return CalculationEngine(
             nodes, external_input_codes=CATEGORY_CODES
@@ -106,7 +105,11 @@ class ProfitabilityCalculationEngine:
         sources: tuple[SourceReference, ...] = (),
         formula: str = "posted ledger fact",
     ) -> CalculationResult:
-        definition = CalculationDefinition(code=code, formula=formula)
+        definition = CalculationDefinition(
+            code=code,
+            formula=formula,
+            rule_version=context.rule_version,
+        )
         if value is not None:
             return CalculationResult.ready(
                 definition, context, value, sources=sources
