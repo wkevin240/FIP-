@@ -6,7 +6,6 @@ from app.domain.calculation.contracts import (
     CalculationContext,
     CalculationDefinition,
     CalculationResult,
-    CalculationStatus,
     SourceReference,
 )
 from app.domain.calculation.engine import CalculationEngine, CalculationNode
@@ -46,6 +45,21 @@ class ProfitabilityCalculationEngine:
             formula="OPERATING_INCOME + OTHER_INCOME - OTHER_EXPENSE",
             dependencies=("OPERATING_INCOME", "OTHER_INCOME", "OTHER_EXPENSE"),
         ),
+        "GROSS_MARGIN": CalculationDefinition(
+            code="GROSS_MARGIN",
+            formula="GROSS_PROFIT / REVENUE",
+            dependencies=("GROSS_PROFIT", "REVENUE"),
+        ),
+        "OPERATING_MARGIN": CalculationDefinition(
+            code="OPERATING_MARGIN",
+            formula="OPERATING_INCOME / REVENUE",
+            dependencies=("OPERATING_INCOME", "REVENUE"),
+        ),
+        "NET_MARGIN": CalculationDefinition(
+            code="NET_MARGIN",
+            formula="NET_INCOME / REVENUE",
+            dependencies=("NET_INCOME", "REVENUE"),
+        ),
     }
 
     @classmethod
@@ -61,75 +75,26 @@ class ProfitabilityCalculationEngine:
                 + ", ".join(sorted(missing))
             )
 
-        definitions = cls._DEFINITIONS
+        def money_subtract(values: tuple[Decimal, ...]) -> Decimal:
+            return (values[0] - values[1]).quantize(CENT, rounding=ROUND_HALF_UP)
+
+        def money_income(values: tuple[Decimal, ...]) -> Decimal:
+            return (values[0] + values[1] - values[2]).quantize(CENT, rounding=ROUND_HALF_UP)
+
+        def ratio(values: tuple[Decimal, ...]) -> Decimal:
+            return (values[0] / values[1]).quantize(CENT, rounding=ROUND_HALF_UP)
+
         nodes = (
-            CalculationNode(
-                definitions["GROSS_PROFIT"],
-                lambda values: values[0] - values[1],
-            ),
-            CalculationNode(
-                definitions["OPERATING_INCOME"],
-                lambda values: values[0] - values[1],
-            ),
-            CalculationNode(
-                definitions["NET_INCOME"],
-                lambda values: values[0] + values[1] - values[2],
-            ),
+            CalculationNode(cls._DEFINITIONS["GROSS_PROFIT"], money_subtract),
+            CalculationNode(cls._DEFINITIONS["OPERATING_INCOME"], money_subtract),
+            CalculationNode(cls._DEFINITIONS["NET_INCOME"], money_income),
+            CalculationNode(cls._DEFINITIONS["GROSS_MARGIN"], ratio),
+            CalculationNode(cls._DEFINITIONS["OPERATING_MARGIN"], ratio),
+            CalculationNode(cls._DEFINITIONS["NET_MARGIN"], ratio),
         )
-        results = CalculationEngine(
+        return CalculationEngine(
             nodes, external_input_codes=CATEGORY_CODES
         ).execute(context, inputs)
-        revenue = inputs["REVENUE"]
-        derived = {
-            code: results[code]
-            for code in ("GROSS_PROFIT", "OPERATING_INCOME", "NET_INCOME")
-        }
-        for code, numerator_code in (
-            ("GROSS_MARGIN", "GROSS_PROFIT"),
-            ("OPERATING_MARGIN", "OPERATING_INCOME"),
-            ("NET_MARGIN", "NET_INCOME"),
-        ):
-            definition = CalculationDefinition(
-                code=code,
-                formula=f"{numerator_code} / REVENUE",
-                dependencies=(numerator_code, "REVENUE"),
-            )
-            numerator = derived[numerator_code]
-            sources = tuple(dict.fromkeys((*numerator.sources, *revenue.sources)))
-            if numerator.status != CalculationStatus.READY:
-                results[code] = CalculationResult(
-                    definition=definition,
-                    context=context,
-                    status=numerator.status,
-                    reason=f"Dependency {numerator.definition.code}: {numerator.reason}",
-                    sources=sources,
-                )
-            elif revenue.status != CalculationStatus.READY:
-                results[code] = CalculationResult(
-                    definition=definition,
-                    context=context,
-                    status=revenue.status,
-                    reason=f"Dependency {revenue.definition.code}: {revenue.reason}",
-                    sources=sources,
-                )
-            elif revenue.value == Decimal("0"):
-                results[code] = CalculationResult.not_ready(
-                    definition,
-                    context,
-                    "Revenue is zero; ratio denominator is zero",
-                    sources=sources,
-                )
-            else:
-                value = (numerator.value / revenue.value).quantize(
-                    CENT, rounding=ROUND_HALF_UP
-                )
-                results[code] = CalculationResult.ready(
-                    definition,
-                    context,
-                    value,
-                    sources=sources,
-                )
-        return results
 
     @staticmethod
     def source_result(
