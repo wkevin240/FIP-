@@ -49,6 +49,28 @@ async def test_trial_balance_preserves_double_entry(db_session):
 
 
 @pytest.mark.asyncio
+async def test_profitability_facts_are_tenant_and_date_scoped(db_session):
+    own = Account(id="a-7", organization_id="org-7", code="700", name="Sales", account_type="INCOME")
+    other = Account(id="a-8", organization_id="org-8", code="700", name="Sales", account_type="INCOME")
+    db_session.add_all([own, other])
+    await db_session.flush()
+    db_session.add_all([
+        LedgerPosting(id="lp-7", organization_id="org-7", fiscal_period_id="p-7", journal_entry_id="e-7", journal_entry_line_id="l-7", account_id="a-7", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("0.00"), credit=Decimal("125.00")),
+        LedgerPosting(id="lp-8", organization_id="org-7", fiscal_period_id="p-7", journal_entry_id="e-8", journal_entry_line_id="l-8", account_id="a-7", posting_date=date(2026, 2, 10), line_number=1, debit=Decimal("0.00"), credit=Decimal("50.00")),
+        LedgerPosting(id="lp-9", organization_id="org-8", fiscal_period_id="p-8", journal_entry_id="e-9", journal_entry_line_id="l-9", account_id="a-8", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("0.00"), credit=Decimal("900.00")),
+    ])
+    await db_session.commit()
+
+    facts = await LedgerService(db_session).profitability_facts(
+        "org-7", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+    )
+
+    assert [(fact.posting_id, fact.account_id, fact.debit, fact.credit) for fact in facts] == [
+        ("lp-7", "a-7", Decimal("0.00"), Decimal("125.00"))
+    ]
+
+
+@pytest.mark.asyncio
 async def test_general_ledger_reports_opening_balance_for_partial_date_range(db_session):
     account = Account(id="a-5", organization_id="org-5", code="512", name="Bank", account_type="ASSET")
     db_session.add(account)
