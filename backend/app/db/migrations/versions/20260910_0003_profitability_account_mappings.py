@@ -43,34 +43,7 @@ def upgrade() -> None:
             name="ck_profitability_mapping_effective_range",
         ),
     )
-    op.create_index(
-        "ix_profitability_account_mappings_organization_id",
-        "profitability_account_mappings",
-        ["organization_id"],
-    )
-    op.create_index(
-        "ix_profitability_account_mappings_account_id",
-        "profitability_account_mappings",
-        ["account_id"],
-    )
-    op.create_index(
-        "ix_profitability_account_mappings_rule_version",
-        "profitability_account_mappings",
-        ["rule_version"],
-    )
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_profitability_account_mappings_rule_version",
-        table_name="profitability_account_mappings",
-    )
-    op.drop_index(
-        "ix_profitability_account_mappings_account_id",
-        table_name="profitability_account_mappings",
-    )
-    op.drop_index(
-        "ix_profitability_account_mappings_organization_id",
-        table_name="profitability_account_mappings",
-    )
     op.drop_table("profitability_account_mappings")
