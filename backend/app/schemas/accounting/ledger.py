@@ -28,6 +28,18 @@ class TrialBalanceRow(BaseModel):
     balance: Decimal
 
 
+class TrialBalanceControlResponse(BaseModel):
+    organization_id: str
+    fiscal_period_id: str | None
+    start_date: date | None
+    end_date: date | None
+    row_count: int
+    total_debit: Decimal
+    total_credit: Decimal
+    balance_difference: Decimal
+    is_balanced: bool
+
+
 class GeneralLedgerRow(BaseModel):
     id: str
     account_id: str
