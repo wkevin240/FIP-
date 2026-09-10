@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, DivisionByZero, InvalidOperation
 
@@ -37,21 +37,39 @@ class CalculationContextError(ValueError):
 class CalculationEngine:
     """Small deterministic DAG executor used by all FIP calculation branches.
 
-    The engine deliberately knows nothing about accounting, tax, banking or finance.
-    Branch engines supply definitions and typed operations; the kernel resolves
-    dependencies, propagates the worst dependency status and never substitutes
-    missing values.
+    External/source facts are supplied at execution time as ``CalculationResult``
+    values. A branch must declare their codes explicitly; every other dependency
+    must be a calculation node. This keeps the graph strict without forcing raw
+    accounting data to masquerade as calculated nodes.
     """
 
-    def __init__(self, nodes: tuple[CalculationNode, ...]) -> None:
+    def __init__(
+        self,
+        nodes: tuple[CalculationNode, ...],
+        *,
+        external_input_codes: Sequence[str] = (),
+    ) -> None:
         self._nodes = {node.definition.code: node for node in nodes}
         if len(self._nodes) != len(nodes):
             raise CalculationGraphError("calculation node codes must be unique")
+        self._external_input_codes = frozenset(external_input_codes)
+        if len(self._external_input_codes) != len(tuple(external_input_codes)):
+            raise CalculationGraphError("external input codes must be unique")
+        overlap = self._external_input_codes & self._nodes.keys()
+        if overlap:
+            raise CalculationGraphError(
+                "external input codes cannot also be calculation nodes: "
+                + ", ".join(sorted(overlap))
+            )
         self._validate_dependencies()
 
     def _validate_dependencies(self) -> None:
         for node in self._nodes.values():
-            unknown = set(node.definition.dependencies) - self._nodes.keys()
+            unknown = (
+                set(node.definition.dependencies)
+                - self._nodes.keys()
+                - self._external_input_codes
+            )
             if unknown:
                 raise CalculationGraphError(
                     f"{node.definition.code} depends on unknown calculations: "
@@ -61,6 +79,8 @@ class CalculationEngine:
         visited: set[str] = set()
 
         def visit(code: str) -> None:
+            if code in self._external_input_codes:
+                return
             if code in visiting:
                 raise CalculationGraphError(f"calculation cycle detected at {code}")
             if code in visited:
@@ -119,6 +139,18 @@ class CalculationEngine:
         inputs: Mapping[str, CalculationResult],
     ) -> dict[str, CalculationResult]:
         self._validate_context(context, inputs)
+        missing_external = self._external_input_codes - inputs.keys()
+        if missing_external:
+            raise CalculationGraphError(
+                "missing declared external inputs: "
+                + ", ".join(sorted(missing_external))
+            )
+        undeclared_inputs = inputs.keys() - self._nodes.keys() - self._external_input_codes
+        if undeclared_inputs:
+            raise CalculationGraphError(
+                "undeclared execution inputs: " + ", ".join(sorted(undeclared_inputs))
+            )
+
         results = dict(inputs)
         for code in self._topological_order():
             if code in results:
@@ -180,7 +212,7 @@ class CalculationEngine:
         visited: set[str] = set()
 
         def visit(code: str) -> None:
-            if code in visited:
+            if code in self._external_input_codes or code in visited:
                 return
             for dependency in self._nodes[code].definition.dependencies:
                 visit(dependency)
