@@ -74,7 +74,9 @@ A zero revenue denominator is therefore an execution `ERROR` rather than a synth
 
 The database boundary is now explicit: `LedgerService.profitability_facts()` is the tenant- and period/date-scoped extraction point. It returns only immutable `LedgerProfitabilityFact` values and performs no account classification or profitability calculation. The domain resolver then consumes those facts together with explicitly supplied `ProfitabilityAccountRule` values. This keeps SQL access in the accounting service while keeping mapping and formulas deterministic and database-free.
 
-`LedgerProfitabilityService` composes those boundaries for an executable application path: it first reconciles the selected POSTED journal/ledger slice, refuses to continue when reconciliation detects drift, derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with the supplied explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. It does not persist, mutate, infer mappings, or replace missing categories. This is orchestration only; production account classification still requires an authorized configuration source.
+`ProfitabilityAccountMapping` now provides the persistence boundary for explicit account classification. A mapping is tenant-scoped, tied to a `rule_version`, and bounded by `effective_from`/`effective_to`; the database rejects an inverted effective range. `ProfitabilityMappingRepository.list_for_period()` retrieves only mappings belonging to the requested organization and rule version whose effective interval intersects the calculation period. The application orchestration can convert these persisted mappings into `ProfitabilityAccountRule` values without inventing a classification. If multiple effective mappings for the same account intersect a calculation period, the existing domain duplicate-classification guard rejects the ambiguity rather than choosing one silently.
+
+`LedgerProfitabilityService` composes those boundaries for an executable application path: it first reconciles the selected POSTED journal/ledger slice, refuses to continue when reconciliation detects drift, derives the extraction window from the immutable `CalculationContext`, requests the tenant-scoped ledger facts from `LedgerService`, resolves them with explicit account rules, and passes the resulting source results to `ProfitabilityCalculationEngine`. `calculate_from_persisted_mappings()` additionally loads only mappings for the context organization and rule version before invoking that same path. It does not persist, mutate, infer mappings, or replace missing categories.
 
 ## Calculation status semantics
 
@@ -180,6 +182,7 @@ The calculation kernel should carry only a neutral `rule_scope_id` or equivalent
 11. Currency and rule-version context must match before financial results are combined or executed.
 12. Tax rules require jurisdiction, effective dates and authoritative provenance before they can produce a tax result.
 13. Profitability must not be calculated from a selected ledger slice whose POSTED journal-to-ledger reconciliation has detected drift.
+14. Persisted profitability mappings must be tenant-scoped and rule-version scoped; ambiguous effective mappings must fail closed.
 
 ## Implementation order
 
