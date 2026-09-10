@@ -73,6 +73,26 @@ class LedgerService:
             filters.append(LedgerPosting.posting_date <= end_date)
         return filters
 
+    @staticmethod
+    def _journal_reconciliation_filters(
+        organization_id: str,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[object]:
+        """Return the authoritative journal scope for ledger reconciliation."""
+        filters: list[object] = [
+            JournalEntry.organization_id == organization_id,
+            JournalEntry.status == JournalEntryStatus.POSTED,
+        ]
+        if fiscal_period_id is not None:
+            filters.append(JournalEntry.fiscal_period_id == fiscal_period_id)
+        if start_date is not None:
+            filters.append(JournalEntry.entry_date >= start_date)
+        if end_date is not None:
+            filters.append(JournalEntry.entry_date <= end_date)
+        return filters
+
     async def account_balance(
         self,
         organization_id: str,
@@ -219,17 +239,13 @@ class LedgerService:
         self._validate_dates(start_date, end_date)
         self._validate_dates_within_period(period, start_date, end_date)
 
-        journal_filters: list[object] = [
-            JournalEntry.organization_id == organization_id,
-            JournalEntry.status == JournalEntryStatus.POSTED,
-        ]
+        journal_filters = self._journal_reconciliation_filters(
+            organization_id,
+            fiscal_period_id=fiscal_period_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
         posting_filters = self._posting_filters(organization_id, fiscal_period_id, start_date, end_date)
-        if fiscal_period_id is not None:
-            journal_filters.append(JournalEntry.fiscal_period_id == fiscal_period_id)
-        if start_date is not None:
-            journal_filters.append(JournalEntry.entry_date >= start_date)
-        if end_date is not None:
-            journal_filters.append(JournalEntry.entry_date <= end_date)
 
         expected = (
             select(
