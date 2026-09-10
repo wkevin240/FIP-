@@ -9,11 +9,12 @@ class CalculationStatus(str, Enum):
     READY = "READY"
     NOT_READY = "NOT_READY"
     INCOMPLETE = "INCOMPLETE"
+    ERROR = "ERROR"
 
 
 @dataclass(frozen=True, slots=True)
 class CalculationContext:
-    """Immutable context shared by all deterministic FIP calculation engines."""
+    """Immutable execution context shared by deterministic FIP calculation engines."""
 
     organization_id: str
     period_start: date
@@ -71,7 +72,7 @@ class CalculationDefinition:
 
 @dataclass(frozen=True, slots=True)
 class CalculationResult:
-    """Immutable result with enough provenance to reproduce and explain it."""
+    """Immutable result with provenance and an explicit execution status."""
 
     definition: CalculationDefinition
     context: CalculationContext
@@ -149,6 +150,25 @@ class CalculationResult:
             definition=definition,
             context=context,
             status=CalculationStatus.INCOMPLETE,
+            reason=reason,
+            sources=sources,
+        )
+
+    @classmethod
+    def error(
+        cls,
+        definition: CalculationDefinition,
+        context: CalculationContext,
+        reason: str,
+        *,
+        sources: tuple[SourceReference, ...] = (),
+    ) -> "CalculationResult":
+        if not reason.strip():
+            raise ValueError("reason is required")
+        return cls(
+            definition=definition,
+            context=context,
+            status=CalculationStatus.ERROR,
             reason=reason,
             sources=sources,
         )
