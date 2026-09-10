@@ -34,7 +34,6 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name"),
     )
     op.create_index("ix_organizations_name", "organizations", ["name"], unique=True)
 
@@ -49,7 +48,6 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("is_superuser", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
 
@@ -62,7 +60,6 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=128), nullable=False),
         sa.Column("is_system", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("code"),
     )
     op.create_index("ix_roles_code", "roles", ["code"], unique=True)
 
@@ -74,7 +71,6 @@ def upgrade() -> None:
         sa.Column("code", sa.String(length=128), nullable=False),
         sa.Column("description", sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("code"),
     )
     op.create_index("ix_permissions_code", "permissions", ["code"], unique=True)
 
