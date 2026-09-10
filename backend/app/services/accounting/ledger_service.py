@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -5,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounting.account import Account
+from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.ledger_posting import LedgerPosting
 
 
@@ -14,7 +16,51 @@ class LedgerService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def account_balance(self, organization_id: str, account_id: str) -> Decimal:
+    async def _validate_period(self, organization_id: str, fiscal_period_id: str | None) -> FiscalPeriod | None:
+        if fiscal_period_id is None:
+            return None
+        period = await self.db.scalar(
+            select(FiscalPeriod).where(
+                FiscalPeriod.id == fiscal_period_id,
+                FiscalPeriod.organization_id == organization_id,
+            )
+        )
+        if period is None:
+            raise HTTPException(status_code=404, detail="Fiscal period not found")
+        return period
+
+    @staticmethod
+    def _validate_dates(start_date: date | None, end_date: date | None) -> None:
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise HTTPException(status_code=422, detail="start_date must be on or before end_date")
+
+    @staticmethod
+    def _posting_filters(
+        organization_id: str,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[object]:
+        filters: list[object] = [LedgerPosting.organization_id == organization_id]
+        if fiscal_period_id is not None:
+            filters.append(LedgerPosting.fiscal_period_id == fiscal_period_id)
+        if start_date is not None:
+            filters.append(LedgerPosting.posting_date >= start_date)
+        if end_date is not None:
+            filters.append(LedgerPosting.posting_date <= end_date)
+        return filters
+
+    async def account_balance(
+        self,
+        organization_id: str,
+        account_id: str,
+        *,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> Decimal:
+        await self._validate_period(organization_id, fiscal_period_id)
+        self._validate_dates(start_date, end_date)
         account_exists = await self.db.scalar(
             select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
         )
@@ -25,13 +71,22 @@ class LedgerService:
                 func.coalesce(func.sum(LedgerPosting.debit), 0)
                 - func.coalesce(func.sum(LedgerPosting.credit), 0)
             ).where(
-                LedgerPosting.organization_id == organization_id,
+                *self._posting_filters(organization_id, fiscal_period_id, start_date, end_date),
                 LedgerPosting.account_id == account_id,
             )
         )
         return Decimal(str(result.scalar_one()))
 
-    async def trial_balance(self, organization_id: str) -> list[dict[str, object]]:
+    async def trial_balance(
+        self,
+        organization_id: str,
+        *,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[dict[str, object]]:
+        await self._validate_period(organization_id, fiscal_period_id)
+        self._validate_dates(start_date, end_date)
         result = await self.db.execute(
             select(
                 Account.id,
@@ -43,7 +98,7 @@ class LedgerService:
             .join(LedgerPosting, LedgerPosting.account_id == Account.id)
             .where(
                 Account.organization_id == organization_id,
-                LedgerPosting.organization_id == organization_id,
+                *self._posting_filters(organization_id, fiscal_period_id, start_date, end_date),
             )
             .group_by(Account.id, Account.code, Account.name)
             .order_by(Account.code)
@@ -60,7 +115,17 @@ class LedgerService:
             for row in result
         ]
 
-    async def general_ledger(self, organization_id: str, account_id: str) -> list[dict[str, object]]:
+    async def general_ledger(
+        self,
+        organization_id: str,
+        account_id: str,
+        *,
+        fiscal_period_id: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[dict[str, object]]:
+        await self._validate_period(organization_id, fiscal_period_id)
+        self._validate_dates(start_date, end_date)
         account_exists = await self.db.scalar(
             select(Account.id).where(Account.id == account_id, Account.organization_id == organization_id)
         )
@@ -69,7 +134,7 @@ class LedgerService:
         result = await self.db.execute(
             select(LedgerPosting)
             .where(
-                LedgerPosting.organization_id == organization_id,
+                *self._posting_filters(organization_id, fiscal_period_id, start_date, end_date),
                 LedgerPosting.account_id == account_id,
             )
             .order_by(LedgerPosting.posting_date, LedgerPosting.journal_entry_id, LedgerPosting.line_number)
@@ -80,7 +145,10 @@ class LedgerService:
             running += Decimal(str(posting.debit)) - Decimal(str(posting.credit))
             rows.append({
                 "id": posting.id,
+                "account_id": posting.account_id,
                 "journal_entry_id": posting.journal_entry_id,
+                "journal_entry_line_id": posting.journal_entry_line_id,
+                "fiscal_period_id": posting.fiscal_period_id,
                 "posting_date": posting.posting_date,
                 "line_number": posting.line_number,
                 "description": posting.description,
