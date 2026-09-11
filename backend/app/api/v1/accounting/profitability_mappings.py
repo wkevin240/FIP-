@@ -7,7 +7,6 @@ from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
 from app.repositories.accounting.profitability_mapping_repository import (
     ProfitabilityMappingConflictError,
-    ProfitabilityMappingNotFoundError,
     ProfitabilityMappingRepository,
 )
 from app.schemas.accounting.profitability import (
@@ -50,7 +49,10 @@ async def list_profitability_mappings(
             period_end,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     return [_response(mapping) for mapping in mappings]
 
 
@@ -74,5 +76,8 @@ async def create_profitability_mapping(
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     return _response(mapping)
