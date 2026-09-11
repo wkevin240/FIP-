@@ -108,6 +108,26 @@ async def test_close_period_rejects_unposted_entries(db_session):
 
 
 @pytest.mark.asyncio
+async def test_close_readiness_reports_unreconciled_balanced_ledger(db_session):
+    year = FiscalYear(id="fy-readiness", organization_id="org-readiness", name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+    period = FiscalPeriod(id="p-readiness", organization_id="org-readiness", fiscal_year_id="fy-readiness", name="January", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
+    db_session.add_all([
+        year,
+        period,
+        LedgerPosting(id="lp-readiness-1", organization_id="org-readiness", fiscal_period_id="p-readiness", journal_entry_id="missing-entry", journal_entry_line_id="missing-line-1", account_id="a-1", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("100.00"), credit=Decimal("0.00")),
+        LedgerPosting(id="lp-readiness-2", organization_id="org-readiness", fiscal_period_id="p-readiness", journal_entry_id="missing-entry", journal_entry_line_id="missing-line-2", account_id="a-2", posting_date=date(2026, 1, 10), line_number=2, debit=Decimal("0.00"), credit=Decimal("100.00")),
+    ])
+    await db_session.commit()
+
+    readiness = await FiscalPeriodService(db_session).close_readiness("org-readiness", "p-readiness")
+
+    assert readiness["draft_journal_entries"] == 0
+    assert readiness["ledger_reconciled"] is False
+    assert readiness["ledger_balanced"] is True
+    assert readiness["ready_to_close"] is False
+
+
+@pytest.mark.asyncio
 async def test_close_period_rejects_orphan_ledger_postings(db_session):
     year = FiscalYear(id="fy-orphan", organization_id="org-orphan", name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
     period = FiscalPeriod(id="p-orphan", organization_id="org-orphan", fiscal_year_id="fy-orphan", name="January", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
@@ -178,6 +198,11 @@ async def test_close_period_transitions_only_after_controls_pass(db_session):
         LedgerPosting(id="lp-4", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-4", account_id="a-4", posting_date=date(2026, 1, 10), line_number=2, debit=Decimal("0.00"), credit=Decimal("250.00")),
     ])
     await db_session.commit()
+
+    readiness = await FiscalPeriodService(db_session).close_readiness("org-3", "p-3")
+    assert readiness["ledger_reconciled"] is True
+    assert readiness["ledger_balanced"] is True
+    assert readiness["ready_to_close"] is True
 
     closed = await FiscalPeriodService(db_session).close_period("org-3", "p-3")
     assert closed.status == FiscalPeriodStatus.CLOSED
