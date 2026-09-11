@@ -2,7 +2,6 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     Date,
-    ExcludeConstraint,
     ForeignKey,
     String,
     UniqueConstraint,
@@ -10,6 +9,7 @@ from sqlalchemy import (
     func,
     literal_column,
 )
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
