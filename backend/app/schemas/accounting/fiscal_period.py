@@ -1,7 +1,10 @@
-from pydantic import BaseModel, ConfigDict
 from datetime import date, datetime
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
 from app.core.enums.accounting import FiscalPeriodStatus
+
 
 class FiscalPeriodBase(BaseModel):
     name: str
@@ -10,8 +13,10 @@ class FiscalPeriodBase(BaseModel):
     status: FiscalPeriodStatus = FiscalPeriodStatus.OPEN
     fiscal_year_id: str
 
+
 class FiscalPeriodCreate(FiscalPeriodBase):
     pass
+
 
 class FiscalPeriodUpdate(BaseModel):
     name: Optional[str] = None
@@ -19,9 +24,22 @@ class FiscalPeriodUpdate(BaseModel):
     end_date: Optional[date] = None
     status: Optional[FiscalPeriodStatus] = None
 
+
 class FiscalPeriodResponse(FiscalPeriodBase):
     id: str
     organization_id: str
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class FiscalPeriodCloseReadinessResponse(BaseModel):
+    period_id: str
+    organization_id: str
+    status: FiscalPeriodStatus
+    draft_journal_entries: int
+    ledger_reconciled: bool
+    ledger_balanced: bool
+    ready_to_close: bool
+    reconciliation: dict[str, object]
+    balance_control: dict[str, object]
