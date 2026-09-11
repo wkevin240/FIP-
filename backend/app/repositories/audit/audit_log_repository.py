@@ -93,3 +93,40 @@ class AuditLogRepository:
             )
             for row in rows
         ]
+
+    async def verify_organization_chain(self, organization_id: str) -> bool:
+        """Verify the persisted chain, including contiguous tenant-local sequencing."""
+        rows = (
+            await self.db.scalars(
+                select(AuditLog)
+                .where(AuditLog.organization_id == organization_id)
+                .order_by(AuditLog.sequence_no)
+            )
+        ).all()
+        if not rows:
+            return True
+        if rows[0].sequence_no != 1:
+            return False
+        if any(
+            row.organization_id != organization_id
+            or row.sequence_no != expected
+            for expected, row in enumerate(rows, start=1)
+        ):
+            return False
+        return AuditService.verify_chain(
+            [
+                AuditRecord(
+                    organization_id=row.organization_id,
+                    actor_id=row.actor_id,
+                    action=row.action,
+                    entity_type=row.entity_type,
+                    entity_id=row.entity_id,
+                    payload=json.loads(row.payload_json),
+                    occurred_at=row.occurred_at,
+                    previous_hash=row.previous_hash,
+                    record_hash=row.record_hash,
+                    request_id=row.request_id,
+                )
+                for row in rows
+            ]
+        )
