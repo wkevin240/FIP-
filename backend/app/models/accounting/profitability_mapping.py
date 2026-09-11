@@ -1,4 +1,15 @@
-from sqlalchemy import CheckConstraint, Column, Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Date,
+    ExcludeConstraint,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    case,
+    func,
+    literal_column,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -19,6 +30,27 @@ class ProfitabilityAccountMapping(Base):
         CheckConstraint(
             "effective_to IS NULL OR effective_to >= effective_from",
             name="ck_profitability_mapping_effective_range",
+        ),
+        ExcludeConstraint(
+            ("organization_id", "="),
+            ("account_id", "="),
+            ("rule_version", "="),
+            (
+                func.daterange(
+                    literal_column("effective_from"),
+                    case(
+                        (
+                            literal_column("effective_to").is_(None),
+                            None,
+                        ),
+                        else_=literal_column("effective_to") + 1,
+                    ),
+                    "[]",
+                ),
+                "&&",
+            ),
+            name="ex_profitability_mapping_no_overlap",
+            using="gist",
         ),
     )
 
