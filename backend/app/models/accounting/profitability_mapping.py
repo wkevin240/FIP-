@@ -51,7 +51,7 @@ class ProfitabilityAccountMapping(Base):
             ),
             name="ex_profitability_mapping_no_overlap",
             using="gist",
-        ),
+        ).ddl_if(dialect="postgresql"),
     )
 
     organization_id = Column(
