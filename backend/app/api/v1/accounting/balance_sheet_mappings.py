@@ -13,12 +13,17 @@ from app.schemas.accounting.balance_sheet_mapping import (
     BalanceSheetMappingCreateRequest,
     BalanceSheetMappingResponse,
 )
+from app.services.audit.audit_service import AuditService
 
 router = APIRouter()
 
 
 def get_repository(db: AsyncSession = Depends(get_db)) -> BalanceSheetMappingRepository:
     return BalanceSheetMappingRepository(db)
+
+
+def get_audit_service(db: AsyncSession = Depends(get_db)) -> AuditService:
+    return AuditService(db)
 
 
 def _response(mapping) -> BalanceSheetMappingResponse:
@@ -55,6 +60,7 @@ async def create_mapping(
     payload: BalanceSheetMappingCreateRequest,
     tenant: CurrentTenant = Depends(require_permission("balance_sheet_mapping:create")),
     repository: BalanceSheetMappingRepository = Depends(get_repository),
+    audit_service: AuditService = Depends(get_audit_service),
 ):
     try:
         mapping = await repository.create(
@@ -71,4 +77,21 @@ async def create_mapping(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    await audit_service.record(
+        organization_id=tenant.organization_id,
+        actor_user_id=tenant.user_id,
+        action="BALANCE_SHEET_MAPPING_CREATED",
+        resource_type="BalanceSheetAccountMapping",
+        resource_id=mapping.id,
+        new_value={
+            "account_id": mapping.account_id,
+            "category": mapping.category,
+            "rule_version": mapping.rule_version,
+            "effective_from": mapping.effective_from.isoformat(),
+            "effective_to": (
+                mapping.effective_to.isoformat() if mapping.effective_to is not None else None
+            ),
+        },
+    )
     return _response(mapping)
