@@ -132,3 +132,36 @@ class BalanceSheetMappingRepository:
             )
         )
         return list(result)
+
+    async def list_effective_at(
+        self,
+        organization_id: str,
+        rule_version: str,
+        as_of_date: date,
+    ) -> list[BalanceSheetAccountMapping]:
+        """Return mappings effective on the balance-sheet snapshot date.
+
+        A balance sheet is a point-in-time closing statement. Historical mappings
+        that ended before ``as_of_date`` must not participate in the closing
+        classification merely because they overlap the reporting period.
+        """
+        if not rule_version.strip():
+            raise ValueError("rule_version must not be blank")
+        result = await self.session.scalars(
+            select(BalanceSheetAccountMapping)
+            .where(
+                BalanceSheetAccountMapping.organization_id == organization_id,
+                BalanceSheetAccountMapping.rule_version == rule_version,
+                BalanceSheetAccountMapping.effective_from <= as_of_date,
+                (
+                    BalanceSheetAccountMapping.effective_to.is_(None)
+                    | (BalanceSheetAccountMapping.effective_to >= as_of_date)
+                ),
+            )
+            .order_by(
+                BalanceSheetAccountMapping.account_id,
+                BalanceSheetAccountMapping.effective_from,
+                BalanceSheetAccountMapping.id,
+            )
+        )
+        return list(result)

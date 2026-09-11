@@ -1,11 +1,8 @@
 from collections.abc import Iterable
-from datetime import date
-from decimal import Decimal
 
 from app.domain.calculation.accounting_balance_sheet import (
     BalanceSheetAccountRule,
     BalanceSheetCalculationEngine,
-    BalanceSheetFact,
     LedgerBalanceSheetInputResolver,
 )
 from app.domain.calculation.contracts import CalculationContext, CalculationResult
@@ -15,13 +12,13 @@ from app.services.accounting.ledger_service import LedgerService
 
 
 class BalanceSheetMappingAmbiguityError(RuntimeError):
-    """Raised when multiple effective mappings cover one account in a report window."""
+    """Raised when multiple effective mappings cover one account at a snapshot date."""
 
     def __init__(self, account_ids: Iterable[str]) -> None:
         self.account_ids = tuple(sorted(set(account_ids)))
         super().__init__(
-            "balance-sheet mapping is ambiguous for calculation period; "
-            f"multiple effective mappings intersect account(s): {', '.join(self.account_ids)}"
+            "balance-sheet mapping is ambiguous at snapshot date; "
+            f"multiple effective mappings exist for account(s): {', '.join(self.account_ids)}"
         )
 
 
@@ -77,10 +74,9 @@ class LedgerBalanceSheetService:
         *,
         fiscal_period_id: str | None = None,
     ) -> dict[str, CalculationResult]:
-        mappings = await self.mapping_repository.list_for_period(
+        mappings = await self.mapping_repository.list_effective_at(
             context.organization_id,
             context.rule_version,
-            context.period_start,
             context.period_end,
         )
         mappings = self._ensure_unambiguous(mappings)
