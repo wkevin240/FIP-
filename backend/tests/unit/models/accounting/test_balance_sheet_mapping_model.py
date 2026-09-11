@@ -1,5 +1,5 @@
-from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateTable
 
 from app.models.accounting.balance_sheet_mapping import BalanceSheetAccountMapping
 
