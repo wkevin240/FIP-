@@ -29,12 +29,12 @@ async def test_balance_sheet_mapping_overlap_constraint_exists_in_postgres() -> 
             FROM pg_constraint
             WHERE conrelid = 'balance_sheet_account_mappings'::regclass
               AND conname = 'ex_balance_sheet_mapping_no_overlap'
+              AND contype = 'x'
+              AND convalidated
             """
         )
 
         assert constraint_metadata is not None
-        assert constraint_metadata["contype"] == "x"
-        assert constraint_metadata["convalidated"] is True
 
         constraint_definition = constraint_metadata["definition"]
         assert "EXCLUDE USING gist" in constraint_definition
