@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
+from app.audit.audit_context import AuditContext
+from app.audit.audit_service import AuditService
 from app.db.session import get_db
 from app.repositories.accounting.balance_sheet_mapping_repository import (
     BalanceSheetMappingConflictError,
@@ -13,7 +15,6 @@ from app.schemas.accounting.balance_sheet_mapping import (
     BalanceSheetMappingCreateRequest,
     BalanceSheetMappingResponse,
 )
-from app.services.audit.audit_service import AuditService
 
 router = APIRouter()
 
@@ -22,8 +23,8 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> BalanceSheetMappingRep
     return BalanceSheetMappingRepository(db)
 
 
-def get_audit_service(db: AsyncSession = Depends(get_db)) -> AuditService:
-    return AuditService(db)
+def get_audit_service() -> type[AuditService]:
+    return AuditService
 
 
 def _response(mapping) -> BalanceSheetMappingResponse:
@@ -60,7 +61,7 @@ async def create_mapping(
     payload: BalanceSheetMappingCreateRequest,
     tenant: CurrentTenant = Depends(require_permission("balance_sheet_mapping:create")),
     repository: BalanceSheetMappingRepository = Depends(get_repository),
-    audit_service: AuditService = Depends(get_audit_service),
+    audit_service: type[AuditService] = Depends(get_audit_service),
 ):
     try:
         mapping = await repository.create(
@@ -78,13 +79,15 @@ async def create_mapping(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    await audit_service.record(
-        organization_id=tenant.organization_id,
-        actor_user_id=tenant.user_id,
-        action="BALANCE_SHEET_MAPPING_CREATED",
-        resource_type="BalanceSheetAccountMapping",
-        resource_id=mapping.id,
-        new_value={
+    audit_service.record(
+        AuditContext(
+            organization_id=tenant.organization_id,
+            actor_id=tenant.user_id,
+            action="BALANCE_SHEET_MAPPING_CREATED",
+        ),
+        entity_type="BalanceSheetAccountMapping",
+        entity_id=mapping.id,
+        payload={
             "account_id": mapping.account_id,
             "category": mapping.category,
             "rule_version": mapping.rule_version,
