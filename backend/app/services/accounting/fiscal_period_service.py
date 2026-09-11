@@ -2,15 +2,15 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
 from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
+from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
+from app.domain.accounting.ledger.trial_balance_control import trial_balance_control
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
-from app.models.accounting.ledger_posting import LedgerPosting
-from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRepository
 from app.repositories.accounting.fiscal_year_repository import FiscalYearRepository
+from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.services.accounting.ledger_service import LedgerService
 
 
@@ -66,6 +66,52 @@ class FiscalPeriodService:
             raise HTTPException(status_code=404, detail="Fiscal year not found")
         return await self.repository.list_by_fiscal_year(organization_id, fiscal_year_id)
 
+    async def close_readiness(self, organization_id: str, period_id: str) -> dict[str, object]:
+        period = await self.get_by_id(organization_id, period_id)
+        if period.status != FiscalPeriodStatus.OPEN:
+            raise HTTPException(status_code=409, detail="Only an open fiscal period can be evaluated for closing")
+
+        draft_count = int(
+            await self.session.scalar(
+                select(func.count(JournalEntry.id)).where(
+                    JournalEntry.organization_id == organization_id,
+                    JournalEntry.fiscal_period_id == period_id,
+                    JournalEntry.status == JournalEntryStatus.DRAFT,
+                )
+            )
+            or 0
+        )
+
+        reconciliation = await self.ledger_service.reconcile_postings(
+            organization_id,
+            fiscal_period_id=period_id,
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+        rows = await self.ledger_service.trial_balance(
+            organization_id,
+            fiscal_period_id=period_id,
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+        balance_control = trial_balance_control(rows)
+
+        ledger_reconciled = bool(reconciliation["is_reconciled"])
+        ledger_balanced = bool(balance_control["is_balanced"])
+        ready_to_close = draft_count == 0 and ledger_reconciled and ledger_balanced
+
+        return {
+            "period_id": period.id,
+            "organization_id": organization_id,
+            "status": period.status,
+            "draft_journal_entries": draft_count,
+            "ledger_reconciled": ledger_reconciled,
+            "ledger_balanced": ledger_balanced,
+            "ready_to_close": ready_to_close,
+            "reconciliation": reconciliation,
+            "balance_control": balance_control,
+        }
+
     async def close_period(self, organization_id: str, period_id: str) -> FiscalPeriod:
         period = await self.session.scalar(
             select(FiscalPeriod)
@@ -80,46 +126,21 @@ class FiscalPeriodService:
         if period.status != FiscalPeriodStatus.OPEN:
             raise HTTPException(status_code=409, detail="Only an open fiscal period can be closed")
 
-        draft_count = await self.session.scalar(
-            select(func.count(JournalEntry.id)).where(
-                JournalEntry.organization_id == organization_id,
-                JournalEntry.fiscal_period_id == period_id,
-                JournalEntry.status == JournalEntryStatus.DRAFT,
-            )
-        )
-        if draft_count:
-            raise HTTPException(status_code=409, detail="Fiscal period contains unposted journal entries")
-
-        reconciliation = await self.ledger_service.reconcile_postings(
-            organization_id,
-            fiscal_period_id=period_id,
-            start_date=period.start_date,
-            end_date=period.end_date,
-        )
-        if not reconciliation["is_reconciled"]:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "Fiscal period ledger is not reconciled: "
-                    f"missing={reconciliation['missing_postings']}, "
-                    f"orphan={reconciliation['orphan_postings']}, "
-                    f"mismatched={reconciliation['mismatched_postings']}"
-                ),
-            )
-
-        totals = await self.session.execute(
-            select(
-                func.coalesce(func.sum(LedgerPosting.debit), 0),
-                func.coalesce(func.sum(LedgerPosting.credit), 0),
-            ).where(
-                LedgerPosting.organization_id == organization_id,
-                LedgerPosting.fiscal_period_id == period_id,
-                LedgerPosting.posting_date >= period.start_date,
-                LedgerPosting.posting_date <= period.end_date,
-            )
-        )
-        total_debit, total_credit = totals.one()
-        if total_debit != total_credit:
+        readiness = await self.close_readiness(organization_id, period_id)
+        if not readiness["ready_to_close"]:
+            if readiness["draft_journal_entries"]:
+                raise HTTPException(status_code=409, detail="Fiscal period contains unposted journal entries")
+            if not readiness["ledger_reconciled"]:
+                reconciliation = readiness["reconciliation"]
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Fiscal period ledger is not reconciled: "
+                        f"missing={reconciliation['missing_postings']}, "
+                        f"orphan={reconciliation['orphan_postings']}, "
+                        f"mismatched={reconciliation['mismatched_postings']}"
+                    ),
+                )
             raise HTTPException(status_code=409, detail="Fiscal period ledger is not balanced")
 
         period.status = FiscalPeriodStatus.CLOSED
