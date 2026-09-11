@@ -7,6 +7,7 @@ from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
+from app.models.accounting.ledger_posting import LedgerPosting
 from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRepository
 from app.repositories.accounting.fiscal_year_repository import FiscalYearRepository
