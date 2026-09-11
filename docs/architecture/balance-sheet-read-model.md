@@ -27,14 +27,26 @@ The calculation kernel then exposes `TOTAL_ASSETS`, `TOTAL_LIABILITIES`, `TOTAL_
 
 The application-level overlap check provides an early deterministic error for ordinary requests; the PostgreSQL exclusion constraint is the authoritative concurrency guard so two concurrent writers cannot bypass the invariant between the read check and commit.
 
+## Auditability
+
+Creating a persisted mapping builds a deterministic `AuditRecord` after the mapping has successfully flushed. The audit context carries the tenant, actor, and `BALANCE_SHEET_MAPPING_CREATED` action; the record payload identifies the mapping, account, category, rule version, and effective range. Failed validation, cross-tenant account checks, or overlap conflicts do not reach the audit call because persistence must succeed first.
+
+The current `AuditService` is a record builder and chain verifier; this endpoint does **not** claim durable audit-log storage. Durable audit persistence remains a separate boundary and must be implemented before FIP treats this event as a retained audit trail. This distinction is intentional so the system does not represent an in-memory record as regulatory evidence.
+
 A zero `BALANCE_DIFFERENCE` is a mathematical integrity result for the selected mapped ledger slice; it is not a claim that an external accounting package or statutory report has been independently reconciled. External proof still requires authoritative source data.
 
 ## API
 
 `GET /api/v1/accounting/balance-sheet`
 
-Required: `start_date`, `end_date`.
+`GET /api/v1/accounting/balance-sheet/mappings`
 
-Optional: `fiscal_period_id`, `rule_version`.
+`POST /api/v1/accounting/balance-sheet/mappings`
 
-The endpoint is read-only and uses the existing `ledger:read` permission.
+Required for mapping creation: `account_id`, `category`, `rule_version`, `effective_from`.
+
+Optional: `effective_to`.
+
+The mapping endpoints are tenant-scoped. Creation requires `balance_sheet_mapping:create`; read access requires `balance_sheet_mapping:read`.
+
+The mapping creation audit action is `BALANCE_SHEET_MAPPING_CREATED` and targets the `BalanceSheetAccountMapping` resource. It currently produces an `AuditRecord` in-process; it is not yet a durable audit-log entry.
