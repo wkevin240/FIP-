@@ -6,12 +6,19 @@ from app.domain.calculation.contracts import (
     CalculationContext,
     CalculationDefinition,
     CalculationResult,
+    CalculationStatus,
     SourceReference,
 )
+from app.domain.calculation.engine import CalculationEngine, CalculationNode
 
 
 BALANCE_SHEET_CATEGORIES = ("ASSET", "LIABILITY", "EQUITY")
-BALANCE_SHEET_TOTALS = ("TOTAL_ASSETS", "TOTAL_LIABILITIES", "TOTAL_EQUITY", "BALANCE_DIFFERENCE")
+BALANCE_SHEET_TOTALS = (
+    "TOTAL_ASSETS",
+    "TOTAL_LIABILITIES",
+    "TOTAL_EQUITY",
+    "BALANCE_DIFFERENCE",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +77,9 @@ class LedgerBalanceSheetInputResolver:
             rules_by_account[rule.account_id] = rule
 
         amounts = {category: Decimal("0.00") for category in BALANCE_SHEET_CATEGORIES}
-        sources: dict[str, list[SourceReference]] = {category: [] for category in BALANCE_SHEET_CATEGORIES}
+        sources: dict[str, list[SourceReference]] = {
+            category: [] for category in BALANCE_SHEET_CATEGORIES
+        }
 
         for fact in facts:
             if fact.debit < 0 or fact.credit < 0:
@@ -117,17 +126,16 @@ class LedgerBalanceSheetInputResolver:
 
 
 class BalanceSheetCalculationEngine:
-    """Deterministic balance-sheet equation over explicit source facts."""
+    """Execute the balance-sheet equation through the shared FIP calculation DAG."""
 
     @staticmethod
     def calculate(
         context: CalculationContext,
         inputs: Mapping[str, CalculationResult],
     ) -> dict[str, CalculationResult]:
-        required = tuple(BALANCE_SHEET_CATEGORIES)
-        missing = [code for code in required if code not in inputs]
+        missing = set(BALANCE_SHEET_CATEGORIES) - inputs.keys()
         if missing:
-            raise ValueError(f"missing balance-sheet inputs: {', '.join(missing)}")
+            raise ValueError(f"missing balance-sheet inputs: {', '.join(sorted(missing))}")
 
         definitions = {
             "TOTAL_ASSETS": CalculationDefinition(
@@ -155,51 +163,20 @@ class BalanceSheetCalculationEngine:
                 rule_version=context.rule_version,
             ),
         }
-
-        results: dict[str, CalculationResult] = {}
-        for category, total_code in (
-            ("ASSET", "TOTAL_ASSETS"),
-            ("LIABILITY", "TOTAL_LIABILITIES"),
-            ("EQUITY", "TOTAL_EQUITY"),
-        ):
-            source = inputs[category]
-            if source.status.value != "READY":
-                results[total_code] = CalculationResult(
-                    definition=definitions[total_code],
-                    context=context,
-                    status=source.status,
-                    reason=source.reason,
-                    sources=source.sources,
-                )
-            else:
-                results[total_code] = CalculationResult.ready(
-                    definition=definitions[total_code],
-                    context=context,
-                    value=source.value,
-                    sources=source.sources,
-                )
-
-        dependencies = [results[code] for code in ("TOTAL_ASSETS", "TOTAL_LIABILITIES", "TOTAL_EQUITY")]
-        non_ready = next((result for result in dependencies if result.status.value != "READY"), None)
-        if non_ready is not None:
-            results["BALANCE_DIFFERENCE"] = CalculationResult(
-                definition=definitions["BALANCE_DIFFERENCE"],
-                context=context,
-                status=non_ready.status,
-                reason=non_ready.reason,
-                sources=tuple(source for result in dependencies for source in result.sources),
-            )
-            return results
-
-        difference = (
-            results["TOTAL_ASSETS"].value
-            - results["TOTAL_LIABILITIES"].value
-            - results["TOTAL_EQUITY"].value
+        graph = CalculationEngine(
+            nodes=(
+                CalculationNode(definitions["TOTAL_ASSETS"], lambda values: values[0]),
+                CalculationNode(definitions["TOTAL_LIABILITIES"], lambda values: values[0]),
+                CalculationNode(definitions["TOTAL_EQUITY"], lambda values: values[0]),
+                CalculationNode(
+                    definitions["BALANCE_DIFFERENCE"],
+                    lambda values: values[0] - values[1] - values[2],
+                ),
+            ),
+            external_input_codes=BALANCE_SHEET_CATEGORIES,
         )
-        results["BALANCE_DIFFERENCE"] = CalculationResult.ready(
-            definition=definitions["BALANCE_DIFFERENCE"],
-            context=context,
-            value=difference,
-            sources=tuple(source for result in dependencies for source in result.sources),
-        )
-        return results
+        return {
+            code: result
+            for code, result in graph.execute(context, inputs).items()
+            if code in BALANCE_SHEET_TOTALS
+        }
