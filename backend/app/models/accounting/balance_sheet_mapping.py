@@ -1,4 +1,5 @@
-from sqlalchemy import CheckConstraint, Column, Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Date, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -27,6 +28,16 @@ class BalanceSheetAccountMapping(Base):
             "effective_to IS NULL OR effective_to >= effective_from",
             name="ck_balance_sheet_mapping_effective_range",
         ),
+        ExcludeConstraint(
+            ("organization_id", "="),
+            ("account_id", "="),
+            ("rule_version", "="),
+            (
+                func.daterange("effective_from", "effective_to", "[]"),
+                "&&",
+            ),
+            name="ex_balance_sheet_mapping_no_overlap",
+        ).ddl_if(dialect="postgresql"),
     )
 
     organization_id = Column(
