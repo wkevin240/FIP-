@@ -11,6 +11,9 @@ from app.models.accounting.balance_sheet_mapping import (
 )
 
 
+BALANCE_SHEET_OVERLAP_CONSTRAINT = "ex_balance_sheet_mapping_no_overlap"
+
+
 class BalanceSheetMappingConflictError(ValueError):
     """Raised when a balance-sheet mapping overlaps an existing effective rule."""
 
@@ -73,6 +76,14 @@ class BalanceSheetMappingRepository:
                 "balance-sheet mapping effective range overlaps an existing mapping"
             )
 
+    @staticmethod
+    def _is_overlap_integrity_error(exc: IntegrityError) -> bool:
+        original = exc.orig
+        diagnostic = getattr(original, "diag", None)
+        if getattr(diagnostic, "constraint_name", None) == BALANCE_SHEET_OVERLAP_CONSTRAINT:
+            return True
+        return BALANCE_SHEET_OVERLAP_CONSTRAINT in str(original)
+
     async def create(
         self,
         *,
@@ -105,9 +116,11 @@ class BalanceSheetMappingRepository:
             await self.session.flush()
         except IntegrityError as exc:
             await self.session.rollback()
-            raise BalanceSheetMappingConflictError(
-                "balance-sheet mapping effective range overlaps an existing mapping"
-            ) from exc
+            if self._is_overlap_integrity_error(exc):
+                raise BalanceSheetMappingConflictError(
+                    "balance-sheet mapping effective range overlaps an existing mapping"
+                ) from exc
+            raise
         return mapping
 
     async def list_for_period(
