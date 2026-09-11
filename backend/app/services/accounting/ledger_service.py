@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.calculation.accounting_balance_sheet import BalanceSheetFact
 from app.domain.calculation.ledger_profitability import LedgerProfitabilityFact
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
@@ -124,6 +125,43 @@ class LedgerService:
         )
         return [
             LedgerProfitabilityFact(
+                posting_id=posting.id,
+                account_id=posting.account_id,
+                debit=Decimal(str(posting.debit)),
+                credit=Decimal(str(posting.credit)),
+            )
+            for posting in result.scalars()
+        ]
+
+    async def balance_sheet_facts(
+        self,
+        organization_id: str,
+        *,
+        fiscal_period_id: str | None = None,
+        end_date: date | None = None,
+    ) -> list[BalanceSheetFact]:
+        """Extract cumulative posted-ledger facts through the balance-sheet date."""
+        period = await self._validate_period(organization_id, fiscal_period_id)
+        if end_date is None and period is not None:
+            end_date = period.end_date
+        if end_date is not None and period is not None and end_date > period.end_date:
+            raise HTTPException(status_code=422, detail="end_date must fall within the selected fiscal period")
+
+        filters = [LedgerPosting.organization_id == organization_id]
+        if end_date is not None:
+            filters.append(LedgerPosting.posting_date <= end_date)
+        result = await self.db.execute(
+            select(LedgerPosting)
+            .where(*filters)
+            .order_by(
+                LedgerPosting.posting_date,
+                LedgerPosting.journal_entry_id,
+                LedgerPosting.line_number,
+                LedgerPosting.id,
+            )
+        )
+        return [
+            BalanceSheetFact(
                 posting_id=posting.id,
                 account_id=posting.account_id,
                 debit=Decimal(str(posting.debit)),

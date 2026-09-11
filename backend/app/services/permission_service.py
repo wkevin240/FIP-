@@ -15,17 +15,18 @@ class PermissionService:
             "journal_entry:create", "journal_entry:read", "journal_entry:update", "journal_entry:post",
             "ledger:read",
             "profitability_mapping:create", "profitability_mapping:read",
+            "balance_sheet_mapping:create", "balance_sheet_mapping:read",
         }),
         MembershipRole.MANAGER.value: frozenset({
             "account:read", "fiscal_year:read", "fiscal_period:read",
             "journal:read", "journal_entry:read", "ledger:read",
-            "profitability_mapping:read",
+            "profitability_mapping:read", "balance_sheet_mapping:read",
         }),
         MembershipRole.USER.value: frozenset(),
         MembershipRole.AUDITOR.value: frozenset({
             "account:read", "fiscal_year:read", "fiscal_period:read",
             "journal:read", "journal_entry:read", "ledger:read",
-            "profitability_mapping:read", "audit:read",
+            "profitability_mapping:read", "balance_sheet_mapping:read", "audit:read",
         }),
     }
 

@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
 from app.api.v1.accounting.accounts import router as accounts_router
+from app.api.v1.accounting.balance_sheet import router as balance_sheet_router
+from app.api.v1.accounting.balance_sheet_mappings import router as balance_sheet_mappings_router
 from app.api.v1.accounting.fiscal_years import router as fy_router
 from app.api.v1.accounting.fiscal_periods import router as fp_router
 from app.api.v1.accounting.journal_entries import router as journal_entries_router
@@ -16,3 +18,5 @@ api_router.include_router(journal_entries_router, prefix="/accounting/journal-en
 api_router.include_router(ledger_router, prefix="/accounting/ledger", tags=["Accounting - Ledger"])
 api_router.include_router(profitability_router, prefix="/accounting/profitability", tags=["Accounting - Profitability"])
 api_router.include_router(profitability_mappings_router, prefix="/accounting/profitability/mappings", tags=["Accounting - Profitability Mappings"])
+api_router.include_router(balance_sheet_router, prefix="/accounting/balance-sheet", tags=["Accounting - Balance Sheet"])
+api_router.include_router(balance_sheet_mappings_router, prefix="/accounting/balance-sheet/mappings", tags=["Accounting - Balance Sheet Mappings"])
