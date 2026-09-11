@@ -13,13 +13,25 @@ class PermissionService:
             "fiscal_period:create", "fiscal_period:read", "fiscal_period:update",
             "journal:create", "journal:read", "journal:update",
             "journal_entry:create", "journal_entry:read", "journal_entry:update", "journal_entry:post",
+            "ledger:read",
+            "profitability_mapping:create", "profitability_mapping:read",
         }),
-        MembershipRole.MANAGER.value: frozenset({"account:read", "fiscal_year:read", "fiscal_period:read", "journal:read", "journal_entry:read"}),
+        MembershipRole.MANAGER.value: frozenset({
+            "account:read", "fiscal_year:read", "fiscal_period:read",
+            "journal:read", "journal_entry:read", "ledger:read",
+            "profitability_mapping:read",
+        }),
         MembershipRole.USER.value: frozenset(),
-        MembershipRole.AUDITOR.value: frozenset({"account:read", "fiscal_year:read", "fiscal_period:read", "journal:read", "journal_entry:read", "audit:read"}),
+        MembershipRole.AUDITOR.value: frozenset({
+            "account:read", "fiscal_year:read", "fiscal_period:read",
+            "journal:read", "journal_entry:read", "ledger:read",
+            "profitability_mapping:read", "audit:read",
+        }),
     }
 
     @classmethod
     def role_allows(cls, role: str, permission: str, is_superuser: bool = False) -> bool:
-        allowed = cls._ROLE_PERMISSIONS.get(role, frozenset())
+        """Evaluate a permission while tolerating lowercase role values from identity context."""
+        normalized_role = role.upper() if isinstance(role, str) else role
+        allowed = cls._ROLE_PERMISSIONS.get(normalized_role, frozenset())
         return is_superuser or "*" in allowed or permission in allowed
