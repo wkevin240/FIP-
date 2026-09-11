@@ -38,11 +38,14 @@ async def profitability_report(
     tenant: CurrentTenant = Depends(require_permission("ledger:read")),
     service: LedgerProfitabilityService = Depends(get_profitability_service),
 ):
+    # Direct function calls in unit tests do not pass FastAPI's Query default;
+    # normalize that framework object at the application boundary.
+    effective_rule_version = rule_version if isinstance(rule_version, str) else "1"
     context = CalculationContext(
         organization_id=tenant.organization_id,
         period_start=start_date,
         period_end=end_date,
-        rule_version=rule_version,
+        rule_version=effective_rule_version,
     )
     try:
         results = await service.calculate_from_persisted_mappings(
@@ -65,7 +68,7 @@ async def profitability_report(
         fiscal_period_id=fiscal_period_id,
         start_date=start_date,
         end_date=end_date,
-        rule_version=rule_version,
+        rule_version=effective_rule_version,
         results=[
             ProfitabilityResultResponse(
                 code=code,
