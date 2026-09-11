@@ -27,14 +27,24 @@ The calculation kernel then exposes `TOTAL_ASSETS`, `TOTAL_LIABILITIES`, `TOTAL_
 
 The application-level overlap check provides an early deterministic error for ordinary requests; the PostgreSQL exclusion constraint is the authoritative concurrency guard so two concurrent writers cannot bypass the invariant between the read check and commit.
 
+## Auditability
+
+Creating a persisted mapping records a transactionally coupled audit event with the tenant, actor, mapping resource identifier, category, rule version, and effective range. The audit event is emitted only after the mapping has successfully flushed, so failed validation, cross-tenant account checks, or overlap conflicts do not produce a false creation event. The audit record participates in the same database transaction as the mapping and therefore cannot survive a transaction rollback independently of the configuration change.
+
 A zero `BALANCE_DIFFERENCE` is a mathematical integrity result for the selected mapped ledger slice; it is not a claim that an external accounting package or statutory report has been independently reconciled. External proof still requires authoritative source data.
 
 ## API
 
 `GET /api/v1/accounting/balance-sheet`
 
-Required: `start_date`, `end_date`.
+`GET /api/v1/accounting/balance-sheet/mappings`
 
-Optional: `fiscal_period_id`, `rule_version`.
+`POST /api/v1/accounting/balance-sheet/mappings`
 
-The endpoint is read-only and uses the existing `ledger:read` permission.
+Required for mapping creation: `account_id`, `category`, `rule_version`, `effective_from`.
+
+Optional: `effective_to`.
+
+The mapping endpoints are tenant-scoped. Creation requires `balance_sheet_mapping:create`; read access requires `balance_sheet_mapping:read`.
+
+The mapping creation audit event is `BALANCE_SHEET_MAPPING_CREATED` and targets the `BalanceSheetAccountMapping` resource.
