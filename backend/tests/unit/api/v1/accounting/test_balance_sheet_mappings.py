@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 
 from app.api.v1.accounting.balance_sheet_mappings import create_mapping
 from app.schemas.accounting.balance_sheet_mapping import BalanceSheetMappingCreateRequest
@@ -69,7 +70,8 @@ async def test_create_mapping_does_not_audit_failed_persistence() -> None:
         effective_from=date(2026, 1, 1),
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException) as raised:
         await create_mapping(payload, tenant, repository, audit_service)
 
+    assert raised.value.status_code == 404
     audit_service.record.assert_not_awaited()
