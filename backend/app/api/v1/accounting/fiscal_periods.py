@@ -3,7 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.db.session import get_db
-from app.schemas.accounting.fiscal_period import FiscalPeriodCreate, FiscalPeriodResponse
+from app.schemas.accounting.fiscal_period import (
+    FiscalPeriodCloseReadinessResponse,
+    FiscalPeriodCreate,
+    FiscalPeriodResponse,
+)
 from app.services.accounting.fiscal_period_service import FiscalPeriodService
 
 router = APIRouter()
@@ -29,6 +33,15 @@ async def get_by_year(
     service: FiscalPeriodService = Depends(get_service),
 ):
     return await service.get_by_fiscal_year(tenant.organization_id, year_id)
+
+
+@router.get("/{period_id}/close-readiness", response_model=FiscalPeriodCloseReadinessResponse)
+async def close_readiness(
+    period_id: str,
+    tenant: CurrentTenant = Depends(require_permission("fiscal_period:close")),
+    service: FiscalPeriodService = Depends(get_service),
+):
+    return await service.close_readiness(tenant.organization_id, period_id)
 
 
 @router.post("/{period_id}/close", response_model=FiscalPeriodResponse)
