@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
@@ -106,13 +106,19 @@ class FiscalPeriodService:
                 ),
             )
 
-        control = await self.ledger_service.trial_balance_control(
-            organization_id,
-            fiscal_period_id=period_id,
-            start_date=period.start_date,
-            end_date=period.end_date,
+        totals = await self.session.execute(
+            select(
+                func.coalesce(func.sum(LedgerPosting.debit), 0),
+                func.coalesce(func.sum(LedgerPosting.credit), 0),
+            ).where(
+                LedgerPosting.organization_id == organization_id,
+                LedgerPosting.fiscal_period_id == period_id,
+                LedgerPosting.posting_date >= period.start_date,
+                LedgerPosting.posting_date <= period.end_date,
+            )
         )
-        if not control["is_balanced"]:
+        total_debit, total_credit = totals.one()
+        if total_debit != total_credit:
             raise HTTPException(status_code=409, detail="Fiscal period ledger is not balanced")
 
         period.status = FiscalPeriodStatus.CLOSED
