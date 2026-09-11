@@ -27,7 +27,7 @@ class AuditRecord:
 
 
 class AuditService:
-    """Build deterministic audit records without coupling the domain to storage."""
+    """Build deterministic audit records and canonical payloads."""
 
     @staticmethod
     def _canonicalize(value: Any) -> Any:
@@ -40,6 +40,16 @@ class AuditService:
         if isinstance(value, (list, tuple)):
             return [AuditService._canonicalize(item) for item in value]
         return value
+
+    @classmethod
+    def canonical_payload_json(cls, payload: dict[str, Any]) -> str:
+        """Serialize a payload without losing the representation used for hashing."""
+        return json.dumps(
+            cls._canonicalize(payload),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def _digest(cls, record: dict[str, Any]) -> str:
