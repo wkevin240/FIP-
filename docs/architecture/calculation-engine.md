@@ -62,6 +62,27 @@ The accounting read side also exposes a reconciliation control between POSTED jo
 
 Profitability orchestration treats this reconciliation state as a hard source-integrity gate. `LedgerProfitabilityService` refuses to calculate P&L from an unreconciled selected slice and raises `LedgerProfitabilityIntegrityError` with the detected discrepancy identifiers. This prevents a downstream financial result from appearing valid when the posted-ledger source is known to have drifted from its POSTED journal source.
 
+## Balance-sheet vertical slice
+
+`BalanceSheetCalculationEngine` is the first additional accounting statement engine built on the shared DAG. It deliberately does **not** encode an OHADA chart of accounts or infer classification from account codes. Instead, `BalanceSheetAccountRule` requires an explicit account-to-category mapping for `ASSET`, `LIABILITY`, or `EQUITY`.
+
+`LedgerBalanceSheetInputResolver` consumes only authorized posted-ledger facts. Asset balances use debit-minus-credit normal-balance arithmetic; liability and equity balances use credit-minus-debit. Each contributing `LedgerPosting` is retained as provenance. A category with no mapped posted movement is `NOT_READY`, not zero, and that status propagates through the statement calculation.
+
+The statement then executes through the shared `CalculationEngine` DAG:
+
+```text
+ASSET       -> TOTAL_ASSETS
+LIABILITY   -> TOTAL_LIABILITIES
+EQUITY      -> TOTAL_EQUITY
+                    |
+                    +--> BALANCE_DIFFERENCE
+                         = TOTAL_ASSETS - TOTAL_LIABILITIES - TOTAL_EQUITY
+```
+
+This engine intentionally reports the accounting equation; it does not silently inject current-period profit into equity. Retained earnings, closing entries, valuation adjustments and other equity movements must come from explicit ledger facts or explicit future rules. An unbalanced result is therefore visible as a non-zero `BALANCE_DIFFERENCE`, while missing source coverage remains `NOT_READY`.
+
+This creates a reusable statement pattern for FIP: immutable ledger extraction -> explicit classification -> shared calculation DAG -> traceable statement result. The same boundary can later support cash-flow and management statements without coupling the kernel to a jurisdiction-specific chart of accounts.
+
 ## Profitability vertical slice
 
 `ProfitabilityCalculationEngine` expresses Gross Profit, Operating Income, Net Income, Gross Margin, Operating Margin and Net Margin as a single kernel DAG. Category facts (`REVENUE`, `COGS`, `OPERATING_EXPENSE`, `OTHER_INCOME`, `OTHER_EXPENSE`) are explicit external inputs; all six derived metrics are calculation nodes. Monetary outputs are quantized to cents and ratios use the same deterministic Decimal operator boundary as the kernel.
