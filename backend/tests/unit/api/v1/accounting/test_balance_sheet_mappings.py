@@ -1,6 +1,6 @@
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import HTTPException
@@ -21,8 +21,7 @@ async def test_create_mapping_records_audit_event_after_persistence() -> None:
         effective_from=date(2026, 1, 1),
         effective_to=date(2026, 12, 31),
     )
-    repository = SimpleNamespace(create=Mock())
-    repository.create.return_value = mapping
+    repository = SimpleNamespace(create=AsyncMock(return_value=mapping))
     tenant = SimpleNamespace(organization_id="org-1", user_id="user-1")
     payload = BalanceSheetMappingCreateRequest(
         account_id="account-1",
@@ -36,7 +35,7 @@ async def test_create_mapping_records_audit_event_after_persistence() -> None:
     result = await create_mapping(payload, tenant, repository, audit_service)
 
     assert result.id == "mapping-1"
-    repository.create.assert_called_once_with(
+    repository.create.assert_awaited_once_with(
         organization_id="org-1",
         account_id="account-1",
         category="ASSET",
@@ -64,7 +63,7 @@ async def test_create_mapping_records_audit_event_after_persistence() -> None:
 
 @pytest.mark.asyncio
 async def test_create_mapping_does_not_audit_failed_persistence() -> None:
-    repository = SimpleNamespace(create=Mock(side_effect=LookupError("account not found")))
+    repository = SimpleNamespace(create=AsyncMock(side_effect=LookupError("account not found")))
     audit_service = Mock(wraps=AuditService)
     tenant = SimpleNamespace(organization_id="org-1", user_id="user-1")
     payload = BalanceSheetMappingCreateRequest(
