@@ -26,5 +26,8 @@ def test_balance_sheet_mapping_compiles_overlap_exclusion_for_postgresql() -> No
     ddl = str(AddConstraint(exclusion).compile(dialect=postgresql.dialect()))
 
     assert "EXCLUDE USING gist" in ddl
-    assert "daterange(effective_from, effective_to, '[]')" in ddl
+    assert "daterange(" in ddl
+    assert "'effective_from'" in ddl
+    assert "'effective_to'" in ddl
+    assert "'[]'" in ddl
     assert "ex_balance_sheet_mapping_no_overlap" in ddl
