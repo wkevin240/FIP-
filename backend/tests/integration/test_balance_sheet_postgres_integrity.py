@@ -23,16 +23,20 @@ async def test_balance_sheet_mapping_overlap_constraint_exists_in_postgres() -> 
         )
         assert extension == 1
 
-        constraint_definition = await connection.fetchval(
+        constraint_metadata = await connection.fetchrow(
             """
-            SELECT pg_get_constraintdef(oid)
+            SELECT contype, convalidated, pg_get_constraintdef(oid) AS definition
             FROM pg_constraint
             WHERE conrelid = 'balance_sheet_account_mappings'::regclass
               AND conname = 'ex_balance_sheet_mapping_no_overlap'
             """
         )
 
-        assert constraint_definition is not None
+        assert constraint_metadata is not None
+        assert constraint_metadata["contype"] == "x"
+        assert constraint_metadata["convalidated"] is True
+
+        constraint_definition = constraint_metadata["definition"]
         assert "EXCLUDE USING gist" in constraint_definition
         assert "organization_id WITH =" in constraint_definition
         assert "account_id WITH =" in constraint_definition
