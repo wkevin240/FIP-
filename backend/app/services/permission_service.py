@@ -31,5 +31,7 @@ class PermissionService:
 
     @classmethod
     def role_allows(cls, role: str, permission: str, is_superuser: bool = False) -> bool:
-        allowed = cls._ROLE_PERMISSIONS.get(role, frozenset())
+        """Evaluate a permission while tolerating lowercase role values from identity context."""
+        normalized_role = role.upper() if isinstance(role, str) else role
+        allowed = cls._ROLE_PERMISSIONS.get(normalized_role, frozenset())
         return is_superuser or "*" in allowed or permission in allowed
