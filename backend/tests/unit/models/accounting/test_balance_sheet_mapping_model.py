@@ -1,3 +1,4 @@
+from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import postgresql
 
 from app.models.accounting.balance_sheet_mapping import BalanceSheetAccountMapping
@@ -13,15 +14,15 @@ def test_balance_sheet_mapping_declares_postgresql_overlap_exclusion() -> None:
 
     assert isinstance(exclusion, postgresql.ExcludeConstraint)
     assert exclusion.name == "ex_balance_sheet_mapping_no_overlap"
-    assert len(exclusion._render_exprs) == 4
 
 
-def test_balance_sheet_mapping_overlap_exclusion_is_postgresql_only() -> None:
-    exclusion = next(
-        constraint
-        for constraint in BalanceSheetAccountMapping.__table__.constraints
-        if constraint.name == "ex_balance_sheet_mapping_no_overlap"
+def test_balance_sheet_mapping_compiles_overlap_exclusion_for_postgresql() -> None:
+    ddl = str(
+        CreateTable(BalanceSheetAccountMapping.__table__).compile(
+            dialect=postgresql.dialect()
+        )
     )
 
-    ddl = exclusion.ddl_if
-    assert ddl is not None
+    assert "EXCLUDE USING gist" in ddl
+    assert "daterange(effective_from, effective_to, '[]')" in ddl
+    assert "ex_balance_sheet_mapping_no_overlap" in ddl
