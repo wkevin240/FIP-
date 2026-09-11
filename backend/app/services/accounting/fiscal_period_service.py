@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
@@ -7,10 +7,10 @@ from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
-from app.models.accounting.ledger_posting import LedgerPosting
+from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRepository
 from app.repositories.accounting.fiscal_year_repository import FiscalYearRepository
-from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
+from app.services.accounting.ledger_service import LedgerService
 
 
 class FiscalPeriodService:
@@ -18,6 +18,7 @@ class FiscalPeriodService:
         self.session = session
         self.repository = FiscalPeriodRepository(session)
         self.year_repository = FiscalYearRepository(session)
+        self.ledger_service = LedgerService(session)
 
     async def create_fiscal_period(self, organization_id: str, data: FiscalPeriodCreate) -> FiscalPeriod:
         FiscalPeriodRules.validate_dates(data.start_date, data.end_date)
@@ -88,20 +89,32 @@ class FiscalPeriodService:
         if draft_count:
             raise HTTPException(status_code=409, detail="Fiscal period contains unposted journal entries")
 
-        totals = await self.session.execute(
-            select(
-                func.coalesce(func.sum(LedgerPosting.debit), 0),
-                func.coalesce(func.sum(LedgerPosting.credit), 0),
-            ).where(
-                LedgerPosting.organization_id == organization_id,
-                LedgerPosting.fiscal_period_id == period_id,
-            )
+        reconciliation = await self.ledger_service.reconcile_postings(
+            organization_id,
+            fiscal_period_id=period_id,
+            start_date=period.start_date,
+            end_date=period.end_date,
         )
-        total_debit, total_credit = totals.one()
-        if total_debit != total_credit:
+        if not reconciliation["is_reconciled"]:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Fiscal period ledger is not reconciled: "
+                    f"missing={reconciliation['missing_postings']}, "
+                    f"orphan={reconciliation['orphan_postings']}, "
+                    f"mismatched={reconciliation['mismatched_postings']}"
+                ),
+            )
+
+        control = await self.ledger_service.trial_balance_control(
+            organization_id,
+            fiscal_period_id=period_id,
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+        if not control["is_balanced"]:
             raise HTTPException(status_code=409, detail="Fiscal period ledger is not balanced")
 
-        period.status = FiscalPeriodStatus.CLOSING
         period.status = FiscalPeriodStatus.CLOSED
         await self.session.commit()
         await self.session.refresh(period)
