@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentTenant, require_permission
 from app.audit.audit_context import AuditContext
-from app.audit.audit_service import AuditService
 from app.db.session import get_db
 from app.repositories.accounting.balance_sheet_mapping_repository import (
     BalanceSheetMappingConflictError,
     BalanceSheetMappingRepository,
 )
+from app.repositories.audit.audit_log_repository import AuditLogRepository
 from app.schemas.accounting.balance_sheet_mapping import (
     BalanceSheetMappingCreateRequest,
     BalanceSheetMappingResponse,
@@ -23,8 +23,8 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> BalanceSheetMappingRep
     return BalanceSheetMappingRepository(db)
 
 
-def get_audit_service() -> type[AuditService]:
-    return AuditService
+def get_audit_repository(db: AsyncSession = Depends(get_db)) -> AuditLogRepository:
+    return AuditLogRepository(db)
 
 
 def _response(mapping) -> BalanceSheetMappingResponse:
@@ -61,7 +61,7 @@ async def create_mapping(
     payload: BalanceSheetMappingCreateRequest,
     tenant: CurrentTenant = Depends(require_permission("balance_sheet_mapping:create")),
     repository: BalanceSheetMappingRepository = Depends(get_repository),
-    audit_service: type[AuditService] = Depends(get_audit_service),
+    audit_repository: AuditLogRepository = Depends(get_audit_repository),
 ):
     try:
         mapping = await repository.create(
@@ -79,7 +79,7 @@ async def create_mapping(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    audit_service.record(
+    await audit_repository.append(
         AuditContext(
             organization_id=tenant.organization_id,
             actor_id=tenant.user_id,
