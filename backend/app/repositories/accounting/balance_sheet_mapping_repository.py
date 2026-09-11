@@ -1,6 +1,7 @@
 from datetime import date
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounting.account import Account
@@ -100,7 +101,13 @@ class BalanceSheetMappingRepository:
             effective_to=effective_to,
         )
         self.session.add(mapping)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            raise BalanceSheetMappingConflictError(
+                "balance-sheet mapping effective range overlaps an existing mapping"
+            ) from exc
         return mapping
 
     async def list_for_period(
