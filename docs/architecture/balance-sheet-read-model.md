@@ -29,9 +29,11 @@ The application-level overlap check provides an early deterministic error for or
 
 ## Auditability
 
-Creating a persisted mapping builds a deterministic `AuditRecord` after the mapping has successfully flushed. The audit context carries the tenant, actor, and `BALANCE_SHEET_MAPPING_CREATED` action; the record payload identifies the mapping, account, category, rule version, and effective range. Failed validation, cross-tenant account checks, or overlap conflicts do not reach the audit call because persistence must succeed first.
+Creating a persisted mapping appends a deterministic audit record **after the mapping has successfully flushed and before the transaction can commit**. The audit context carries the tenant, actor, and `BALANCE_SHEET_MAPPING_CREATED` action; the payload identifies the mapping, account, category, rule version, and effective range.
 
-The current `AuditService` is a record builder and chain verifier; this endpoint does **not** claim durable audit-log storage. Durable audit persistence remains a separate boundary and must be implemented before FIP treats this event as a retained audit trail. This distinction is intentional so the system does not represent an in-memory record as regulatory evidence.
+Audit records are stored in the tenant-scoped `audit_logs` table with a monotonically increasing organization-local sequence and SHA-256 `previous_hash`/`record_hash` chain. The append operation locks the organization row before selecting the current chain head, preventing concurrent writers from creating competing sequence numbers or forks. The mapping and its audit record therefore succeed or roll back together in the same database transaction.
+
+The persisted payload is stored as canonical JSON text so the representation used for hashing is not changed by a JSON database serializer. The audit chain remains an integrity mechanism, not a claim of statutory or regulatory compliance; retention, external anchoring, access review, and jurisdiction-specific obligations remain separate controls.
 
 A zero `BALANCE_DIFFERENCE` is a mathematical integrity result for the selected mapped ledger slice; it is not a claim that an external accounting package or statutory report has been independently reconciled. External proof still requires authoritative source data.
 
@@ -49,4 +51,4 @@ Optional: `effective_to`.
 
 The mapping endpoints are tenant-scoped. Creation requires `balance_sheet_mapping:create`; read access requires `balance_sheet_mapping:read`.
 
-The mapping creation audit action is `BALANCE_SHEET_MAPPING_CREATED` and targets the `BalanceSheetAccountMapping` resource. It currently produces an `AuditRecord` in-process; it is not yet a durable audit-log entry.
+The mapping creation audit action is `BALANCE_SHEET_MAPPING_CREATED` and targets the `BalanceSheetAccountMapping` resource. The current increment persists this event transactionally; a broader audit query/read API remains a separate increment.

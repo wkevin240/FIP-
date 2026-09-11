@@ -42,6 +42,30 @@ def test_audit_record_is_deterministic_and_chainable() -> None:
     assert AuditService.verify_chain([first, second]) is True
 
 
+def test_audit_chain_rejects_cross_tenant_records() -> None:
+    first = AuditService.record(
+        context(),
+        entity_type="journal_entry",
+        entity_id="entry-1",
+        payload={"amount": Decimal("1250.00")},
+    )
+    second = AuditService.record(
+        AuditContext(
+            organization_id="org-2",
+            actor_id="user-2",
+            action="journal.post",
+            request_id="req-2",
+            occurred_at=datetime(2026, 9, 9, 18, 1, tzinfo=timezone.utc),
+        ),
+        entity_type="journal_entry",
+        entity_id="entry-2",
+        payload={"amount": Decimal("300.00")},
+        previous_hash=first.record_hash,
+    )
+
+    assert AuditService.verify_chain([first, second]) is False
+
+
 def test_audit_chain_detects_tampering() -> None:
     record = AuditService.record(
         context(), entity_type="account", entity_id="401", payload={"name": "Suppliers"}

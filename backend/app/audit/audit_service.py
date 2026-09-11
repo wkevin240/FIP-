@@ -27,7 +27,7 @@ class AuditRecord:
 
 
 class AuditService:
-    """Build deterministic audit records without coupling the domain to storage."""
+    """Build deterministic audit records and canonical payloads."""
 
     @staticmethod
     def _canonicalize(value: Any) -> Any:
@@ -40,6 +40,16 @@ class AuditService:
         if isinstance(value, (list, tuple)):
             return [AuditService._canonicalize(item) for item in value]
         return value
+
+    @classmethod
+    def canonical_payload_json(cls, payload: dict[str, Any]) -> str:
+        """Serialize a payload without losing the representation used for hashing."""
+        return json.dumps(
+            cls._canonicalize(payload),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def _digest(cls, record: dict[str, Any]) -> str:
@@ -80,9 +90,14 @@ class AuditService:
 
     @classmethod
     def verify_chain(cls, records: list[AuditRecord]) -> bool:
-        """Verify ordering, linkage and content hashes for an organization's chain."""
+        """Verify ordering, tenant isolation, linkage and content hashes."""
         previous_hash: str | None = None
+        organization_id: str | None = None
         for record in records:
+            if organization_id is None:
+                organization_id = record.organization_id
+            elif record.organization_id != organization_id:
+                return False
             if record.previous_hash != previous_hash:
                 return False
             unsigned = {
