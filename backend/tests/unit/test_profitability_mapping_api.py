@@ -1,7 +1,6 @@
 from datetime import date
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.dependencies import CurrentTenant
 from app.api.v1.accounting.profitability_mappings import (
