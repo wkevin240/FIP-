@@ -44,5 +44,17 @@ async def test_audit_log_schema_is_tenant_scoped_and_append_ordered() -> None:
         assert "uq_audit_log_organization_sequence" in names
         assert "uq_audit_log_organization_hash" in names
         assert "ck_audit_log_sequence_positive" in names
+
+        triggers = await connection.fetch(
+            """
+            SELECT tgname, tgenabled
+            FROM pg_trigger
+            WHERE tgrelid = 'audit_logs'::regclass
+              AND NOT tgisinternal
+            """
+        )
+        trigger_state = {row["tgname"]: row["tgenabled"] for row in triggers}
+        assert trigger_state.get("trg_audit_logs_no_update") == "O"
+        assert trigger_state.get("trg_audit_logs_no_delete") == "O"
     finally:
         await connection.close()
