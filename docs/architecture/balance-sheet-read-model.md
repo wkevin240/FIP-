@@ -20,10 +20,12 @@ The calculation kernel then exposes `TOTAL_ASSETS`, `TOTAL_LIABILITIES`, `TOTAL_
 ## Fail-closed behavior
 
 - Missing category coverage produces `NOT_READY` rather than a zero.
-- Overlapping effective mappings are rejected by the application and protected by the database uniqueness/range constraints where applicable.
+- Overlapping effective mappings are rejected by the application **and** by a PostgreSQL GiST exclusion constraint scoped to organization, account, rule version, and effective date range.
 - Cross-tenant account mappings are rejected before persistence.
 - Snapshot ambiguity is rejected rather than resolved by ordering or recency heuristics.
 - No data, mapping, opening balance, or accounting rule is seeded by this feature.
+
+The application-level overlap check provides an early deterministic error for ordinary requests; the PostgreSQL exclusion constraint is the authoritative concurrency guard so two concurrent writers cannot bypass the invariant between the read check and commit.
 
 A zero `BALANCE_DIFFERENCE` is a mathematical integrity result for the selected mapped ledger slice; it is not a claim that an external accounting package or statutory report has been independently reconciled. External proof still requires authoritative source data.
 
