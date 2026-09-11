@@ -80,9 +80,14 @@ class AuditService:
 
     @classmethod
     def verify_chain(cls, records: list[AuditRecord]) -> bool:
-        """Verify ordering, linkage and content hashes for an organization's chain."""
+        """Verify ordering, tenant isolation, linkage and content hashes."""
         previous_hash: str | None = None
+        organization_id: str | None = None
         for record in records:
+            if organization_id is None:
+                organization_id = record.organization_id
+            elif record.organization_id != organization_id:
+                return False
             if record.previous_hash != previous_hash:
                 return False
             unsigned = {
