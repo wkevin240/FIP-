@@ -9,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.domain.accounting.journal_entry.validators import JournalEntry as DomainJournalEntry
+from app.audit.audit_context import AuditContext
+from app.domain.accounting.journal_entry.validators import DomainJournalEntry
 from app.domain.accounting.journal_entry.validators import JournalEntryValidationError, JournalLine
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.account import Account
@@ -17,6 +18,7 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
 from app.repositories.accounting.journal_entry_repository import JournalEntryRepository
+from app.repositories.audit.audit_log_repository import AuditLogRepository
 from app.schemas.accounting.journal_entry import JournalEntryCreate, JournalEntryReverse
 
 
@@ -24,12 +26,33 @@ class JournalEntryService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repository = JournalEntryRepository(session)
+        self.audit_repository = AuditLogRepository(session)
 
     @staticmethod
     def _request_hash(data: JournalEntryCreate | JournalEntryReverse) -> str:
         payload = data.model_dump(mode="json")
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _audit_payload(entry: JournalEntry) -> dict:
+        return {
+            "journal_entry_id": entry.id,
+            "fiscal_period_id": entry.fiscal_period_id,
+            "entry_date": entry.entry_date.isoformat(),
+            "status": entry.status.value,
+            "idempotency_key": entry.idempotency_key,
+            "lines": [
+                {
+                    "line_id": line.id,
+                    "line_number": line.line_number,
+                    "account_id": line.account_id,
+                    "debit": str(line.debit),
+                    "credit": str(line.credit),
+                }
+                for line in entry.lines
+            ],
+        }
 
     async def _load_with_lines(self, organization_id: str, entry_id: str) -> JournalEntry:
         entry = await self.session.scalar(
@@ -213,6 +236,16 @@ class JournalEntryService:
             raise HTTPException(status_code=404, detail="Journal entry not found")
         try:
             await self._post_locked(entry, organization_id, actor_id)
+            await self.audit_repository.append(
+                AuditContext(
+                    organization_id=organization_id,
+                    actor_id=actor_id,
+                    action="JOURNAL_ENTRY_POSTED",
+                ),
+                entity_type="journal_entry",
+                entity_id=entry.id,
+                payload=self._audit_payload(entry),
+            )
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
@@ -298,6 +331,19 @@ class JournalEntryService:
             await self._post_locked(reversal, organization_id, actor_id)
             original.status = JournalEntryStatus.REVERSED
             await self.session.flush()
+            await self.audit_repository.append(
+                AuditContext(
+                    organization_id=organization_id,
+                    actor_id=actor_id,
+                    action="JOURNAL_ENTRY_REVERSED",
+                ),
+                entity_type="journal_entry",
+                entity_id=reversal.id,
+                payload={
+                    "original_journal_entry_id": original.id,
+                    "reversal": self._audit_payload(reversal),
+                },
+            )
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
