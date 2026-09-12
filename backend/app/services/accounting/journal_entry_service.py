@@ -152,6 +152,9 @@ class JournalEntryService:
             if existing and existing.idempotency_hash == request_hash:
                 return await self._load_with_lines(organization_id, existing.id)
             raise HTTPException(status_code=409, detail="Journal entry conflicts with an existing idempotency key") from exc
+        except Exception:
+            await self.session.rollback()
+            raise
         return await self._load_with_lines(organization_id, entry.id)
 
     async def get(self, organization_id: str, entry_id: str) -> JournalEntry:
@@ -261,6 +264,9 @@ class JournalEntryService:
         except IntegrityError as exc:
             await self.session.rollback()
             raise HTTPException(status_code=409, detail="Journal entry could not be posted safely") from exc
+        except Exception:
+            await self.session.rollback()
+            raise
         return await self._load_with_lines(organization_id, entry.id)
 
     async def reverse(
@@ -359,5 +365,8 @@ class JournalEntryService:
         except IntegrityError as exc:
             await self.session.rollback()
             raise HTTPException(status_code=409, detail="Journal entry reversal conflicts with an existing reversal or idempotency key") from exc
+        except Exception:
+            await self.session.rollback()
+            raise
 
         return await self._load_with_lines(organization_id, reversal.id)
