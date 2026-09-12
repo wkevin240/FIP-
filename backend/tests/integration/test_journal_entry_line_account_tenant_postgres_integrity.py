@@ -58,9 +58,9 @@ async def test_journal_entry_line_account_stays_within_journal_organization() ->
                 await connection.execute(
                     """
                     INSERT INTO fiscal_years
-                        (id, organization_id, year, start_date, end_date, status, created_at, updated_at)
+                        (id, organization_id, name, start_date, end_date, status, created_at, updated_at)
                     VALUES
-                        ('journal-line-year', 'journal-line-org', 2026, '2026-01-01', '2026-12-31', 'OPEN', NOW(), NOW())
+                        ('journal-line-year', 'journal-line-org', 'integration-only-2026', '2026-01-01', '2026-12-31', 'OPEN', NOW(), NOW())
                     """
                 )
                 await connection.execute(
