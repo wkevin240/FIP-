@@ -47,14 +47,19 @@ async def test_audit_log_schema_is_tenant_scoped_and_append_ordered() -> None:
 
         triggers = await connection.fetch(
             """
-            SELECT tgname, tgenabled
+            SELECT tgname, pg_get_triggerdef(oid) AS definition
             FROM pg_trigger
             WHERE tgrelid = 'audit_logs'::regclass
               AND NOT tgisinternal
+            ORDER BY tgname
             """
         )
-        trigger_state = {row["tgname"]: row["tgenabled"] for row in triggers}
-        assert trigger_state.get("trg_audit_logs_no_update") == "O"
-        assert trigger_state.get("trg_audit_logs_no_delete") == "O"
+        trigger_definitions = {row["tgname"]: row["definition"] for row in triggers}
+        assert "trg_audit_logs_no_update" in trigger_definitions
+        assert "trg_audit_logs_no_delete" in trigger_definitions
+        assert "BEFORE UPDATE" in trigger_definitions["trg_audit_logs_no_update"]
+        assert "BEFORE DELETE" in trigger_definitions["trg_audit_logs_no_delete"]
+        assert "fip_audit_logs_append_only" in trigger_definitions["trg_audit_logs_no_update"]
+        assert "fip_audit_logs_append_only" in trigger_definitions["trg_audit_logs_no_delete"]
     finally:
         await connection.close()

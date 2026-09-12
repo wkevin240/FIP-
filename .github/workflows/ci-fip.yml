@@ -42,14 +42,22 @@ jobs:
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: alembic upgrade head
-      - name: Verify PostgreSQL integration invariants
+      - name: Verify balance-sheet PostgreSQL invariants
         env:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration
+        run: pytest -q backend/tests/integration/test_balance_sheet_postgres_integrity.py
+      - name: Verify audit-log PostgreSQL invariants
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
+          POSTGRES_PASSWORD: fip_password
+          POSTGRES_DB: fip_db
+        run: pytest -q backend/tests/integration/test_audit_log_postgres_integrity.py
       - name: Verify migration drift
         env:
           POSTGRES_SERVER: localhost
