@@ -90,6 +90,14 @@ jobs:
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_fiscal_period_postgres_integrity.py
+      - name: Verify journal-entry date PostgreSQL invariants
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
+          POSTGRES_PASSWORD: fip_password
+          POSTGRES_DB: fip_db
+        run: pytest -q backend/tests/integration/test_journal_entry_date_postgres_integrity.py
       - name: Verify migration drift
         env:
           POSTGRES_SERVER: localhost
