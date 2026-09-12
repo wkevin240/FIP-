@@ -65,6 +65,14 @@ class JournalEntryService:
             .with_for_update()
         )
 
+    @staticmethod
+    def _journal_entry_lock(organization_id: str, entry_id: str):
+        return (
+            select(JournalEntry)
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
+            .with_for_update()
+        )
+
     async def _load_with_lines(self, organization_id: str, entry_id: str) -> JournalEntry:
         entry = await self.session.scalar(
             select(JournalEntry)
@@ -221,6 +229,16 @@ class JournalEntryService:
         return entry
 
     async def post(self, organization_id: str, entry_id: str, actor_id: str) -> JournalEntry:
+        entry_period = await self.session.scalar(
+            select(JournalEntry.fiscal_period_id)
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
+        )
+        if entry_period is None:
+            raise HTTPException(status_code=404, detail="Journal entry not found")
+        period = await self.session.scalar(self._fiscal_period_lock(organization_id, entry_period))
+        if period is None:
+            raise HTTPException(status_code=404, detail="Fiscal period not found")
+
         entry = await self.session.scalar(
             select(JournalEntry)
             .options(selectinload(JournalEntry.lines))
@@ -247,6 +265,16 @@ class JournalEntryService:
         return await self._load_with_lines(organization_id, entry.id)
 
     async def reverse(self, organization_id: str, entry_id: str, actor_id: str, data: JournalEntryReverse) -> JournalEntry:
+        original_period = await self.session.scalar(
+            select(JournalEntry.fiscal_period_id)
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
+        )
+        if original_period is None:
+            raise HTTPException(status_code=404, detail="Journal entry not found")
+        period = await self.session.scalar(self._fiscal_period_lock(organization_id, original_period))
+        if period is None:
+            raise HTTPException(status_code=404, detail="Fiscal period not found")
+
         original = await self.session.scalar(
             select(JournalEntry)
             .options(selectinload(JournalEntry.lines))
@@ -274,9 +302,6 @@ class JournalEntryService:
         if already_reversed:
             raise HTTPException(status_code=409, detail="Journal entry has already been reversed")
 
-        period = await self.session.scalar(self._fiscal_period_lock(organization_id, original.fiscal_period_id))
-        if period is None:
-            raise HTTPException(status_code=404, detail="Fiscal period not found")
         if period.status != FiscalPeriodStatus.OPEN:
             raise HTTPException(status_code=409, detail="A reversal requires an open fiscal period")
 

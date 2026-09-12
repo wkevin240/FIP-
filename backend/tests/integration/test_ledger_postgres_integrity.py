@@ -73,7 +73,7 @@ async def test_ledger_postings_are_database_immutable() -> None:
                     INSERT INTO journal_entries
                         (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'POSTED', 'ledger-integrity-key', repeat('a', 64), NOW(), NOW())
+                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'DRAFT', 'ledger-integrity-key', repeat('a', 64), NOW(), NOW())
                     """
                 )
                 await connection.execute(
@@ -81,15 +81,19 @@ async def test_ledger_postings_are_database_immutable() -> None:
                     INSERT INTO journal_entry_lines
                         (id, journal_entry_id, line_number, account_id, debit, credit, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-line', 'ledger-integrity-entry', 1, 'ledger-integrity-debit-account', 100.00, 0.00, NOW(), NOW())
+                        ('ledger-integrity-debit-line', 'ledger-integrity-entry', 1, 'ledger-integrity-debit-account', 100.00, 0.00, NOW(), NOW()),
+                        ('ledger-integrity-credit-line', 'ledger-integrity-entry', 2, 'ledger-integrity-credit-account', 0.00, 100.00, NOW(), NOW())
                     """
+                )
+                await connection.execute(
+                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'ledger-integrity-entry'"
                 )
                 await connection.execute(
                     """
                     INSERT INTO ledger_postings
-                        (id, organization_id, fiscal_period_id, journal_entry_id, journal_entry_line_id, account_id, posting_date, line_number, debit, credit, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, journal_entry_id, journal_entry_line_id, account_id, posting_date, line_number, description, debit, credit, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-posting', 'ledger-integrity-org', 'ledger-integrity-period', 'ledger-integrity-entry', 'ledger-integrity-line', 'ledger-integrity-debit-account', '2026-01-10', 1, 100.00, 0.00, NOW(), NOW())
+                        ('ledger-integrity-posting', 'ledger-integrity-org', 'ledger-integrity-period', 'ledger-integrity-entry', 'ledger-integrity-debit-line', 'ledger-integrity-debit-account', '2026-01-10', 1, 'Ledger integrity proof', 100.00, 0.00, NOW(), NOW())
                     """
                 )
 
@@ -103,7 +107,7 @@ async def test_ledger_postings_are_database_immutable() -> None:
                 row = await connection.fetchrow(
                     "SELECT description, debit, credit FROM ledger_postings WHERE id = 'ledger-integrity-posting'"
                 )
-                assert row["description"] is None
+                assert row["description"] == "Ledger integrity proof"
                 assert row["debit"] == 100
                 assert row["credit"] == 0
 
