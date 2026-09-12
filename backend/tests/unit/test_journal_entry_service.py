@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models import Account, FiscalPeriod, Organization
 from app.models.audit.audit_log import AuditLog
@@ -15,7 +15,7 @@ from app.services.accounting.journal_entry_service import JournalEntryService
 
 
 @pytest.mark.asyncio
-async def test_create_and_post_journal_entry_persists_audit_event(db_session):
+async def test_create_and_post_journal_entry_persists_audit_events(db_session):
     organization_id = "org-1"
     db_session.add(Organization(id=organization_id, name="org-1"))
     period = FiscalPeriod(id="period-1", organization_id=organization_id, fiscal_year_id="year-1", name="January 2026", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31), status=FiscalPeriodStatus.OPEN)
@@ -25,9 +25,24 @@ async def test_create_and_post_journal_entry_persists_audit_event(db_session):
     await db_session.commit()
     data = JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 1, 15), description="Supplier invoice", idempotency_key="invoice-2026-0001", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("100.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("100.00"))])
     service = JournalEntryService(db_session)
-    entry = await service.create(organization_id, data)
+    entry = await service.create(organization_id, "creator-1", data)
     assert entry.status == JournalEntryStatus.DRAFT
     assert len(entry.lines) == 2
+
+    created_audit = await db_session.scalar(
+        select(AuditLog).where(
+            AuditLog.organization_id == organization_id,
+            AuditLog.entity_type == "journal_entry",
+            AuditLog.entity_id == entry.id,
+            AuditLog.action == "JOURNAL_ENTRY_CREATED",
+        )
+    )
+    assert created_audit is not None
+    assert created_audit.actor_id == "creator-1"
+    assert created_audit.sequence_no == 1
+    assert created_audit.previous_hash is None
+    assert created_audit.record_hash
+
     posted = await service.post(organization_id, entry.id, "user-1")
     assert posted.status == JournalEntryStatus.POSTED
     assert posted.posted_by == "user-1"
@@ -37,18 +52,41 @@ async def test_create_and_post_journal_entry_persists_audit_event(db_session):
     assert sum((Decimal(p.debit) for p in postings), Decimal("0")) == Decimal("100.00")
     assert sum((Decimal(p.credit) for p in postings), Decimal("0")) == Decimal("100.00")
 
-    audit = await db_session.scalar(
-        select(AuditLog).where(
-            AuditLog.organization_id == organization_id,
-            AuditLog.entity_type == "journal_entry",
-            AuditLog.entity_id == entry.id,
-            AuditLog.action == "JOURNAL_ENTRY_POSTED",
+    audit_rows = list(
+        await db_session.scalars(
+            select(AuditLog)
+            .where(AuditLog.organization_id == organization_id)
+            .order_by(AuditLog.sequence_no)
         )
     )
-    assert audit is not None
-    assert audit.sequence_no == 1
-    assert audit.previous_hash is None
-    assert audit.record_hash
+    assert [row.action for row in audit_rows] == ["JOURNAL_ENTRY_CREATED", "JOURNAL_ENTRY_POSTED"]
+    assert audit_rows[1].previous_hash == audit_rows[0].record_hash
+
+
+@pytest.mark.asyncio
+async def test_create_idempotency_retry_does_not_duplicate_audit(db_session):
+    organization_id = "org-idempotent"
+    db_session.add(Organization(id=organization_id, name="org-idempotent"))
+    period = FiscalPeriod(id="period-idempotent", organization_id=organization_id, fiscal_year_id="year-idempotent", name="April 2026", start_date=date(2026, 4, 1), end_date=date(2026, 4, 30), status=FiscalPeriodStatus.OPEN)
+    a1 = Account(id="account-idempotent-1", organization_id=organization_id, code="604", name="Expense", account_type="EXPENSE")
+    a2 = Account(id="account-idempotent-2", organization_id=organization_id, code="404", name="Payable", account_type="LIABILITY")
+    db_session.add_all([period, a1, a2])
+    await db_session.commit()
+    service = JournalEntryService(db_session)
+    data = JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 4, 10), description="Invoice", idempotency_key="same-create-key", lines=[JournalEntryLineCreate(account_id=a1.id, debit=Decimal("75.00")), JournalEntryLineCreate(account_id=a2.id, credit=Decimal("75.00"))])
+
+    first = await service.create(organization_id, "creator-1", data)
+    retry = await service.create(organization_id, "creator-2", data)
+
+    assert retry.id == first.id
+    audit_count = await db_session.scalar(
+        select(func.count(AuditLog.id)).where(
+            AuditLog.organization_id == organization_id,
+            AuditLog.entity_id == first.id,
+            AuditLog.action == "JOURNAL_ENTRY_CREATED",
+        )
+    )
+    assert audit_count == 1
 
 
 @pytest.mark.asyncio
@@ -57,14 +95,14 @@ async def test_idempotency_rejects_changed_payload(db_session):
     period = FiscalPeriod(id="period-2", organization_id=organization_id, fiscal_year_id="year-2", name="February 2026", start_date=date(2026, 2, 1), end_date=date(2026, 2, 28), status=FiscalPeriodStatus.OPEN)
     a1 = Account(id="account-3", organization_id=organization_id, code="602", name="Purchases 2", account_type="EXPENSE")
     a2 = Account(id="account-4", organization_id=organization_id, code="402", name="Suppliers 2", account_type="LIABILITY")
-    db_session.add_all([period, a1, a2])
+    db_session.add_all([Organization(id=organization_id, name="org-2"), period, a1, a2])
     await db_session.commit()
     service = JournalEntryService(db_session)
     first = JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 2, 10), description="Invoice A", idempotency_key="same-key", lines=[JournalEntryLineCreate(account_id=a1.id, debit=Decimal("50.00")), JournalEntryLineCreate(account_id=a2.id, credit=Decimal("50.00"))])
-    await service.create(organization_id, first)
+    await service.create(organization_id, "creator-1", first)
     changed = first.model_copy(update={"description": "Invoice B"})
     with pytest.raises(HTTPException) as exc_info:
-        await service.create(organization_id, changed)
+        await service.create(organization_id, "creator-1", changed)
     assert exc_info.value.status_code == 409
 
 
@@ -78,7 +116,7 @@ async def test_posted_entry_can_be_reversed_once_and_audited(db_session):
     db_session.add_all([period, debit_account, credit_account])
     await db_session.commit()
     service = JournalEntryService(db_session)
-    entry = await service.create(organization_id, JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00"))]))
+    entry = await service.create(organization_id, "creator-1", JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00"))]))
     await service.post(organization_id, entry.id, "user-1")
     reversal = await service.reverse(organization_id, entry.id, "user-2", JournalEntryReverse(idempotency_key="reversal-1", description="Correction"))
     assert reversal.status == JournalEntryStatus.POSTED
@@ -95,10 +133,9 @@ async def test_posted_entry_can_be_reversed_once_and_audited(db_session):
             .order_by(AuditLog.sequence_no)
         )
     )
-    assert [row.action for row in audit_rows] == ["JOURNAL_ENTRY_POSTED", "JOURNAL_ENTRY_REVERSED"]
-    assert audit_rows[0].sequence_no == 1
-    assert audit_rows[1].sequence_no == 2
+    assert [row.action for row in audit_rows] == ["JOURNAL_ENTRY_CREATED", "JOURNAL_ENTRY_POSTED", "JOURNAL_ENTRY_REVERSED"]
     assert audit_rows[1].previous_hash == audit_rows[0].record_hash
+    assert audit_rows[2].previous_hash == audit_rows[1].record_hash
     with pytest.raises(HTTPException) as exc_info:
         await service.reverse(organization_id, entry.id, "user-2", JournalEntryReverse(idempotency_key="reversal-2"))
     assert exc_info.value.status_code == 409
