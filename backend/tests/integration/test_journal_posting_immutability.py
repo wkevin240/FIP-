@@ -36,7 +36,9 @@ async def _seed_postable_journal(connection: asyncpg.Connection) -> None:
     await connection.execute(
         """
         INSERT INTO accounts (id, organization_id, code, name, is_active, account_type, level, path)
-        VALUES ('immutability-account', 'immutability-org', '999', 'integration-only', TRUE, 'EXPENSE', 1, '/')
+        VALUES
+            ('immutability-account', 'immutability-org', '999', 'integration-only', TRUE, 'EXPENSE', 1, '/'),
+            ('immutability-offset-account', 'immutability-org', '998', 'integration-only-offset', TRUE, 'ASSET', 1, '/')
         """
     )
     await connection.execute(
@@ -56,27 +58,9 @@ async def _seed_postable_journal(connection: asyncpg.Connection) -> None:
         INSERT INTO journal_entry_lines (
             id, journal_entry_id, line_number, account_id, description, debit, credit
         )
-        VALUES (
-            'immutability-line', 'immutability-entry', 1, 'immutability-account',
-            'integration-only', 100.00, 0.00
-        )
-        """
-    )
-    await connection.execute(
-        """
-        INSERT INTO accounts (id, organization_id, code, name, is_active, account_type, level, path)
-        VALUES ('immutability-offset-account', 'immutability-org', '998', 'integration-only-offset', TRUE, 'ASSET', 1, '/')
-        """
-    )
-    await connection.execute(
-        """
-        INSERT INTO journal_entry_lines (
-            id, journal_entry_id, line_number, account_id, description, debit, credit
-        )
-        VALUES (
-            'immutability-offset-line', 'immutability-entry', 2, 'immutability-offset-account',
-            'integration-only-offset', 0.00, 100.00
-        )
+        VALUES
+            ('immutability-line', 'immutability-entry', 1, 'immutability-account', 'integration-only', 100.00, 0.00),
+            ('immutability-offset-line', 'immutability-entry', 2, 'immutability-offset-account', 'integration-only-offset', 0.00, 100.00)
         """
     )
     await connection.execute(
@@ -127,21 +111,31 @@ async def test_journal_line_mutation_trigger_locks_parent_journal() -> None:
     connection = await _connect()
     locker = await _connect()
     try:
-        async with connection.transaction():
-            await _seed_postable_journal(connection)
-            await locker.execute("BEGIN")
-            await locker.execute(
-                "SELECT id FROM journal_entries WHERE id = 'immutability-entry' FOR UPDATE"
+        await _seed_postable_journal(connection)
+
+        await locker.execute("BEGIN")
+        await locker.execute(
+            "SELECT id FROM journal_entries WHERE id = 'immutability-entry' FOR UPDATE"
+        )
+
+        await connection.execute("SET statement_timeout = '100ms'")
+        with pytest.raises(asyncpg.PostgresError) as lock_error:
+            await connection.execute(
+                "UPDATE journal_entry_lines SET description = 'blocked' WHERE id = 'immutability-line'"
             )
+        assert lock_error.value.sqlstate == "57014"
 
-            await connection.execute("SET LOCAL statement_timeout = '100ms'")
-            with pytest.raises(asyncpg.PostgresError) as lock_error:
-                await connection.execute(
-                    "UPDATE journal_entry_lines SET description = 'blocked' WHERE id = 'immutability-line'"
-                )
-            assert lock_error.value.sqlstate == "57014"
+        await locker.execute("ROLLBACK")
 
-            await locker.execute("ROLLBACK")
+        await connection.execute("SET statement_timeout = '0'")
+        async with connection.transaction():
+            await connection.execute("UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'immutability-entry'")
+            await connection.execute("DELETE FROM journal_entry_lines WHERE journal_entry_id = 'immutability-entry'")
+            await connection.execute("DELETE FROM journal_entries WHERE id = 'immutability-entry'")
+            await connection.execute("DELETE FROM accounts WHERE organization_id = 'immutability-org'")
+            await connection.execute("DELETE FROM fiscal_periods WHERE organization_id = 'immutability-org'")
+            await connection.execute("DELETE FROM fiscal_years WHERE organization_id = 'immutability-org'")
+            await connection.execute("DELETE FROM organizations WHERE id = 'immutability-org'")
     finally:
         await locker.close()
         await connection.close()
