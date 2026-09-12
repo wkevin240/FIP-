@@ -64,7 +64,7 @@ class JournalEntryService:
             raise HTTPException(status_code=404, detail="Journal entry not found")
         return entry
 
-    async def create(self, organization_id: str, data: JournalEntryCreate) -> JournalEntry:
+    async def create(self, organization_id: str, actor_id: str, data: JournalEntryCreate) -> JournalEntry:
         request_hash = self._request_hash(data)
         existing = await self.repository.get_by_idempotency_key(organization_id, data.idempotency_key)
         if existing:
@@ -134,6 +134,17 @@ class JournalEntryService:
         ]
         self.session.add(entry)
         try:
+            await self.session.flush()
+            await self.audit_repository.append(
+                AuditContext(
+                    organization_id=organization_id,
+                    actor_id=actor_id,
+                    action="JOURNAL_ENTRY_CREATED",
+                ),
+                entity_type="journal_entry",
+                entity_id=entry.id,
+                payload=self._audit_payload(entry),
+            )
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
