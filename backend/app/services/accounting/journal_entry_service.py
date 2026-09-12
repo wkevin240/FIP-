@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.audit.audit_context import AuditContext
-from app.domain.accounting.journal_entry.validators import DomainJournalEntry
+from app.domain.accounting.journal_entry.validators import JournalEntry as DomainJournalEntry
 from app.domain.accounting.journal_entry.validators import JournalEntryValidationError, JournalLine
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.models.accounting.account import Account
