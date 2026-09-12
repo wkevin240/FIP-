@@ -3,10 +3,10 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.models import Account, FiscalPeriod, Organization
-from app.models.accounting.audit_log import AuditLog
+from app.models.audit.audit_log import AuditLog
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
 from app.core.enums.accounting import FiscalPeriodStatus
