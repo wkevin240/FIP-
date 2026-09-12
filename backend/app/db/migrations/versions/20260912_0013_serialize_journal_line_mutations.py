@@ -24,14 +24,11 @@ def upgrade() -> None:
         AS $$
         DECLARE
             locked_status text;
-            target_journal_id text;
         BEGIN
-            target_journal_id := COALESCE(NEW.journal_entry_id, OLD.journal_entry_id);
-
             SELECT status::text
             INTO locked_status
             FROM journal_entries
-            WHERE id = target_journal_id
+            WHERE id = COALESCE(NEW.journal_entry_id, OLD.journal_entry_id)
             FOR UPDATE;
 
             IF locked_status IN ('POSTED', 'REVERSED') THEN
