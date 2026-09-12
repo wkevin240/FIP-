@@ -19,7 +19,7 @@ async def create_journal_entry(
     tenant: CurrentTenant = Depends(require_permission("journal_entry:create")),
     service: JournalEntryService = Depends(get_journal_entry_service),
 ):
-    return await service.create(tenant.organization_id, entry_in)
+    return await service.create(tenant.organization_id, tenant.user_id, entry_in)
 
 
 @router.get("/{entry_id}", response_model=JournalEntryResponse)

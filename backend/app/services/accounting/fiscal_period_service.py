@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit.audit_context import AuditContext
 from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
 from app.domain.accounting.fiscal_year.rules import FiscalPeriodRules
 from app.domain.accounting.ledger.trial_balance_control import trial_balance_control
@@ -10,6 +11,7 @@ from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryStatus
 from app.repositories.accounting.fiscal_period_repository import FiscalPeriodRepository
 from app.repositories.accounting.fiscal_year_repository import FiscalYearRepository
+from app.repositories.audit.audit_log_repository import AuditLogRepository
 from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
 from app.services.accounting.ledger_service import LedgerService
 
@@ -20,6 +22,7 @@ class FiscalPeriodService:
         self.repository = FiscalPeriodRepository(session)
         self.year_repository = FiscalYearRepository(session)
         self.ledger_service = LedgerService(session)
+        self.audit_repository = AuditLogRepository(session)
 
     async def create_fiscal_period(self, organization_id: str, data: FiscalPeriodCreate) -> FiscalPeriod:
         FiscalPeriodRules.validate_dates(data.start_date, data.end_date)
@@ -112,7 +115,7 @@ class FiscalPeriodService:
             "balance_control": balance_control,
         }
 
-    async def close_period(self, organization_id: str, period_id: str) -> FiscalPeriod:
+    async def close_period(self, organization_id: str, period_id: str, actor_id: str) -> FiscalPeriod:
         period = await self.session.scalar(
             select(FiscalPeriod)
             .where(
@@ -144,6 +147,24 @@ class FiscalPeriodService:
             raise HTTPException(status_code=409, detail="Fiscal period ledger is not balanced")
 
         period.status = FiscalPeriodStatus.CLOSED
+        await self.session.flush()
+        await self.audit_repository.append(
+            AuditContext(
+                organization_id=organization_id,
+                actor_id=actor_id,
+                action="FISCAL_PERIOD_CLOSED",
+            ),
+            entity_type="fiscal_period",
+            entity_id=period.id,
+            payload={
+                "fiscal_period_id": period.id,
+                "fiscal_year_id": period.fiscal_year_id,
+                "start_date": period.start_date.isoformat(),
+                "end_date": period.end_date.isoformat(),
+                "resulting_status": period.status.value,
+                "close_readiness": readiness,
+            },
+        )
         await self.session.commit()
         await self.session.refresh(period)
         return period
