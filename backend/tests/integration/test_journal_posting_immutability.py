@@ -68,6 +68,16 @@ async def _seed_postable_journal(connection: asyncpg.Connection) -> None:
     )
 
 
+async def _cleanup_fixture(connection: asyncpg.Connection) -> None:
+    await connection.execute("UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'immutability-entry'")
+    await connection.execute("DELETE FROM journal_entry_lines WHERE journal_entry_id = 'immutability-entry'")
+    await connection.execute("DELETE FROM journal_entries WHERE id = 'immutability-entry'")
+    await connection.execute("DELETE FROM accounts WHERE organization_id = 'immutability-org'")
+    await connection.execute("DELETE FROM fiscal_periods WHERE organization_id = 'immutability-org'")
+    await connection.execute("DELETE FROM fiscal_years WHERE organization_id = 'immutability-org'")
+    await connection.execute("DELETE FROM organizations WHERE id = 'immutability-org'")
+
+
 @pytest.mark.asyncio
 async def test_posted_journal_lines_and_entry_cannot_be_mutated_or_deleted() -> None:
     connection = await _connect()
@@ -126,16 +136,19 @@ async def test_journal_line_mutation_trigger_locks_parent_journal() -> None:
         assert lock_error.value.sqlstate == "57014"
 
         await locker.execute("ROLLBACK")
-
         await connection.execute("SET statement_timeout = '0'")
-        async with connection.transaction():
-            await connection.execute("UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'immutability-entry'")
-            await connection.execute("DELETE FROM journal_entry_lines WHERE journal_entry_id = 'immutability-entry'")
-            await connection.execute("DELETE FROM journal_entries WHERE id = 'immutability-entry'")
-            await connection.execute("DELETE FROM accounts WHERE organization_id = 'immutability-org'")
-            await connection.execute("DELETE FROM fiscal_periods WHERE organization_id = 'immutability-org'")
-            await connection.execute("DELETE FROM fiscal_years WHERE organization_id = 'immutability-org'")
-            await connection.execute("DELETE FROM organizations WHERE id = 'immutability-org'")
+        await _cleanup_fixture(connection)
     finally:
+        if not locker.is_closed():
+            try:
+                await locker.execute("ROLLBACK")
+            except asyncpg.PostgresError:
+                pass
+        if not connection.is_closed():
+            try:
+                await connection.execute("SET statement_timeout = '0'")
+                await _cleanup_fixture(connection)
+            except asyncpg.PostgresError:
+                pass
         await locker.close()
         await connection.close()
