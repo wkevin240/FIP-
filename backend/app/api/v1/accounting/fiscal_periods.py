@@ -50,4 +50,4 @@ async def close(
     tenant: CurrentTenant = Depends(require_permission("fiscal_period:close")),
     service: FiscalPeriodService = Depends(get_service),
 ):
-    return await service.close_period(tenant.organization_id, period_id)
+    return await service.close_period(tenant.organization_id, period_id, tenant.user_id)
