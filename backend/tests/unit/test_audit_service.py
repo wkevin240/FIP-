@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from enum import Enum
 
 import pytest
 
@@ -40,6 +41,29 @@ def test_audit_record_is_deterministic_and_chainable() -> None:
     )
 
     assert AuditService.verify_chain([first, second]) is True
+
+
+def test_audit_payload_canonicalization_supports_dates_and_enums() -> None:
+    class Status(Enum):
+        CLOSED = "CLOSED"
+
+    payload = {
+        "period": date(2026, 1, 31),
+        "status": Status.CLOSED,
+        "amount": Decimal("10.50"),
+    }
+
+    canonical = AuditService.canonical_payload_json(payload)
+
+    assert canonical == '{"amount":"10.50","period":"2026-01-31","status":"CLOSED"}'
+
+    record = AuditService.record(
+        context(),
+        entity_type="fiscal_period",
+        entity_id="period-1",
+        payload=payload,
+    )
+    assert AuditService.verify_chain([record]) is True
 
 
 def test_audit_chain_rejects_cross_tenant_records() -> None:

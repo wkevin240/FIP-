@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from .audit_context import AuditContext
@@ -31,9 +32,13 @@ class AuditService:
 
     @staticmethod
     def _canonicalize(value: Any) -> Any:
+        if isinstance(value, Enum):
+            return AuditService._canonicalize(value.value)
         if isinstance(value, Decimal):
             return str(value)
         if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, date):
             return value.isoformat()
         if isinstance(value, dict):
             return {key: AuditService._canonicalize(value[key]) for key in sorted(value)}
