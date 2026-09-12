@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
       - name: Run unit tests
-        run: pytest -q
+        run: pytest -q backend/tests/unit
       - name: Apply database migrations
         env:
           POSTGRES_SERVER: localhost
@@ -58,6 +58,14 @@ jobs:
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_audit_log_postgres_integrity.py
+      - name: Verify ledger PostgreSQL invariants
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
+          POSTGRES_PASSWORD: fip_password
+          POSTGRES_DB: fip_db
+        run: pytest -q backend/tests/integration/test_ledger_postgres_integrity.py
       - name: Verify migration drift
         env:
           POSTGRES_SERVER: localhost
