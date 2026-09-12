@@ -2,11 +2,12 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.enums.accounting import FiscalPeriodStatus
 from app.models import Account, Organization
-from app.models.accounting.audit_log import AuditLog
+from app.models.audit.audit_log import AuditLog
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
@@ -160,8 +161,9 @@ async def test_failed_period_close_does_not_emit_audit_event(db_session):
     db_session.add_all([year, period, draft])
     await db_session.commit()
 
-    with pytest.raises(Exception):
+    with pytest.raises(HTTPException) as exc_info:
         await FiscalPeriodService(db_session).close_period(organization_id, period.id, "closer-1")
+    assert exc_info.value.status_code == 409
 
     audit_count = await db_session.scalar(
         select(AuditLog.id).where(
