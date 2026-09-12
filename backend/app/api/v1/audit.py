@@ -15,10 +15,9 @@ async def verify_audit_chain(
     db: AsyncSession = Depends(get_db),
 ) -> AuditChainVerificationResponse:
     repository = AuditLogRepository(db)
-    records = await repository.list_for_organization(tenant.organization_id)
-    valid = await repository.verify_organization_chain(tenant.organization_id)
+    valid, record_count = await repository.inspect_organization_chain(tenant.organization_id)
     return AuditChainVerificationResponse(
         organization_id=tenant.organization_id,
         valid=valid,
-        record_count=len(records),
+        record_count=record_count,
     )
