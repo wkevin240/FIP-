@@ -82,9 +82,10 @@ async def test_posted_journal_entries_require_balanced_lines() -> None:
                 )
 
                 with pytest.raises(asyncpg.PostgresError) as error:
-                    await connection.execute(
-                        "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'journal-balance-unbalanced'"
-                    )
+                    async with connection.transaction():
+                        await connection.execute(
+                            "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'journal-balance-unbalanced'"
+                        )
                 assert error.value.sqlstate == "23514"
 
                 status = await connection.fetchval(
