@@ -54,6 +54,17 @@ class JournalEntryService:
             ],
         }
 
+    @staticmethod
+    def _fiscal_period_lock(organization_id: str, period_id: str):
+        return (
+            select(FiscalPeriod)
+            .where(
+                FiscalPeriod.organization_id == organization_id,
+                FiscalPeriod.id == period_id,
+            )
+            .with_for_update()
+        )
+
     async def _load_with_lines(self, organization_id: str, entry_id: str) -> JournalEntry:
         entry = await self.session.scalar(
             select(JournalEntry)
@@ -72,12 +83,7 @@ class JournalEntryService:
                 raise HTTPException(status_code=409, detail="Idempotency key was already used for a different journal entry")
             return await self._load_with_lines(organization_id, existing.id)
 
-        period = await self.session.scalar(
-            select(FiscalPeriod).where(
-                FiscalPeriod.organization_id == organization_id,
-                FiscalPeriod.id == data.fiscal_period_id,
-            )
-        )
+        period = await self.session.scalar(self._fiscal_period_lock(organization_id, data.fiscal_period_id))
         if period is None:
             raise HTTPException(status_code=404, detail="Fiscal period not found")
         if period.status != FiscalPeriodStatus.OPEN:
@@ -104,10 +110,7 @@ class JournalEntryService:
 
         try:
             DomainJournalEntry.from_lines(
-                [
-                    JournalLine(account_id=line.account_id, debit=line.debit, credit=line.credit)
-                    for line in data.lines
-                ]
+                [JournalLine(account_id=line.account_id, debit=line.debit, credit=line.credit) for line in data.lines]
             )
         except JournalEntryValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -136,11 +139,7 @@ class JournalEntryService:
         try:
             await self.session.flush()
             await self.audit_repository.append(
-                AuditContext(
-                    organization_id=organization_id,
-                    actor_id=actor_id,
-                    action="JOURNAL_ENTRY_CREATED",
-                ),
+                AuditContext(organization_id=organization_id, actor_id=actor_id, action="JOURNAL_ENTRY_CREATED"),
                 entity_type="journal_entry",
                 entity_id=entry.id,
                 payload=self._audit_payload(entry),
@@ -165,10 +164,7 @@ class JournalEntryService:
         if entry.status == JournalEntryStatus.POSTED:
             ledger_exists = await self.session.scalar(
                 select(LedgerPosting.id)
-                .where(
-                    LedgerPosting.organization_id == organization_id,
-                    LedgerPosting.journal_entry_id == entry.id,
-                )
+                .where(LedgerPosting.organization_id == organization_id, LedgerPosting.journal_entry_id == entry.id)
                 .limit(1)
             )
             if ledger_exists is None:
@@ -177,12 +173,7 @@ class JournalEntryService:
         if entry.status != JournalEntryStatus.DRAFT:
             raise HTTPException(status_code=409, detail="Only draft journal entries can be posted")
 
-        period = await self.session.scalar(
-            select(FiscalPeriod).where(
-                FiscalPeriod.organization_id == organization_id,
-                FiscalPeriod.id == entry.fiscal_period_id,
-            )
-        )
+        period = await self.session.scalar(self._fiscal_period_lock(organization_id, entry.fiscal_period_id))
         if period is None:
             raise HTTPException(status_code=404, detail="Fiscal period not found")
         if period.status != FiscalPeriodStatus.OPEN:
@@ -193,11 +184,7 @@ class JournalEntryService:
         try:
             DomainJournalEntry.from_lines(
                 [
-                    JournalLine(
-                        account_id=line.account_id,
-                        debit=Decimal(line.debit),
-                        credit=Decimal(line.credit),
-                    )
+                    JournalLine(account_id=line.account_id, debit=Decimal(line.debit), credit=Decimal(line.credit))
                     for line in entry.lines
                 ]
             )
@@ -206,10 +193,7 @@ class JournalEntryService:
 
         existing = await self.session.scalar(
             select(LedgerPosting.id)
-            .where(
-                LedgerPosting.organization_id == organization_id,
-                LedgerPosting.journal_entry_id == entry.id,
-            )
+            .where(LedgerPosting.organization_id == organization_id, LedgerPosting.journal_entry_id == entry.id)
             .limit(1)
         )
         if existing:
@@ -240,10 +224,7 @@ class JournalEntryService:
         entry = await self.session.scalar(
             select(JournalEntry)
             .options(selectinload(JournalEntry.lines))
-            .where(
-                JournalEntry.organization_id == organization_id,
-                JournalEntry.id == entry_id,
-            )
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
             .with_for_update()
         )
         if entry is None:
@@ -251,11 +232,7 @@ class JournalEntryService:
         try:
             await self._post_locked(entry, organization_id, actor_id)
             await self.audit_repository.append(
-                AuditContext(
-                    organization_id=organization_id,
-                    actor_id=actor_id,
-                    action="JOURNAL_ENTRY_POSTED",
-                ),
+                AuditContext(organization_id=organization_id, actor_id=actor_id, action="JOURNAL_ENTRY_POSTED"),
                 entity_type="journal_entry",
                 entity_id=entry.id,
                 payload=self._audit_payload(entry),
@@ -269,20 +246,11 @@ class JournalEntryService:
             raise
         return await self._load_with_lines(organization_id, entry.id)
 
-    async def reverse(
-        self,
-        organization_id: str,
-        entry_id: str,
-        actor_id: str,
-        data: JournalEntryReverse,
-    ) -> JournalEntry:
+    async def reverse(self, organization_id: str, entry_id: str, actor_id: str, data: JournalEntryReverse) -> JournalEntry:
         original = await self.session.scalar(
             select(JournalEntry)
             .options(selectinload(JournalEntry.lines))
-            .where(
-                JournalEntry.organization_id == organization_id,
-                JournalEntry.id == entry_id,
-            )
+            .where(JournalEntry.organization_id == organization_id, JournalEntry.id == entry_id)
             .with_for_update()
         )
         if original is None:
@@ -306,12 +274,7 @@ class JournalEntryService:
         if already_reversed:
             raise HTTPException(status_code=409, detail="Journal entry has already been reversed")
 
-        period = await self.session.scalar(
-            select(FiscalPeriod).where(
-                FiscalPeriod.organization_id == organization_id,
-                FiscalPeriod.id == original.fiscal_period_id,
-            )
-        )
+        period = await self.session.scalar(self._fiscal_period_lock(organization_id, original.fiscal_period_id))
         if period is None:
             raise HTTPException(status_code=404, detail="Fiscal period not found")
         if period.status != FiscalPeriodStatus.OPEN:
@@ -349,17 +312,10 @@ class JournalEntryService:
             original.status = JournalEntryStatus.REVERSED
             await self.session.flush()
             await self.audit_repository.append(
-                AuditContext(
-                    organization_id=organization_id,
-                    actor_id=actor_id,
-                    action="JOURNAL_ENTRY_REVERSED",
-                ),
+                AuditContext(organization_id=organization_id, actor_id=actor_id, action="JOURNAL_ENTRY_REVERSED"),
                 entity_type="journal_entry",
                 entity_id=reversal.id,
-                payload={
-                    "original_journal_entry_id": original.id,
-                    "reversal": self._audit_payload(reversal),
-                },
+                payload={"original_journal_entry_id": original.id, "reversal": self._audit_payload(reversal)},
             )
             await self.session.commit()
         except IntegrityError as exc:
