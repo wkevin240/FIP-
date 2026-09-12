@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.enums.accounting import FiscalPeriodStatus, FiscalYearStatus
+from app.models import Organization
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
@@ -102,7 +103,7 @@ async def test_close_period_rejects_unposted_entries(db_session):
     await db_session.commit()
 
     with pytest.raises(HTTPException) as exc:
-        await FiscalPeriodService(db_session).close_period("org-1", "p-1")
+        await FiscalPeriodService(db_session).close_period("org-1", "p-1", "closer-1")
     assert exc.value.status_code == 409
     assert period.status == FiscalPeriodStatus.OPEN
 
@@ -147,7 +148,7 @@ async def test_close_period_rejects_orphan_ledger_postings(db_session):
     await db_session.commit()
 
     with pytest.raises(HTTPException) as exc:
-        await FiscalPeriodService(db_session).close_period("org-orphan", "p-orphan")
+        await FiscalPeriodService(db_session).close_period("org-orphan", "p-orphan", "closer-1")
 
     assert exc.value.status_code == 409
     assert "not reconciled" in exc.value.detail.lower()
@@ -163,20 +164,22 @@ async def test_close_period_requires_balanced_ledger(db_session):
     await db_session.commit()
 
     with pytest.raises(HTTPException) as exc:
-        await FiscalPeriodService(db_session).close_period("org-2", "p-2")
+        await FiscalPeriodService(db_session).close_period("org-2", "p-2", "closer-1")
     assert exc.value.status_code == 409
     assert period.status == FiscalPeriodStatus.OPEN
 
 
 @pytest.mark.asyncio
 async def test_close_period_transitions_only_after_controls_pass(db_session):
-    year = FiscalYear(id="fy-3", organization_id="org-3", name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
-    period = FiscalPeriod(id="p-3", organization_id="org-3", fiscal_year_id="fy-3", name="January", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
-    debit_account = Account(id="a-3", organization_id="org-3", code="TEST-D", name="Debit account", account_type="TEST")
-    credit_account = Account(id="a-4", organization_id="org-3", code="TEST-C", name="Credit account", account_type="TEST")
+    organization_id = "org-3"
+    db_session.add(Organization(id=organization_id, name=organization_id))
+    year = FiscalYear(id="fy-3", organization_id=organization_id, name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+    period = FiscalPeriod(id="p-3", organization_id=organization_id, fiscal_year_id="fy-3", name="January", start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
+    debit_account = Account(id="a-3", organization_id=organization_id, code="TEST-D", name="Debit account", account_type="TEST")
+    credit_account = Account(id="a-4", organization_id=organization_id, code="TEST-C", name="Credit account", account_type="TEST")
     entry = JournalEntry(
         id="e-3",
-        organization_id="org-3",
+        organization_id=organization_id,
         fiscal_period_id="p-3",
         entry_date=date(2026, 1, 10),
         description="Posted entry",
@@ -194,15 +197,15 @@ async def test_close_period_transitions_only_after_controls_pass(db_session):
         entry,
         debit_line,
         credit_line,
-        LedgerPosting(id="lp-3", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-3", account_id="a-3", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("250.00"), credit=Decimal("0.00")),
-        LedgerPosting(id="lp-4", organization_id="org-3", fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-4", account_id="a-4", posting_date=date(2026, 1, 10), line_number=2, debit=Decimal("0.00"), credit=Decimal("250.00")),
+        LedgerPosting(id="lp-3", organization_id=organization_id, fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-3", account_id="a-3", posting_date=date(2026, 1, 10), line_number=1, debit=Decimal("250.00"), credit=Decimal("0.00")),
+        LedgerPosting(id="lp-4", organization_id=organization_id, fiscal_period_id="p-3", journal_entry_id="e-3", journal_entry_line_id="l-4", account_id="a-4", posting_date=date(2026, 1, 10), line_number=2, debit=Decimal("0.00"), credit=Decimal("250.00")),
     ])
     await db_session.commit()
 
-    readiness = await FiscalPeriodService(db_session).close_readiness("org-3", "p-3")
+    readiness = await FiscalPeriodService(db_session).close_readiness(organization_id, "p-3")
     assert readiness["ledger_reconciled"] is True
     assert readiness["ledger_balanced"] is True
     assert readiness["ready_to_close"] is True
 
-    closed = await FiscalPeriodService(db_session).close_period("org-3", "p-3")
+    closed = await FiscalPeriodService(db_session).close_period(organization_id, "p-3", "closer-1")
     assert closed.status == FiscalPeriodStatus.CLOSED
