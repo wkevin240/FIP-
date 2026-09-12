@@ -66,6 +66,14 @@ jobs:
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_ledger_postgres_integrity.py
+      - name: Verify ledger provenance PostgreSQL invariants
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
+          POSTGRES_PASSWORD: fip_password
+          POSTGRES_DB: fip_db
+        run: pytest -q backend/tests/integration/test_ledger_provenance_postgres_integrity.py
       - name: Verify posted journal PostgreSQL invariants
         env:
           POSTGRES_SERVER: localhost
