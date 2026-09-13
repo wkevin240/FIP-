@@ -82,6 +82,7 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                         await connection.execute(
                             "UPDATE journal_entries SET status = 'REVERSED' WHERE id = 'reversal-status-original'"
                         )
+                        await connection.execute("SET CONSTRAINTS trg_journal_reversal_status_integrity IMMEDIATE")
                 assert error.value.sqlstate == "23514"
 
                 await connection.execute(
@@ -120,6 +121,7 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                         await connection.execute(
                             "UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'reversal-status-reversal'"
                         )
+                        await connection.execute("SET CONSTRAINTS trg_journal_reversal_status_integrity IMMEDIATE")
                 assert error.value.sqlstate == "23514"
 
                 raise _RollbackFixture
