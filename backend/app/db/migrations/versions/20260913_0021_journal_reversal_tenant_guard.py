@@ -1,1 +1,44 @@
-"""Keep journal reversals inside their organization tenant.\n\nRevision ID: 20260913_0021\nRevises: 20260913_0020\n"""\n\nfrom typing import Sequence, Union\n\nfrom alembic import op\n\n\nrevision: str = "20260913_0021"\ndown_revision: Union[str, None] = "20260913_0020"\nbranch_labels: Union[str, Sequence[str], None] = None\ndepends_on: Union[str, Sequence[str], None] = None\n\n\ndef upgrade() -> None:\n    op.create_unique_constraint(\n        "uq_journal_entry_organization_id",\n        "journal_entries",\n        ["organization_id", "id"],\n    )\n    op.create_foreign_key(\n        "fk_journal_entry_reversal_same_organization",\n        "journal_entries",\n        "journal_entries",\n        ["organization_id", "reversal_of_id"],\n        ["organization_id", "id"],\n        ondelete="RESTRICT",\n    )\n\n\ndef downgrade() -> None:\n    op.drop_constraint(\n        "fk_journal_entry_reversal_same_organization",\n        "journal_entries",\n        type_="foreignkey",\n    )\n    op.drop_constraint(\n        "uq_journal_entry_organization_id",\n        "journal_entries",\n        type_="unique",\n    )\n
+"""Keep journal reversals inside their organization tenant.
+
+Revision ID: 20260913_0021
+Revises: 20260913_0020
+"""
+
+from typing import Sequence, Union
+
+from alembic import op
+
+
+revision: str = "20260913_0021"
+down_revision: Union[str, None] = "20260913_0020"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    op.create_unique_constraint(
+        "uq_journal_entry_organization_id",
+        "journal_entries",
+        ["organization_id", "id"],
+    )
+    op.create_foreign_key(
+        "fk_journal_entry_reversal_same_organization",
+        "journal_entries",
+        "journal_entries",
+        ["organization_id", "reversal_of_id"],
+        ["organization_id", "id"],
+        ondelete="RESTRICT",
+    )
+
+
+def downgrade() -> None:
+    op.drop_constraint(
+        "fk_journal_entry_reversal_same_organization",
+        "journal_entries",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        "uq_journal_entry_organization_id",
+        "journal_entries",
+        type_="unique",
+    )
