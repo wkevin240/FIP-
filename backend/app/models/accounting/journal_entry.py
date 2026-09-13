@@ -41,7 +41,12 @@ class JournalEntry(Base):
 
     fiscal_period = relationship("FiscalPeriod")
     lines = relationship("JournalEntryLine", back_populates="journal_entry", cascade="all, delete-orphan", order_by="JournalEntryLine.line_number")
-    reversal_of = relationship("JournalEntry", remote_side="JournalEntry.id", foreign_keys=[organization_id, reversal_of_id], uselist=False)
+    reversal_of = relationship(
+        "JournalEntry",
+        remote_side=lambda: [JournalEntry.organization_id, JournalEntry.id],
+        foreign_keys=lambda: [JournalEntry.organization_id, JournalEntry.reversal_of_id],
+        uselist=False,
+    )
 
 
 class JournalEntryLine(Base):
