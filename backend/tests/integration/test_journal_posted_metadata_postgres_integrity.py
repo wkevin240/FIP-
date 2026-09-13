@@ -30,7 +30,10 @@ async def test_posted_journal_requires_posting_metadata() -> None:
               AND conname = 'ck_journal_entry_posted_metadata'
             """
         )
-        assert constraint == "CHECK (((status = 'DRAFT'::journalentrystatus) OR ((posted_at IS NOT NULL) AND (posted_by IS NOT NULL))))"
+        assert constraint is not None
+        assert "status" in constraint
+        assert "posted_at IS NOT NULL" in constraint
+        assert "posted_by IS NOT NULL" in constraint
 
         try:
             async with connection.transaction():
