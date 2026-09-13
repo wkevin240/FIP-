@@ -86,7 +86,13 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                 assert error.value.sqlstate == "23514"
 
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'reversal-status-original'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:00:00+00',
+                        posted_by = 'journal-reversal-status-test-actor'
+                    WHERE id = 'reversal-status-original'
+                    """
                 )
                 await connection.execute(
                     """
@@ -106,7 +112,13 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                     """
                 )
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'reversal-status-reversal'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:05:00+00',
+                        posted_by = 'journal-reversal-status-test-actor'
+                    WHERE id = 'reversal-status-reversal'
+                    """
                 )
                 await connection.execute(
                     "UPDATE journal_entries SET status = 'REVERSED' WHERE id = 'reversal-status-original'"

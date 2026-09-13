@@ -19,6 +19,10 @@ class JournalEntry(Base):
         UniqueConstraint("organization_id", "id", name="uq_journal_entry_organization_id"),
         UniqueConstraint("organization_id", "idempotency_key", name="uq_journal_entry_org_idempotency"),
         UniqueConstraint("reversal_of_id", name="uq_journal_entry_reversal_of"),
+        CheckConstraint(
+            "status = 'DRAFT' OR (posted_at IS NOT NULL AND posted_by IS NOT NULL)",
+            name="ck_journal_entry_posted_metadata",
+        ),
         ForeignKeyConstraint(
             ["organization_id", "reversal_of_id"],
             ["journal_entries.organization_id", "journal_entries.id"],

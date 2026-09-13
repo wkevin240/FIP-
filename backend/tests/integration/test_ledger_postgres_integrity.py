@@ -86,7 +86,13 @@ async def test_ledger_postings_are_database_immutable() -> None:
                     """
                 )
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'ledger-integrity-entry'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:00:00+00',
+                        posted_by = 'ledger-integrity-test-actor'
+                    WHERE id = 'ledger-integrity-entry'
+                    """
                 )
                 await connection.execute(
                     """

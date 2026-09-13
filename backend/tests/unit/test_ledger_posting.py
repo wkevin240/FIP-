@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -34,6 +34,8 @@ async def test_ledger_is_created_from_posted_entry(db_session):
         idempotency_key="ledger-test",
         idempotency_hash="a" * 64,
         status=JournalEntryStatus.POSTED,
+        posted_at=datetime(2026, 3, 10, 12, 0, 0),
+        posted_by="ledger-test-actor",
         lines=[
             JournalEntryLine(id="line-cash", line_number=1, account_id=cash.id, debit=Decimal("100.00"), credit=Decimal("0.00")),
             JournalEntryLine(id="line-revenue", line_number=2, account_id=revenue.id, debit=Decimal("0.00"), credit=Decimal("100.00")),
