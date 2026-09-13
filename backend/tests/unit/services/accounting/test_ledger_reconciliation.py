@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -19,6 +19,8 @@ async def test_reconcile_postings_passes_when_posted_lines_match(db_session):
         status=JournalEntryStatus.POSTED,
         idempotency_key="reconcile-1",
         idempotency_hash="hash-1",
+        posted_at=datetime(2026, 1, 10, 12, 0, 0),
+        posted_by="reconcile-test-actor",
     )
     line = JournalEntryLine(
         id="line-reconcile-1",
@@ -64,6 +66,8 @@ async def test_reconcile_postings_reports_missing_posting(db_session):
         status=JournalEntryStatus.POSTED,
         idempotency_key="reconcile-2",
         idempotency_hash="hash-2",
+        posted_at=datetime(2026, 2, 10, 12, 0, 0),
+        posted_by="reconcile-test-actor",
     )
     line = JournalEntryLine(
         id="line-reconcile-2",
