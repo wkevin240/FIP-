@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -187,6 +187,8 @@ async def test_close_period_transitions_only_after_controls_pass(db_session):
         idempotency_key="key-3",
         idempotency_hash="hash-3",
         status=JournalEntryStatus.POSTED,
+        posted_at=datetime(2026, 1, 10, 12, 0, 0),
+        posted_by="period-service-test-actor",
     )
     debit_line = JournalEntryLine(id="l-3", journal_entry_id="e-3", line_number=1, account_id="a-3", debit=Decimal("250.00"), credit=Decimal("0.00"))
     credit_line = JournalEntryLine(id="l-4", journal_entry_id="e-3", line_number=2, account_id="a-4", debit=Decimal("0.00"), credit=Decimal("250.00"))
