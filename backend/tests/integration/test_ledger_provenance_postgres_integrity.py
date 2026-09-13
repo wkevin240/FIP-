@@ -101,7 +101,13 @@ async def test_ledger_posting_must_match_posted_journal_source() -> None:
                 assert draft_error.value.sqlstate == "23514"
 
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'ledger-provenance-entry'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:00:00+00',
+                        posted_by = 'ledger-provenance-test-actor'
+                    WHERE id = 'ledger-provenance-entry'
+                    """
                 )
 
                 with pytest.raises(asyncpg.PostgresError) as mismatch_error:
