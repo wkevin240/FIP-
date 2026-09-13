@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
@@ -11,7 +12,7 @@ from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
 from app.models.accounting.ledger_posting import LedgerPosting
-from app.schemas.accounting.fiscal_period import FiscalPeriodCreate
+from app.schemas.accounting.fiscal_period import FiscalPeriodCreate, FiscalPeriodReopen
 from app.services.accounting.fiscal_period_service import FiscalPeriodService
 
 
@@ -209,3 +210,82 @@ async def test_close_period_transitions_only_after_controls_pass(db_session):
 
     closed = await FiscalPeriodService(db_session).close_period(organization_id, "p-3", "closer-1")
     assert closed.status == FiscalPeriodStatus.CLOSED
+
+
+@pytest.mark.asyncio
+async def test_reopen_period_requires_non_blank_reason(db_session):
+    period = FiscalPeriod(
+        id="p-reopen-blank",
+        organization_id="org-reopen-blank",
+        fiscal_year_id="fy-reopen-blank",
+        name="January",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        status=FiscalPeriodStatus.CLOSED,
+    )
+    db_session.add(period)
+    await db_session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await FiscalPeriodService(db_session).reopen_period(
+            "org-reopen-blank", "p-reopen-blank", "actor-1", FiscalPeriodReopen(reason="   ")
+        )
+
+    assert exc.value.status_code == 422
+    assert period.status == FiscalPeriodStatus.CLOSED
+
+
+@pytest.mark.asyncio
+async def test_reopen_period_requires_closed_status(db_session):
+    period = FiscalPeriod(
+        id="p-reopen-open",
+        organization_id="org-reopen-open",
+        fiscal_year_id="fy-reopen-open",
+        name="January",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        status=FiscalPeriodStatus.OPEN,
+    )
+    db_session.add(period)
+    await db_session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await FiscalPeriodService(db_session).reopen_period(
+            "org-reopen-open", "p-reopen-open", "actor-1", FiscalPeriodReopen(reason="Correction approved")
+        )
+
+    assert exc.value.status_code == 409
+    assert period.status == FiscalPeriodStatus.OPEN
+
+
+@pytest.mark.asyncio
+async def test_reopen_period_is_audited_and_committed(db_session):
+    organization_id = "org-reopen"
+    db_session.add(Organization(id=organization_id, name=organization_id))
+    period = FiscalPeriod(
+        id="p-reopen",
+        organization_id=organization_id,
+        fiscal_year_id="fy-reopen",
+        name="January",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        status=FiscalPeriodStatus.CLOSED,
+    )
+    db_session.add(period)
+    await db_session.commit()
+
+    service = FiscalPeriodService(db_session)
+    service.audit_repository.append = AsyncMock()
+
+    reopened = await service.reopen_period(
+        organization_id, period.id, "actor-reopen", FiscalPeriodReopen(reason="Approved correction of source document")
+    )
+
+    assert reopened.status == FiscalPeriodStatus.OPEN
+    service.audit_repository.append.assert_awaited_once()
+    context = service.audit_repository.append.await_args.args[0]
+    assert context.action == "FISCAL_PERIOD_REOPENED"
+    payload = service.audit_repository.append.await_args.kwargs["payload"]
+    assert payload["reason"] == "Approved correction of source document"
+    assert payload["previous_status"] == FiscalPeriodStatus.CLOSED.value
+    assert payload["resulting_status"] == FiscalPeriodStatus.OPEN.value
