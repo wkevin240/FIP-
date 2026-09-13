@@ -78,9 +78,10 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                 )
 
                 with pytest.raises(asyncpg.PostgresError) as error:
-                    await connection.execute(
-                        "UPDATE journal_entries SET status = 'REVERSED' WHERE id = 'reversal-status-original'"
-                    )
+                    async with connection.transaction():
+                        await connection.execute(
+                            "UPDATE journal_entries SET status = 'REVERSED' WHERE id = 'reversal-status-original'"
+                        )
                 assert error.value.sqlstate == "23514"
 
                 await connection.execute(
@@ -115,9 +116,10 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                 assert status == "REVERSED"
 
                 with pytest.raises(asyncpg.PostgresError) as error:
-                    await connection.execute(
-                        "UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'reversal-status-reversal'"
-                    )
+                    async with connection.transaction():
+                        await connection.execute(
+                            "UPDATE journal_entries SET status = 'DRAFT' WHERE id = 'reversal-status-reversal'"
+                        )
                 assert error.value.sqlstate == "23514"
 
                 raise _RollbackFixture
