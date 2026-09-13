@@ -79,7 +79,10 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                     """
                 )
 
-                violation_sqlstate = await connection.fetchval(
+                await connection.execute(
+                    "CREATE TEMP TABLE _fip_posted_metadata_probe (sqlstate text) ON COMMIT DROP"
+                )
+                await connection.execute(
                     """
                     DO $block$
                     DECLARE
@@ -97,13 +100,13 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                             RAISE EXCEPTION 'expected posted metadata check constraint violation';
                         END IF;
 
-                        CREATE TEMP TABLE IF NOT EXISTS _fip_posted_metadata_probe (sqlstate text);
-                        TRUNCATE _fip_posted_metadata_probe;
                         INSERT INTO _fip_posted_metadata_probe VALUES (caught_sqlstate);
                     END;
-                    $block$;
-                    SELECT sqlstate FROM _fip_posted_metadata_probe;
+                    $block$
                     """
+                )
+                violation_sqlstate = await connection.fetchval(
+                    "SELECT sqlstate FROM _fip_posted_metadata_probe"
                 )
                 assert violation_sqlstate == "23514"
 
