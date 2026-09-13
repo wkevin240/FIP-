@@ -83,7 +83,13 @@ async def test_journal_reversal_cannot_cross_organization_boundary() -> None:
                     """
                 )
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'reversal-original'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:00:00+00',
+                        posted_by = 'journal-reversal-tenant-test-actor'
+                    WHERE id = 'reversal-original'
+                    """
                 )
 
                 with pytest.raises(asyncpg.PostgresError) as error:
@@ -116,7 +122,13 @@ async def test_journal_reversal_cannot_cross_organization_boundary() -> None:
                     """
                 )
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'reversal-same-tenant'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:05:00+00',
+                        posted_by = 'journal-reversal-tenant-test-actor'
+                    WHERE id = 'reversal-same-tenant'
+                    """
                 )
                 status = await connection.fetchval(
                     "SELECT status::text FROM journal_entries WHERE id = 'reversal-same-tenant'"
