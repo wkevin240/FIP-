@@ -111,12 +111,20 @@ async def test_posted_journal_entries_require_balanced_lines() -> None:
                     """
                 )
                 await connection.execute(
-                    "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'journal-balance-balanced'"
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMPTZ '2026-01-10 12:00:00+00',
+                        posted_by = 'journal-balance-test-actor'
+                    WHERE id = 'journal-balance-balanced'
+                    """
                 )
-                status = await connection.fetchval(
-                    "SELECT status::text FROM journal_entries WHERE id = 'journal-balance-balanced'"
+                row = await connection.fetchrow(
+                    "SELECT status::text AS status, posted_at, posted_by FROM journal_entries WHERE id = 'journal-balance-balanced'"
                 )
-                assert status == "POSTED"
+                assert row["status"] == "POSTED"
+                assert row["posted_at"] is not None
+                assert row["posted_by"] == "journal-balance-test-actor"
 
                 raise _RollbackFixture
         except _RollbackFixture:
