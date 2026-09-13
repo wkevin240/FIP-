@@ -21,6 +21,21 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    IF TG_OP = 'UPDATE'
+       AND OLD.reversal_of_id IS NOT NULL
+       AND NEW.reversal_of_id IS DISTINCT FROM OLD.reversal_of_id
+       AND EXISTS (
+            SELECT 1
+            FROM journal_entries original
+            WHERE original.organization_id = OLD.organization_id
+              AND original.id = OLD.reversal_of_id
+              AND original.status = 'REVERSED'
+       ) THEN
+        RAISE EXCEPTION
+            'A REVERSED journal entry must retain its POSTED reversal reference'
+            USING ERRCODE = '23514';
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM journal_entries original
