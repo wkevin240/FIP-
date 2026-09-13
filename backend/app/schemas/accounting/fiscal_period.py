@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums.accounting import FiscalPeriodStatus
 
@@ -23,6 +23,10 @@ class FiscalPeriodUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     status: Optional[FiscalPeriodStatus] = None
+
+
+class FiscalPeriodReopen(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class FiscalPeriodResponse(FiscalPeriodBase):

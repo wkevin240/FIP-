@@ -48,8 +48,8 @@ The kernel is shared infrastructure for deterministic financial calculations. Do
 - [x] Read-only profitability API
 - [x] Period close gated by ledger integrity
 - [ ] Resolve and merge the calculation-kernel branch cleanly into the accounting hardening line
-- [ ] Controlled period reopening with mandatory reason and audit trail
-- [ ] Durable audit-event persistence
+- [x] Controlled period reopening with mandatory reason and audit trail
+- [x] Durable audit-event persistence
 - [ ] Accounting API integration verification against PostgreSQL migrations
 
 ### October 2026 — First operational financial slices

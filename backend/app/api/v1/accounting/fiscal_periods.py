@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.schemas.accounting.fiscal_period import (
     FiscalPeriodCloseReadinessResponse,
     FiscalPeriodCreate,
+    FiscalPeriodReopen,
     FiscalPeriodResponse,
 )
 from app.services.accounting.fiscal_period_service import FiscalPeriodService
@@ -51,3 +52,13 @@ async def close(
     service: FiscalPeriodService = Depends(get_service),
 ):
     return await service.close_period(tenant.organization_id, period_id, tenant.user_id)
+
+
+@router.post("/{period_id}/reopen", response_model=FiscalPeriodResponse)
+async def reopen(
+    period_id: str,
+    data: FiscalPeriodReopen,
+    tenant: CurrentTenant = Depends(require_permission("fiscal_period:reopen")),
+    service: FiscalPeriodService = Depends(get_service),
+):
+    return await service.reopen_period(tenant.organization_id, period_id, tenant.user_id, data)
