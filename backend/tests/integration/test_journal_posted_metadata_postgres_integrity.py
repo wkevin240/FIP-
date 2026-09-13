@@ -79,12 +79,33 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                     """
                 )
 
-                with pytest.raises(asyncpg.PostgresError) as error:
-                    async with connection.transaction():
-                        await connection.execute(
-                            "UPDATE journal_entries SET status = 'POSTED' WHERE id = 'posted-metadata-entry'"
-                        )
-                assert error.value.sqlstate == "23514"
+                violation_sqlstate = await connection.fetchval(
+                    """
+                    DO $block$
+                    DECLARE
+                        caught_sqlstate text;
+                    BEGIN
+                        BEGIN
+                            UPDATE journal_entries
+                            SET status = 'POSTED'
+                            WHERE id = 'posted-metadata-entry';
+                        EXCEPTION WHEN check_violation THEN
+                            GET STACKED DIAGNOSTICS caught_sqlstate = RETURNED_SQLSTATE;
+                        END;
+
+                        IF caught_sqlstate IS NULL THEN
+                            RAISE EXCEPTION 'expected posted metadata check constraint violation';
+                        END IF;
+
+                        CREATE TEMP TABLE IF NOT EXISTS _fip_posted_metadata_probe (sqlstate text);
+                        TRUNCATE _fip_posted_metadata_probe;
+                        INSERT INTO _fip_posted_metadata_probe VALUES (caught_sqlstate);
+                    END;
+                    $block$;
+                    SELECT sqlstate FROM _fip_posted_metadata_probe;
+                    """
+                )
+                assert violation_sqlstate == "23514"
 
                 await connection.execute(
                     """
