@@ -1,7 +1,7 @@
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, ForeignKeyConstraint, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -16,8 +16,15 @@ class JournalEntryStatus(str, Enum):
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_journal_entry_organization_id"),
         UniqueConstraint("organization_id", "idempotency_key", name="uq_journal_entry_org_idempotency"),
         UniqueConstraint("reversal_of_id", name="uq_journal_entry_reversal_of"),
+        ForeignKeyConstraint(
+            ["organization_id", "reversal_of_id"],
+            ["journal_entries.organization_id", "journal_entries.id"],
+            name="fk_journal_entry_reversal_same_organization",
+            ondelete="RESTRICT",
+        ),
     )
 
     organization_id = Column(String, ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -30,11 +37,11 @@ class JournalEntry(Base):
     idempotency_hash = Column(String(64), nullable=False)
     posted_at = Column(DateTime, nullable=True)
     posted_by = Column(String, nullable=True)
-    reversal_of_id = Column(String, ForeignKey("journal_entries.id", ondelete="RESTRICT"), nullable=True, index=True)
+    reversal_of_id = Column(String, nullable=True, index=True)
 
     fiscal_period = relationship("FiscalPeriod")
     lines = relationship("JournalEntryLine", back_populates="journal_entry", cascade="all, delete-orphan", order_by="JournalEntryLine.line_number")
-    reversal_of = relationship("JournalEntry", remote_side="JournalEntry.id", foreign_keys=[reversal_of_id], uselist=False)
+    reversal_of = relationship("JournalEntry", remote_side="JournalEntry.id", foreign_keys=[organization_id, reversal_of_id], uselist=False)
 
 
 class JournalEntryLine(Base):
