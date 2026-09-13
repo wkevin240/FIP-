@@ -79,36 +79,21 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                     """
                 )
 
-                await connection.execute(
-                    "CREATE TEMP TABLE _fip_posted_metadata_probe (sqlstate text) ON COMMIT DROP"
-                )
-                await connection.execute(
-                    """
-                    DO $block$
-                    DECLARE
-                        caught_sqlstate text;
-                    BEGIN
-                        BEGIN
+                with pytest.raises(asyncpg.PostgresError) as violation:
+                    async with connection.transaction():
+                        await connection.execute(
+                            """
                             UPDATE journal_entries
                             SET status = 'POSTED'
-                            WHERE id = 'posted-metadata-entry';
-                        EXCEPTION WHEN check_violation THEN
-                            GET STACKED DIAGNOSTICS caught_sqlstate = RETURNED_SQLSTATE;
-                        END;
+                            WHERE id = 'posted-metadata-entry'
+                            """
+                        )
+                assert violation.value.sqlstate == "23514"
 
-                        IF caught_sqlstate IS NULL THEN
-                            RAISE EXCEPTION 'expected posted metadata check constraint violation';
-                        END IF;
-
-                        INSERT INTO _fip_posted_metadata_probe VALUES (caught_sqlstate);
-                    END;
-                    $block$
-                    """
+                status = await connection.fetchval(
+                    "SELECT status::text FROM journal_entries WHERE id = 'posted-metadata-entry'"
                 )
-                violation_sqlstate = await connection.fetchval(
-                    "SELECT sqlstate FROM _fip_posted_metadata_probe"
-                )
-                assert violation_sqlstate == "23514"
+                assert status == "DRAFT"
 
                 await connection.execute(
                     """
@@ -117,12 +102,12 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                     WHERE id = 'posted-metadata-entry'
                     """
                 )
-                status = await connection.fetchrow(
+                row = await connection.fetchrow(
                     "SELECT status::text AS status, posted_at, posted_by FROM journal_entries WHERE id = 'posted-metadata-entry'"
                 )
-                assert status["status"] == "POSTED"
-                assert status["posted_at"] is not None
-                assert status["posted_by"] == "integration-actor"
+                assert row["status"] == "POSTED"
+                assert row["posted_at"] is not None
+                assert row["posted_by"] == "integration-actor"
 
                 raise _RollbackFixture
         except _RollbackFixture:
