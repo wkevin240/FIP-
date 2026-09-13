@@ -16,6 +16,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.drop_constraint(
+        "journal_entries_reversal_of_id_fkey",
+        "journal_entries",
+        type_="foreignkey",
+    )
     op.create_unique_constraint(
         "uq_journal_entry_organization_id",
         "journal_entries",
@@ -41,4 +46,12 @@ def downgrade() -> None:
         "uq_journal_entry_organization_id",
         "journal_entries",
         type_="unique",
+    )
+    op.create_foreign_key(
+        "journal_entries_reversal_of_id_fkey",
+        "journal_entries",
+        "journal_entries",
+        ["reversal_of_id"],
+        ["id"],
+        ondelete="RESTRICT",
     )
