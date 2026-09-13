@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -57,6 +57,8 @@ async def test_close_period_persists_audit_in_same_transaction(db_session):
         idempotency_key="period-audit-entry-key",
         idempotency_hash="period-audit-entry-hash",
         status=JournalEntryStatus.POSTED,
+        posted_at=datetime(2026, 1, 10, 12, 0, 0),
+        posted_by="period-audit-test-actor",
     )
     debit_line = JournalEntryLine(
         id="period-audit-line-debit",
