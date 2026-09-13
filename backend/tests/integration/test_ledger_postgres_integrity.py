@@ -71,9 +71,9 @@ async def test_ledger_postings_are_database_immutable() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, posted_at, posted_by, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'POSTED', 'ledger-integrity-key', repeat('a', 64), NOW(), NOW())
+                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'DRAFT', 'ledger-integrity-key', repeat('a', 64), NULL, NULL, NOW(), NOW())
                     """
                 )
                 await connection.execute(
@@ -81,7 +81,17 @@ async def test_ledger_postings_are_database_immutable() -> None:
                     INSERT INTO journal_entry_lines
                         (id, journal_entry_id, line_number, account_id, debit, credit, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-line', 'ledger-integrity-entry', 1, 'ledger-integrity-debit-account', 100.00, 0.00, NOW(), NOW())
+                        ('ledger-integrity-line', 'ledger-integrity-entry', 1, 'ledger-integrity-debit-account', 100.00, 0.00, NOW(), NOW()),
+                        ('ledger-integrity-offset-line', 'ledger-integrity-entry', 2, 'ledger-integrity-credit-account', 0.00, 100.00, NOW(), NOW())
+                    """
+                )
+                await connection.execute(
+                    """
+                    UPDATE journal_entries
+                    SET status = 'POSTED',
+                        posted_at = TIMESTAMP '2026-01-10 12:00:00',
+                        posted_by = 'ledger-integrity-test-actor'
+                    WHERE id = 'ledger-integrity-entry'
                     """
                 )
                 await connection.execute(
