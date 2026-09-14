@@ -76,6 +76,7 @@ class JournalEntryResponse(BaseModel):
     description: str
     status: JournalEntryStatus
     idempotency_key: str
+    created_by: str | None
     posted_at: datetime | None
     posted_by: str | None
     reversal_of_id: str | None
