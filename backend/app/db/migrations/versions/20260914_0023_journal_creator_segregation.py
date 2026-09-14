@@ -22,6 +22,13 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    IF TG_OP = 'INSERT'
+       AND NEW.created_by IS NULL THEN
+        RAISE EXCEPTION
+            'New journal entry must record its creator'
+            USING ERRCODE = '23502';
+    END IF;
+
     IF TG_OP = 'UPDATE'
        AND OLD.created_by IS DISTINCT FROM NEW.created_by THEN
         RAISE EXCEPTION
