@@ -47,10 +47,9 @@ def upgrade() -> None:
     op.execute(_FUNCTION)
     op.execute(
         """
-        CREATE CONSTRAINT TRIGGER trg_journal_creator_segregation
-        AFTER INSERT OR UPDATE OF status, created_by, posted_by
+        CREATE TRIGGER trg_journal_creator_segregation
+        BEFORE INSERT OR UPDATE OF status, created_by, posted_by
         ON journal_entries
-        DEFERRABLE INITIALLY DEFERRED
         FOR EACH ROW
         EXECUTE FUNCTION enforce_journal_creator_segregation();
         """
