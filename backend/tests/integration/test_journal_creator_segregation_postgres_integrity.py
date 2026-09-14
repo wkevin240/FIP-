@@ -69,15 +69,16 @@ async def test_creator_cannot_post_direct_sql_but_distinct_actor_can() -> None:
             )
 
             with pytest.raises(asyncpg.PostgresError) as self_post_error:
-                await connection.execute(
-                    """
-                    UPDATE journal_entries
-                    SET status = 'POSTED',
-                        posted_at = TIMESTAMP '2026-01-15 12:00:00',
-                        posted_by = 'creator-1'
-                    WHERE id = 'sod-entry'
-                    """
-                )
+                async with connection.transaction():
+                    await connection.execute(
+                        """
+                        UPDATE journal_entries
+                        SET status = 'POSTED',
+                            posted_at = TIMESTAMP '2026-01-15 12:00:00',
+                            posted_by = 'creator-1'
+                        WHERE id = 'sod-entry'
+                        """
+                    )
             assert self_post_error.value.sqlstate == "42501"
             state = await connection.fetchrow(
                 "SELECT status, posted_by FROM journal_entries WHERE id = 'sod-entry'"
@@ -106,7 +107,7 @@ async def test_creator_cannot_post_direct_sql_but_distinct_actor_can() -> None:
             await connection.execute("DELETE FROM journal_entries WHERE id = 'sod-entry'")
             await connection.execute("DELETE FROM accounts WHERE organization_id = 'sod-org'")
             await connection.execute("DELETE FROM fiscal_periods WHERE organization_id = 'sod-org'")
-            await connection.execute("DELETE FROM fiscal_years WHERE organization_id = 'sod-org'")
+            await connection.execute("DELETE FROM fiscal_years WHERE id = 'sod-year'")
             await connection.execute("DELETE FROM organizations WHERE id = 'sod-org'")
     finally:
         await connection.close()
