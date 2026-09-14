@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.api.dependencies import get_db
@@ -14,6 +15,7 @@ from app.main import create_application
 from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
+from app.models.accounting.ledger_posting import LedgerPosting
 from app.models.organization import Organization
 from app.models.membership import OrganizationMembership
 from app.models.user import User
@@ -54,6 +56,8 @@ async def test_journal_api_uses_migrated_postgres_contract() -> None:
         async def override_get_db():
             yield session
 
+        # Keep the override explicit against the dependency object consumed by
+        # the router and by the authentication dependency.
         application.dependency_overrides[get_db] = override_get_db
 
         try:
@@ -167,6 +171,13 @@ async def test_journal_api_uses_migrated_postgres_contract() -> None:
                 )
                 assert forbidden.status_code == 403
                 assert "creator cannot post" in forbidden.json()["detail"]
+
+                postings = list(
+                    await session.scalars(
+                        select(LedgerPosting).where(LedgerPosting.journal_entry_id == entry_id)
+                    )
+                )
+                assert postings == []
 
                 manager_post = await client.post(
                     f"/api/v1/accounting/journal-entries/{entry_id}/post",
