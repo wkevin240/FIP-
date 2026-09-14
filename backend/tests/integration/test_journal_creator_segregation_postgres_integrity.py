@@ -68,6 +68,17 @@ async def test_creator_cannot_post_direct_sql_but_distinct_actor_can() -> None:
                 """
             )
 
+            with pytest.raises(asyncpg.PostgresError) as creator_change_error:
+                async with connection.transaction():
+                    await connection.execute(
+                        "UPDATE journal_entries SET created_by = 'poster-1' WHERE id = 'sod-entry'"
+                    )
+            assert creator_change_error.value.sqlstate == "42501"
+            creator = await connection.fetchval(
+                "SELECT created_by FROM journal_entries WHERE id = 'sod-entry'"
+            )
+            assert creator == "creator-1"
+
             with pytest.raises(asyncpg.PostgresError) as self_post_error:
                 async with connection.transaction():
                     await connection.execute(
