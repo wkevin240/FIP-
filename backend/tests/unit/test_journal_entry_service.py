@@ -88,15 +88,17 @@ async def test_journal_creator_cannot_post_same_entry(db_session):
             ],
         ),
     )
+    entry_id = entry.id
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.post(organization_id, entry.id, "creator-1")
+        await service.post(organization_id, entry_id, "creator-1")
     assert exc_info.value.status_code == 403
 
-    persisted = await db_session.scalar(select(JournalEntry).where(JournalEntry.id == entry.id))
+    persisted = await db_session.scalar(select(JournalEntry).where(JournalEntry.id == entry_id))
     assert persisted.status == JournalEntryStatus.DRAFT
+    assert persisted.created_by == "creator-1"
     assert persisted.posted_by is None
-    assert await db_session.scalar(select(func.count(LedgerPosting.id)).where(LedgerPosting.journal_entry_id == entry.id)) == 0
+    assert await db_session.scalar(select(func.count(LedgerPosting.id)).where(LedgerPosting.journal_entry_id == entry_id)) == 0
 
 
 @pytest.mark.asyncio
