@@ -62,9 +62,9 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('reversal-status-original', 'reversal-status-org', 'reversal-status-period', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-status-original-key', repeat('a', 64), NOW(), NOW())
+                        ('reversal-status-original', 'reversal-status-org', 'reversal-status-period', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-status-original-key', repeat('a', 64), 'journal-reversal-status-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
@@ -97,9 +97,9 @@ async def test_reversed_status_requires_posted_reversal() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_by, created_at, updated_at)
                     VALUES
-                        ('reversal-status-reversal', 'reversal-status-org', 'reversal-status-period', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-status-reversal-key', repeat('b', 64), 'reversal-status-original', NOW(), NOW())
+                        ('reversal-status-reversal', 'reversal-status-org', 'reversal-status-period', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-status-reversal-key', repeat('b', 64), 'reversal-status-original', 'journal-reversal-status-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
