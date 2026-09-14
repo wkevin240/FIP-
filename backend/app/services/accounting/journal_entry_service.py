@@ -131,6 +131,7 @@ class JournalEntryService:
             description=data.description.strip(),
             idempotency_key=data.idempotency_key,
             idempotency_hash=request_hash,
+            created_by=actor_id,
             status=JournalEntryStatus.DRAFT,
         )
         entry.lines = [
@@ -180,6 +181,8 @@ class JournalEntryService:
             return entry
         if entry.status != JournalEntryStatus.DRAFT:
             raise HTTPException(status_code=409, detail="Only draft journal entries can be posted")
+        if entry.created_by is not None and entry.created_by == actor_id:
+            raise HTTPException(status_code=403, detail="Journal entry creator cannot post the same journal entry")
 
         period = await self.session.scalar(self._fiscal_period_lock(organization_id, entry.fiscal_period_id))
         if period is None:
@@ -285,6 +288,8 @@ class JournalEntryService:
             raise HTTPException(status_code=404, detail="Journal entry not found")
         if original.status != JournalEntryStatus.POSTED:
             raise HTTPException(status_code=409, detail="Only a posted journal entry can be reversed")
+        if original.created_by is not None and original.created_by == actor_id:
+            raise HTTPException(status_code=403, detail="Journal entry creator cannot reverse the same journal entry")
 
         request_hash = self._request_hash(data)
         existing = await self.repository.get_by_idempotency_key(organization_id, data.idempotency_key)
@@ -318,6 +323,7 @@ class JournalEntryService:
             status=JournalEntryStatus.DRAFT,
             idempotency_key=data.idempotency_key,
             idempotency_hash=request_hash,
+            created_by=actor_id,
             reversal_of_id=original.id,
         )
         reversal.lines = [
