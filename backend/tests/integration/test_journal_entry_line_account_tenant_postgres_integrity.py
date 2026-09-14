@@ -74,9 +74,9 @@ async def test_journal_entry_line_account_stays_within_journal_organization() ->
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by)
                     VALUES
-                        ('journal-line-entry', 'journal-line-org', 'journal-line-period', '2026-06-30', 'integration-only', 'DRAFT', 'journal-line-test', repeat('a', 64))
+                        ('journal-line-entry', 'journal-line-org', 'journal-line-period', '2026-06-30', 'integration-only', 'DRAFT', 'journal-line-test', repeat('a', 64), 'journal-line-test-creator')
                     """
                 )
 

@@ -27,6 +27,7 @@ async def test_create_and_post_journal_entry_persists_audit_events(db_session):
     service = JournalEntryService(db_session)
     entry = await service.create(organization_id, "creator-1", data)
     assert entry.status == JournalEntryStatus.DRAFT
+    assert entry.created_by == "creator-1"
     assert len(entry.lines) == 2
 
     created_audit = await db_session.scalar(
@@ -64,6 +65,43 @@ async def test_create_and_post_journal_entry_persists_audit_events(db_session):
 
 
 @pytest.mark.asyncio
+async def test_journal_creator_cannot_post_same_entry(db_session):
+    organization_id = "org-segregation-post"
+    db_session.add(Organization(id=organization_id, name=organization_id))
+    period = FiscalPeriod(id="period-segregation-post", organization_id=organization_id, fiscal_year_id="year-segregation-post", name="May 2026", start_date=date(2026, 5, 1), end_date=date(2026, 5, 31), status=FiscalPeriodStatus.OPEN)
+    debit = Account(id="account-segregation-post-debit", organization_id=organization_id, code="605", name="Expense", account_type="EXPENSE")
+    credit = Account(id="account-segregation-post-credit", organization_id=organization_id, code="405", name="Payable", account_type="LIABILITY")
+    db_session.add_all([period, debit, credit])
+    await db_session.commit()
+    service = JournalEntryService(db_session)
+    entry = await service.create(
+        organization_id,
+        "creator-1",
+        JournalEntryCreate(
+            fiscal_period_id=period.id,
+            entry_date=date(2026, 5, 12),
+            description="Segregation proof",
+            idempotency_key="segregation-post-1",
+            lines=[
+                JournalEntryLineCreate(account_id=debit.id, debit=Decimal("80.00")),
+                JournalEntryLineCreate(account_id=credit.id, credit=Decimal("80.00")),
+            ],
+        ),
+    )
+    entry_id = entry.id
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.post(organization_id, entry_id, "creator-1")
+    assert exc_info.value.status_code == 403
+
+    persisted = await db_session.scalar(select(JournalEntry).where(JournalEntry.id == entry_id))
+    assert persisted.status == JournalEntryStatus.DRAFT
+    assert persisted.created_by == "creator-1"
+    assert persisted.posted_by is None
+    assert await db_session.scalar(select(func.count(LedgerPosting.id)).where(LedgerPosting.journal_entry_id == entry_id)) == 0
+
+
+@pytest.mark.asyncio
 async def test_create_idempotency_retry_does_not_duplicate_audit(db_session):
     organization_id = "org-idempotent"
     db_session.add(Organization(id=organization_id, name="org-idempotent"))
@@ -79,6 +117,7 @@ async def test_create_idempotency_retry_does_not_duplicate_audit(db_session):
     retry = await service.create(organization_id, "creator-2", data)
 
     assert retry.id == first.id
+    assert retry.created_by == "creator-1"
     audit_count = await db_session.scalar(
         select(func.count(AuditLog.id)).where(
             AuditLog.organization_id == organization_id,
@@ -116,11 +155,30 @@ async def test_posted_entry_can_be_reversed_once_and_audited(db_session):
     db_session.add_all([period, debit_account, credit_account])
     await db_session.commit()
     service = JournalEntryService(db_session)
-    entry = await service.create(organization_id, "creator-1", JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00"))]))
+    entry = await service.create(
+        organization_id,
+        "creator-1",
+        JournalEntryCreate(
+            fiscal_period_id=period.id,
+            entry_date=date(2026, 3, 10),
+            description="Original",
+            idempotency_key="original-1",
+            lines=[
+                JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")),
+                JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00")),
+            ],
+        ),
+    )
     await service.post(organization_id, entry.id, "user-1")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.reverse(organization_id, entry.id, "creator-1", JournalEntryReverse(idempotency_key="reversal-self"))
+    assert exc_info.value.status_code == 403
+
     reversal = await service.reverse(organization_id, entry.id, "user-2", JournalEntryReverse(idempotency_key="reversal-1", description="Correction"))
     assert reversal.status == JournalEntryStatus.POSTED
     assert reversal.reversal_of_id == entry.id
+    assert reversal.created_by == "user-2"
     assert reversal.lines[0].debit == Decimal("0.00") or reversal.lines[0].credit == Decimal("125.00")
     original = await db_session.scalar(select(JournalEntry).where(JournalEntry.id == entry.id))
     assert original.status == JournalEntryStatus.REVERSED

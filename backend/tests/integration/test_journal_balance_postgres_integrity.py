@@ -67,9 +67,9 @@ async def test_posted_journal_entries_require_balanced_lines() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('journal-balance-unbalanced', 'journal-balance-org', 'journal-balance-period', '2026-01-10', 'Unbalanced transition proof', 'DRAFT', 'journal-balance-unbalanced-key', repeat('a', 64), NOW(), NOW())
+                        ('journal-balance-unbalanced', 'journal-balance-org', 'journal-balance-period', '2026-01-10', 'Unbalanced transition proof', 'DRAFT', 'journal-balance-unbalanced-key', repeat('a', 64), 'journal-balance-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
@@ -96,9 +96,9 @@ async def test_posted_journal_entries_require_balanced_lines() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('journal-balance-balanced', 'journal-balance-org', 'journal-balance-period', '2026-01-10', 'Balanced transition proof', 'DRAFT', 'journal-balance-balanced-key', repeat('b', 64), NOW(), NOW())
+                        ('journal-balance-balanced', 'journal-balance-org', 'journal-balance-period', '2026-01-10', 'Balanced transition proof', 'DRAFT', 'journal-balance-balanced-key', repeat('b', 64), 'journal-balance-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(

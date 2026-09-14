@@ -68,9 +68,9 @@ async def test_journal_reversal_cannot_cross_organization_boundary() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('reversal-original', 'reversal-org-a', 'reversal-period-a', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-original-key', repeat('a', 64), NOW(), NOW())
+                        ('reversal-original', 'reversal-org-a', 'reversal-period-a', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-original-key', repeat('a', 64), 'journal-reversal-tenant-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
@@ -97,9 +97,9 @@ async def test_journal_reversal_cannot_cross_organization_boundary() -> None:
                         await connection.execute(
                             """
                             INSERT INTO journal_entries
-                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_at, updated_at)
+                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_by, created_at, updated_at)
                             VALUES
-                                ('reversal-cross-tenant', 'reversal-org-b', 'reversal-period-b', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-cross-tenant-key', repeat('b', 64), 'reversal-original', NOW(), NOW())
+                                ('reversal-cross-tenant', 'reversal-org-b', 'reversal-period-b', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-cross-tenant-key', repeat('b', 64), 'reversal-original', 'journal-reversal-tenant-test-creator-b', NOW(), NOW())
                             """
                         )
                 assert error.value.sqlstate == "23503"
@@ -107,9 +107,9 @@ async def test_journal_reversal_cannot_cross_organization_boundary() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, reversal_of_id, created_by, created_at, updated_at)
                     VALUES
-                        ('reversal-same-tenant', 'reversal-org-a', 'reversal-period-a', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-same-tenant-key', repeat('c', 64), 'reversal-original', NOW(), NOW())
+                        ('reversal-same-tenant', 'reversal-org-a', 'reversal-period-a', '2026-01-10', 'integration-only', 'DRAFT', 'reversal-same-tenant-key', repeat('c', 64), 'reversal-original', 'journal-reversal-tenant-test-creator-b', NOW(), NOW())
                     """
                 )
                 await connection.execute(
