@@ -71,9 +71,9 @@ async def test_ledger_postings_are_database_immutable() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'DRAFT', 'ledger-integrity-key', repeat('a', 64), NOW(), NOW())
+                        ('ledger-integrity-entry', 'ledger-integrity-org', 'ledger-integrity-period', '2026-01-10', 'Ledger immutability proof', 'DRAFT', 'ledger-integrity-key', repeat('a', 64), 'ledger-integrity-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
