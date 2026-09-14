@@ -22,6 +22,13 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    IF TG_OP = 'UPDATE'
+       AND OLD.created_by IS DISTINCT FROM NEW.created_by THEN
+        RAISE EXCEPTION
+            'Journal entry creator is immutable after creation'
+            USING ERRCODE = '42501';
+    END IF;
+
     IF NEW.reversal_of_id IS NULL
        AND NEW.status IN ('POSTED', 'REVERSED')
        AND NEW.created_by IS NOT NULL
