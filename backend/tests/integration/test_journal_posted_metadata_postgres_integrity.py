@@ -64,9 +64,9 @@ async def test_posted_journal_requires_posting_metadata() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('posted-metadata-entry', 'posted-metadata-org', 'posted-metadata-period', '2026-01-10', 'integration-only', 'DRAFT', 'posted-metadata-key', repeat('a', 64), NOW(), NOW())
+                        ('posted-metadata-entry', 'posted-metadata-org', 'posted-metadata-period', '2026-01-10', 'integration-only', 'DRAFT', 'posted-metadata-key', repeat('a', 64), 'metadata-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
