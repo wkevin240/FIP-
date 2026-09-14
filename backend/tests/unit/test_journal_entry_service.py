@@ -153,11 +153,17 @@ async def test_posted_entry_can_be_reversed_once_and_audited(db_session):
     db_session.add_all([period, debit_account, credit_account])
     await db_session.commit()
     service = JournalEntryService(db_session)
-    entry = await service.create(organization_id, "creator-1", JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00"))]))
+    entry = await service.create(organization_id, "creator-1", JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00")]))
     await service.post(organization_id, entry.id, "user-1")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.reverse(organization_id, entry.id, "creator-1", JournalEntryReverse(idempotency_key="reversal-self"))
+    assert exc_info.value.status_code == 403
+
     reversal = await service.reverse(organization_id, entry.id, "user-2", JournalEntryReverse(idempotency_key="reversal-1", description="Correction"))
     assert reversal.status == JournalEntryStatus.POSTED
     assert reversal.reversal_of_id == entry.id
+    assert reversal.created_by == "user-2"
     assert reversal.lines[0].debit == Decimal("0.00") or reversal.lines[0].credit == Decimal("125.00")
     original = await db_session.scalar(select(JournalEntry).where(JournalEntry.id == entry.id))
     assert original.status == JournalEntryStatus.REVERSED
