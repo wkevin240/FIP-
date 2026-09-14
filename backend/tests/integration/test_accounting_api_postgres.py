@@ -15,8 +15,8 @@ from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry
-from app.models.audit_log import AuditLog
-from app.models.ledger_posting import LedgerPosting
+from app.models.accounting.ledger_posting import LedgerPosting
+from app.models.audit.audit_log import AuditLog
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.user import User
