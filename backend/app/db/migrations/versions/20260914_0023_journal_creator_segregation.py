@@ -63,7 +63,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE TRIGGER trg_journal_creator_segregation
-        BEFORE INSERT OR UPDATE OF status, created_by, posted_by
+        BEFORE INSERT OR UPDATE
         ON journal_entries
         FOR EACH ROW
         EXECUTE FUNCTION enforce_journal_creator_segregation();
