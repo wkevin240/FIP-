@@ -68,9 +68,9 @@ async def test_journal_entries_cannot_bypass_closed_fiscal_periods() -> None:
                         await connection.execute(
                             """
                             INSERT INTO journal_entries
-                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                             VALUES
-                                ('period-guard-insert', 'period-guard-org', 'period-guard-closed', '2026-01-10', 'integration-only', 'DRAFT', 'period-guard-insert-key', repeat('a', 64), NOW(), NOW())
+                                ('period-guard-insert', 'period-guard-org', 'period-guard-closed', '2026-01-10', 'integration-only', 'DRAFT', 'period-guard-insert-key', repeat('a', 64), 'period-guard-test-creator', NOW(), NOW())
                             """
                         )
                 assert error.value.sqlstate == "23514"
@@ -84,9 +84,9 @@ async def test_journal_entries_cannot_bypass_closed_fiscal_periods() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('period-guard-post', 'period-guard-org', 'period-guard-open', '2026-02-10', 'integration-only', 'DRAFT', 'period-guard-post-key', repeat('b', 64), NOW(), NOW())
+                        ('period-guard-post', 'period-guard-org', 'period-guard-open', '2026-02-10', 'integration-only', 'DRAFT', 'period-guard-post-key', repeat('b', 64), 'period-guard-test-creator', NOW(), NOW())
                     """
                 )
 
