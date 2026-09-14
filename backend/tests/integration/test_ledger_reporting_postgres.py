@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.api.dependencies import get_db
@@ -39,21 +40,16 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
     other_organization_id = "ledger-reporting-other-org"
     reader_id = "ledger-reporting-reader"
     year_id = "ledger-reporting-year"
+    other_year_id = "ledger-reporting-other-year"
     period_id = "ledger-reporting-period"
     other_period_id = "ledger-reporting-other-period"
     debit_account_id = "ledger-reporting-debit"
     credit_account_id = "ledger-reporting-credit"
-    other_account_id = "ledger-reporting-other-account"
     entry_id = "ledger-reporting-entry"
-    other_entry_id = "ledger-reporting-other-entry"
     debit_line_id = "ledger-reporting-debit-line"
     credit_line_id = "ledger-reporting-credit-line"
-    other_debit_line_id = "ledger-reporting-other-debit-line"
-    other_credit_line_id = "ledger-reporting-other-credit-line"
     debit_posting_id = "ledger-reporting-debit-posting"
     credit_posting_id = "ledger-reporting-credit-posting"
-    other_debit_posting_id = "ledger-reporting-other-debit-posting"
-    other_credit_posting_id = "ledger-reporting-other-credit-posting"
 
     async with engine.connect() as connection:
         transaction = await connection.begin()
@@ -88,6 +84,14 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                         end_date=date(2026, 12, 31),
                         status=FiscalYearStatus.OPEN,
                     ),
+                    FiscalYear(
+                        id=other_year_id,
+                        organization_id=other_organization_id,
+                        name="2026",
+                        start_date=date(2026, 1, 1),
+                        end_date=date(2026, 12, 31),
+                        status=FiscalYearStatus.OPEN,
+                    ),
                     FiscalPeriod(
                         id=period_id,
                         organization_id=organization_id,
@@ -100,7 +104,7 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                     FiscalPeriod(
                         id=other_period_id,
                         organization_id=other_organization_id,
-                        fiscal_year_id=year_id,
+                        fiscal_year_id=other_year_id,
                         name="January 2026 other tenant",
                         start_date=date(2026, 1, 1),
                         end_date=date(2026, 1, 31),
@@ -124,15 +128,6 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                         level=1,
                         path="/",
                     ),
-                    Account(
-                        id=other_account_id,
-                        organization_id=other_organization_id,
-                        code="601-OTHER",
-                        name="Other tenant account",
-                        account_type="EXPENSE",
-                        level=1,
-                        path="/",
-                    ),
                     OrganizationMembership(
                         user_id=reader_id,
                         organization_id=organization_id,
@@ -144,36 +139,18 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
             await session.flush()
 
             posted_at = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
-            session.add_all(
-                [
-                    JournalEntry(
-                        id=entry_id,
-                        organization_id=organization_id,
-                        fiscal_period_id=period_id,
-                        entry_date=date(2026, 1, 15),
-                        description="Reporting integration entry",
-                        status=JournalEntryStatus.POSTED,
-                        idempotency_key="ledger-reporting-entry-key",
-                        idempotency_hash="a" * 64,
-                        created_by=reader_id,
-                        posted_at=posted_at,
-                        posted_by="ledger-reporting-poster",
-                    ),
-                    JournalEntry(
-                        id=other_entry_id,
-                        organization_id=other_organization_id,
-                        fiscal_period_id=other_period_id,
-                        entry_date=date(2026, 1, 15),
-                        description="Other tenant integration entry",
-                        status=JournalEntryStatus.POSTED,
-                        idempotency_key="ledger-reporting-other-entry-key",
-                        idempotency_hash="b" * 64,
-                        created_by=reader_id,
-                        posted_at=posted_at,
-                        posted_by="ledger-reporting-poster",
-                    ),
-                ]
+            entry = JournalEntry(
+                id=entry_id,
+                organization_id=organization_id,
+                fiscal_period_id=period_id,
+                entry_date=date(2026, 1, 15),
+                description="Reporting integration entry",
+                status=JournalEntryStatus.DRAFT,
+                idempotency_key="ledger-reporting-entry-key",
+                idempotency_hash="a" * 64,
+                created_by=reader_id,
             )
+            session.add(entry)
             await session.flush()
 
             session.add_all(
@@ -194,24 +171,13 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                         debit=Decimal("0.00"),
                         credit=Decimal("125.00"),
                     ),
-                    JournalEntryLine(
-                        id=other_debit_line_id,
-                        journal_entry_id=other_entry_id,
-                        line_number=1,
-                        account_id=other_account_id,
-                        debit=Decimal("900.00"),
-                        credit=Decimal("0.00"),
-                    ),
-                    JournalEntryLine(
-                        id=other_credit_line_id,
-                        journal_entry_id=other_entry_id,
-                        line_number=2,
-                        account_id=other_account_id,
-                        debit=Decimal("0.00"),
-                        credit=Decimal("900.00"),
-                    ),
                 ]
             )
+            await session.flush()
+
+            entry.status = JournalEntryStatus.POSTED
+            entry.posted_at = posted_at
+            entry.posted_by = "ledger-reporting-poster"
             await session.flush()
 
             session.add_all(
@@ -241,32 +207,6 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                         description="Reporting integration entry",
                         debit=Decimal("0.00"),
                         credit=Decimal("125.00"),
-                    ),
-                    LedgerPosting(
-                        id=other_debit_posting_id,
-                        organization_id=other_organization_id,
-                        fiscal_period_id=other_period_id,
-                        journal_entry_id=other_entry_id,
-                        journal_entry_line_id=other_debit_line_id,
-                        account_id=other_account_id,
-                        posting_date=date(2026, 1, 15),
-                        line_number=1,
-                        description="Other tenant integration entry",
-                        debit=Decimal("900.00"),
-                        credit=Decimal("0.00"),
-                    ),
-                    LedgerPosting(
-                        id=other_credit_posting_id,
-                        organization_id=other_organization_id,
-                        fiscal_period_id=other_period_id,
-                        journal_entry_id=other_entry_id,
-                        journal_entry_line_id=other_credit_line_id,
-                        account_id=other_account_id,
-                        posting_date=date(2026, 1, 15),
-                        line_number=2,
-                        description="Other tenant integration entry",
-                        debit=Decimal("0.00"),
-                        credit=Decimal("900.00"),
                     ),
                 ]
             )
@@ -327,6 +267,12 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                     headers=headers,
                 )
                 assert cross_tenant_response.status_code == 404
+
+            persisted_entry = await session.scalar(
+                select(JournalEntry).where(JournalEntry.id == entry_id)
+            )
+            assert persisted_entry is not None
+            assert persisted_entry.status == JournalEntryStatus.POSTED
         finally:
             application.dependency_overrides.clear()
             await session.close()
