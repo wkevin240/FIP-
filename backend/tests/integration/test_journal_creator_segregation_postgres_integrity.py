@@ -45,6 +45,24 @@ async def test_creator_cannot_post_direct_sql_but_distinct_actor_can() -> None:
                     ('sod-credit', 'sod-org', 'TEST-C', 'integration-only-credit', TRUE, 'LIABILITY', 1, '/')
                 """
             )
+
+            with pytest.raises(asyncpg.PostgresError) as missing_creator_error:
+                async with connection.transaction():
+                    await connection.execute(
+                        """
+                        INSERT INTO journal_entries (
+                            id, organization_id, fiscal_period_id, entry_date, description,
+                            status, idempotency_key, idempotency_hash, created_by, posted_at, posted_by
+                        )
+                        VALUES (
+                            'sod-missing-creator', 'sod-org', 'sod-period', DATE '2026-01-15',
+                            'integration-only', 'DRAFT', 'sod-missing-key', repeat('c', 64),
+                            NULL, NULL, NULL
+                        )
+                        """
+                    )
+            assert missing_creator_error.value.sqlstate == "23502"
+
             await connection.execute(
                 """
                 INSERT INTO journal_entries (
