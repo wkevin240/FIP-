@@ -73,9 +73,9 @@ async def test_ledger_posting_must_match_posted_journal_source() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('ledger-provenance-entry', 'ledger-provenance-org', 'ledger-provenance-period', '2026-01-10', 'integration-only', 'DRAFT', 'ledger-provenance-key', repeat('e', 64), NOW(), NOW())
+                        ('ledger-provenance-entry', 'ledger-provenance-org', 'ledger-provenance-period', '2026-01-10', 'integration-only', 'DRAFT', 'ledger-provenance-key', repeat('e', 64), 'ledger-provenance-test-creator', NOW(), NOW())
                     """
                 )
                 await connection.execute(
