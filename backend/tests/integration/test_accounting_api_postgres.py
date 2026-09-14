@@ -21,11 +21,6 @@ from app.models.membership import OrganizationMembership
 from app.models.user import User
 
 
-class TransactionScopedSession(AsyncSession):
-    async def commit(self) -> None:
-        await self.flush()
-
-
 @pytest.mark.asyncio
 async def test_journal_api_uses_migrated_postgres_contract() -> None:
     server = os.getenv("POSTGRES_SERVER")
@@ -51,13 +46,17 @@ async def test_journal_api_uses_migrated_postgres_contract() -> None:
 
     async with engine.connect() as connection:
         transaction = await connection.begin()
-        session = TransactionScopedSession(bind=connection, expire_on_commit=False)
+        session = AsyncSession(
+            bind=connection,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
 
         async def override_get_db():
             yield session
 
-        # Keep the override explicit against the dependency object consumed by
-        # the router and by the authentication dependency.
+        # Keep API commits and rollbacks inside SAVEPOINTs while the outer
+        # transaction remains available for complete teardown rollback.
         application.dependency_overrides[get_db] = override_get_db
 
         try:
