@@ -39,6 +39,7 @@ class JournalEntry(Base):
     status = Column(SQLEnum(JournalEntryStatus), nullable=False, default=JournalEntryStatus.DRAFT, index=True)
     idempotency_key = Column(String(255), nullable=False)
     idempotency_hash = Column(String(64), nullable=False)
+    created_by = Column(String, nullable=True, index=True)
     posted_at = Column(DateTime, nullable=True)
     posted_by = Column(String, nullable=True)
     reversal_of_id = Column(String, nullable=True, index=True)
