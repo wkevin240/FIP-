@@ -153,7 +153,20 @@ async def test_posted_entry_can_be_reversed_once_and_audited(db_session):
     db_session.add_all([period, debit_account, credit_account])
     await db_session.commit()
     service = JournalEntryService(db_session)
-    entry = await service.create(organization_id, "creator-1", JournalEntryCreate(fiscal_period_id=period.id, entry_date=date(2026, 3, 10), description="Original", idempotency_key="original-1", lines=[JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")), JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00")]))
+    entry = await service.create(
+        organization_id,
+        "creator-1",
+        JournalEntryCreate(
+            fiscal_period_id=period.id,
+            entry_date=date(2026, 3, 10),
+            description="Original",
+            idempotency_key="original-1",
+            lines=[
+                JournalEntryLineCreate(account_id=debit_account.id, debit=Decimal("125.00")),
+                JournalEntryLineCreate(account_id=credit_account.id, credit=Decimal("125.00")),
+            ],
+        ),
+    )
     await service.post(organization_id, entry.id, "user-1")
 
     with pytest.raises(HTTPException) as exc_info:
