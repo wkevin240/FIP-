@@ -62,9 +62,9 @@ async def test_journal_entry_date_must_fall_within_fiscal_period() -> None:
                         await connection.execute(
                             """
                             INSERT INTO journal_entries
-                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                                (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                             VALUES
-                                ('entry-date-outside', 'entry-date-org', 'entry-date-period', '2026-02-01', 'integration-only', 'DRAFT', 'entry-date-outside-key', repeat('c', 64), NOW(), NOW())
+                                ('entry-date-outside', 'entry-date-org', 'entry-date-period', '2026-02-01', 'integration-only', 'DRAFT', 'entry-date-outside-key', repeat('c', 64), 'entry-date-test-creator', NOW(), NOW())
                             """
                         )
                 assert error.value.sqlstate == "23514"
@@ -72,9 +72,9 @@ async def test_journal_entry_date_must_fall_within_fiscal_period() -> None:
                 await connection.execute(
                     """
                     INSERT INTO journal_entries
-                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_at, updated_at)
+                        (id, organization_id, fiscal_period_id, entry_date, description, status, idempotency_key, idempotency_hash, created_by, created_at, updated_at)
                     VALUES
-                        ('entry-date-inside', 'entry-date-org', 'entry-date-period', '2026-01-31', 'integration-only', 'DRAFT', 'entry-date-inside-key', repeat('d', 64), NOW(), NOW())
+                        ('entry-date-inside', 'entry-date-org', 'entry-date-period', '2026-01-31', 'integration-only', 'DRAFT', 'entry-date-inside-key', repeat('d', 64), 'entry-date-test-creator', NOW(), NOW())
                     """
                 )
 
