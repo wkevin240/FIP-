@@ -155,7 +155,12 @@ async def test_journal_api_uses_migrated_postgres_contract() -> None:
                 assert created["status"] == "DRAFT"
                 assert created["created_by"] == creator_id
                 assert created["posted_by"] is None
-                assert Decimal(created["lines"][0]["debit"]) == Decimal("100.00")
+                lines_by_account = {line["account_id"]: line for line in created["lines"]}
+                assert set(lines_by_account) == {debit_id, credit_id}
+                assert Decimal(lines_by_account[debit_id]["debit"]) == Decimal("100.00")
+                assert Decimal(lines_by_account[debit_id]["credit"]) == Decimal("0.00")
+                assert Decimal(lines_by_account[credit_id]["debit"]) == Decimal("0.00")
+                assert Decimal(lines_by_account[credit_id]["credit"]) == Decimal("100.00")
 
                 entry_id = created["id"]
                 read_response = await client.get(
