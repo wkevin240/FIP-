@@ -21,7 +21,8 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.status IN ('POSTED', 'REVERSED')
+    IF NEW.reversal_of_id IS NULL
+       AND NEW.status IN ('POSTED', 'REVERSED')
        AND NEW.created_by IS NOT NULL
        AND NEW.posted_by IS NOT NULL
        AND NEW.created_by = NEW.posted_by THEN
