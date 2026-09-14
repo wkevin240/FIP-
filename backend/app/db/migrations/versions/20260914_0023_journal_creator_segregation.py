@@ -7,6 +7,7 @@ Revises: 20260913_0022
 from typing import Sequence, Union
 
 from alembic import op
+from sqlalchemy import Column, String
 
 
 revision: str = "20260914_0023"
@@ -37,7 +38,7 @@ $$;
 
 
 def upgrade() -> None:
-    op.add_column("journal_entries", op.Column("created_by", op.String(), nullable=True))
+    op.add_column("journal_entries", Column("created_by", String(), nullable=True))
     op.create_index(
         "ix_journal_entries_created_by",
         "journal_entries",
