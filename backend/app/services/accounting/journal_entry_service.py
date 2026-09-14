@@ -168,7 +168,14 @@ class JournalEntryService:
     async def get(self, organization_id: str, entry_id: str) -> JournalEntry:
         return await self._load_with_lines(organization_id, entry_id)
 
-    async def _post_locked(self, entry: JournalEntry, organization_id: str, actor_id: str) -> JournalEntry:
+    async def _post_locked(
+        self,
+        entry: JournalEntry,
+        organization_id: str,
+        actor_id: str,
+        *,
+        allow_creator_posting: bool = False,
+    ) -> JournalEntry:
         """Post a locked draft without committing; callers own the transaction."""
         if entry.status == JournalEntryStatus.POSTED:
             ledger_exists = await self.session.scalar(
@@ -181,7 +188,12 @@ class JournalEntryService:
             return entry
         if entry.status != JournalEntryStatus.DRAFT:
             raise HTTPException(status_code=409, detail="Only draft journal entries can be posted")
-        if entry.created_by is not None and entry.created_by == actor_id:
+        if (
+            not allow_creator_posting
+            and entry.reversal_of_id is None
+            and entry.created_by is not None
+            and entry.created_by == actor_id
+        ):
             raise HTTPException(status_code=403, detail="Journal entry creator cannot post the same journal entry")
 
         period = await self.session.scalar(self._fiscal_period_lock(organization_id, entry.fiscal_period_id))
@@ -339,7 +351,7 @@ class JournalEntryService:
         self.session.add(reversal)
         try:
             await self.session.flush()
-            await self._post_locked(reversal, organization_id, actor_id)
+            await self._post_locked(reversal, organization_id, actor_id, allow_creator_posting=True)
             original.status = JournalEntryStatus.REVERSED
             await self.session.flush()
             await self.audit_repository.append(
