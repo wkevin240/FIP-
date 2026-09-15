@@ -30,30 +30,39 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
 
         constraints = await connection.fetch(
             """
-            SELECT conname, contype, convalidated, pg_get_constraintdef(oid) AS definition
+            SELECT conname, contype, convalidated
             FROM pg_constraint
-            WHERE conrelid = 'customers'::regclass
-            ORDER BY conname
+            WHERE conrelid = 'public.customers'::regclass
             """
         )
         definitions = {row["conname"]: row for row in constraints}
 
-        assert definitions["uq_customer_organization_code"]["contype"] == "u"
-        assert definitions["uq_customer_organization_tax_id"]["contype"] == "u"
-        assert definitions["ck_customers_code_not_blank"]["contype"] == "c"
-        assert definitions["ck_customers_code_no_whitespace"]["contype"] == "c"
-        assert definitions["ck_customers_legal_name_not_blank"]["contype"] == "c"
-        assert all(row["convalidated"] for row in definitions.values())
+        required_constraints = {
+            "uq_customer_organization_code": "u",
+            "uq_customer_organization_tax_id": "u",
+            "ck_customers_code_not_blank": "c",
+            "ck_customers_code_no_whitespace": "c",
+            "ck_customers_legal_name_not_blank": "c",
+        }
+        for name, constraint_type in required_constraints.items():
+            assert name in definitions
+            assert definitions[name]["contype"] == constraint_type
+            assert definitions[name]["convalidated"] is True
 
         foreign_keys = await connection.fetch(
             """
-            SELECT confrelid::regclass::text AS referenced_table
+            SELECT
+                conname,
+                confrelid::regclass::text AS referenced_table,
+                convalidated
             FROM pg_constraint
-            WHERE conrelid = 'customers'::regclass
+            WHERE conrelid = 'public.customers'::regclass
               AND contype = 'f'
-            ORDER BY referenced_table
             """
         )
-        assert {row["referenced_table"] for row in foreign_keys} == {"organizations", "users"}
+        foreign_key_targets = {row["referenced_table"] for row in foreign_keys}
+        assert foreign_key_targets == {"organizations", "users"}
+        assert len(foreign_keys) == 3
+        assert all(row["convalidated"] is True for row in foreign_keys)
     finally:
         await connection.close()
