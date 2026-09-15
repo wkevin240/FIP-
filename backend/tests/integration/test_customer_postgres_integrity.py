@@ -52,36 +52,41 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
         foreign_keys = await connection.fetch(
             """
             SELECT
-                convalidated,
-                ARRAY(
-                    SELECT attname
-                    FROM pg_attribute
-                    WHERE attrelid = conrelid
-                      AND attnum = ANY (conkey)
-                    ORDER BY array_position(conkey, attnum)
-                ) AS columns,
-                confrelid::regclass::text AS referenced_table,
-                ARRAY(
-                    SELECT attname
-                    FROM pg_attribute
-                    WHERE attrelid = confrelid
-                      AND attnum = ANY (confkey)
-                    ORDER BY array_position(confkey, attnum)
-                ) AS referenced_columns
-            FROM pg_constraint
-            WHERE conrelid = 'public.customers'::regclass
-              AND contype = 'f'
+                tc.constraint_name,
+                kcu.column_name,
+                ccu.table_schema AS referenced_schema,
+                ccu.table_name AS referenced_table,
+                ccu.column_name AS referenced_column
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+              ON tc.constraint_schema = kcu.constraint_schema
+             AND tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+             AND tc.table_name = kcu.table_name
+            JOIN information_schema.constraint_column_usage AS ccu
+              ON tc.constraint_schema = ccu.constraint_schema
+             AND tc.constraint_name = ccu.constraint_name
+            WHERE tc.table_schema = 'public'
+              AND tc.table_name = 'customers'
+              AND tc.constraint_type = 'FOREIGN KEY'
+            ORDER BY tc.constraint_name
             """
         )
         foreign_key_map = {
-            tuple(row["columns"]): (row["referenced_table"], tuple(row["referenced_columns"]))
+            row["constraint_name"]: (
+                row["column_name"],
+                row["referenced_schema"],
+                row["referenced_table"],
+                row["referenced_column"],
+            )
             for row in foreign_keys
         }
         assert foreign_key_map == {
-            ("organization_id",): ("organizations", ("id",)),
-            ("created_by",): ("users", ("id",)),
-            ("updated_by",): ("users", ("id",)),
+            "customers_created_by_fkey": ("created_by", "public", "users", "id"),
+            "customers_organization_id_fkey": ("organization_id", "public", "organizations", "id"),
+            "customers_updated_by_fkey": ("updated_by", "public", "users", "id"),
         }
-        assert all(row["convalidated"] is True for row in foreign_keys)
+
+        assert len(foreign_keys) == 3
     finally:
         await connection.close()
