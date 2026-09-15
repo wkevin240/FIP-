@@ -135,38 +135,40 @@ async def test_customer_postgres_unique_constraints_reject_conflicting_rows() ->
                 "customer-integrity-user",
             )
 
-            with pytest.raises(asyncpg.UniqueViolationError):
-                await connection.execute(
-                    """
-                    INSERT INTO customers (
-                        id, organization_id, code, legal_name, tax_id,
-                        is_active, created_by, updated_by
+            async with connection.transaction():
+                with pytest.raises(asyncpg.UniqueViolationError):
+                    await connection.execute(
+                        """
+                        INSERT INTO customers (
+                            id, organization_id, code, legal_name, tax_id,
+                            is_active, created_by, updated_by
+                        )
+                        VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
+                        """,
+                        "customer-integrity-2",
+                        "customer-integrity-org",
+                        "C-001",
+                        "Second Customer",
+                        "TAX-002",
+                        "customer-integrity-user",
                     )
-                    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
-                    """,
-                    "customer-integrity-2",
-                    "customer-integrity-org",
-                    "C-001",
-                    "Second Customer",
-                    "TAX-002",
-                    "customer-integrity-user",
-                )
 
-            with pytest.raises(asyncpg.UniqueViolationError):
-                await connection.execute(
-                    """
-                    INSERT INTO customers (
-                        id, organization_id, code, legal_name, tax_id,
-                        is_active, created_by, updated_by
+            async with connection.transaction():
+                with pytest.raises(asyncpg.UniqueViolationError):
+                    await connection.execute(
+                        """
+                        INSERT INTO customers (
+                            id, organization_id, code, legal_name, tax_id,
+                            is_active, created_by, updated_by
+                        )
+                        VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
+                        """,
+                        "customer-integrity-3",
+                        "customer-integrity-org",
+                        "C-002",
+                        "Third Customer",
+                        "TAX-001",
+                        "customer-integrity-user",
                     )
-                    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
-                    """,
-                    "customer-integrity-3",
-                    "customer-integrity-org",
-                    "C-002",
-                    "Third Customer",
-                    "TAX-001",
-                    "customer-integrity-user",
-                )
     finally:
         await connection.close()
