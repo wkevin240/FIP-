@@ -4,19 +4,26 @@ import asyncpg
 import pytest
 
 
-@pytest.mark.asyncio
-async def test_customer_postgres_constraints_are_deployed() -> None:
+async def _connect() -> asyncpg.Connection | None:
     server = os.getenv("POSTGRES_SERVER")
     if not server:
-        pytest.skip("PostgreSQL integration environment is not configured")
+        return None
 
-    connection = await asyncpg.connect(
+    return await asyncpg.connect(
         host=server,
         port=int(os.getenv("POSTGRES_PORT", "5432")),
         user=os.getenv("POSTGRES_USER", "fip_user"),
         password=os.getenv("POSTGRES_PASSWORD", "fip_password"),
         database=os.getenv("POSTGRES_DB", "fip_db"),
     )
+
+
+@pytest.mark.asyncio
+async def test_customer_postgres_constraints_are_deployed() -> None:
+    connection = await _connect()
+    if connection is None:
+        pytest.skip("PostgreSQL integration environment is not configured")
+
     try:
         table = await connection.fetchrow(
             """
@@ -85,5 +92,81 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
             ("updated_by", "public", "users", "id"),
         }
         assert len(foreign_keys) == 3
+    finally:
+        await connection.close()
+
+
+@pytest.mark.asyncio
+async def test_customer_postgres_unique_constraints_reject_conflicting_rows() -> None:
+    connection = await _connect()
+    if connection is None:
+        pytest.skip("PostgreSQL integration environment is not configured")
+
+    try:
+        async with connection.transaction():
+            await connection.execute(
+                "INSERT INTO organizations (id, name, is_active) VALUES ($1, $2, TRUE)",
+                "customer-integrity-org",
+                "customer-integrity-org",
+            )
+            await connection.execute(
+                """
+                INSERT INTO users (id, email, full_name, hashed_password, is_active, is_superuser)
+                VALUES ($1, $2, $3, $4, TRUE, FALSE)
+                """,
+                "customer-integrity-user",
+                "customer-integrity@example.invalid",
+                "Customer Integrity Test",
+                "not-a-real-password-hash",
+            )
+            await connection.execute(
+                """
+                INSERT INTO customers (
+                    id, organization_id, code, legal_name, tax_id,
+                    is_active, created_by, updated_by
+                )
+                VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
+                """,
+                "customer-integrity-1",
+                "customer-integrity-org",
+                "C-001",
+                "Customer Integrity Test",
+                "TAX-001",
+                "customer-integrity-user",
+            )
+
+            with pytest.raises(asyncpg.UniqueViolationError):
+                await connection.execute(
+                    """
+                    INSERT INTO customers (
+                        id, organization_id, code, legal_name, tax_id,
+                        is_active, created_by, updated_by
+                    )
+                    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
+                    """,
+                    "customer-integrity-2",
+                    "customer-integrity-org",
+                    "C-001",
+                    "Second Customer",
+                    "TAX-002",
+                    "customer-integrity-user",
+                )
+
+            with pytest.raises(asyncpg.UniqueViolationError):
+                await connection.execute(
+                    """
+                    INSERT INTO customers (
+                        id, organization_id, code, legal_name, tax_id,
+                        is_active, created_by, updated_by
+                    )
+                    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)
+                    """,
+                    "customer-integrity-3",
+                    "customer-integrity-org",
+                    "C-002",
+                    "Third Customer",
+                    "TAX-001",
+                    "customer-integrity-user",
+                )
     finally:
         await connection.close()
