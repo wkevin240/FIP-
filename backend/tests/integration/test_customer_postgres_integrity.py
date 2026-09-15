@@ -37,7 +37,7 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
 
         constraints = await connection.fetch(
             """
-            SELECT conname, contype, convalidated
+            SELECT conname, contype::text AS contype, convalidated
             FROM pg_constraint
             WHERE conrelid = 'public.customers'::regclass
             """
@@ -54,7 +54,7 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
         }
         for name, constraint_type in required_constraints.items():
             assert name in definitions, f"missing PostgreSQL constraint: {name}"
-            assert definitions[name]["contype"].decode() == constraint_type
+            assert definitions[name]["contype"] == constraint_type
             assert definitions[name]["convalidated"] is True
 
         foreign_keys = await connection.fetch(
