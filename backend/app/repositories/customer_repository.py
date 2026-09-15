@@ -1,0 +1,46 @@
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.customer import Customer
+
+
+class CustomerRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_id(self, organization_id: str, customer_id: str) -> Customer | None:
+        return await self.session.scalar(
+            select(Customer).where(
+                Customer.organization_id == organization_id,
+                Customer.id == customer_id,
+            )
+        )
+
+    async def get_by_code(self, organization_id: str, code: str) -> Customer | None:
+        return await self.session.scalar(
+            select(Customer).where(
+                Customer.organization_id == organization_id,
+                Customer.code == code,
+            )
+        )
+
+    async def get_by_tax_id(self, organization_id: str, tax_id: str) -> Customer | None:
+        return await self.session.scalar(
+            select(Customer).where(
+                Customer.organization_id == organization_id,
+                Customer.tax_id == tax_id,
+            )
+        )
+
+    async def list(self, organization_id: str, skip: int = 0, limit: int = 100) -> list[Customer]:
+        result = await self.session.scalars(
+            select(Customer)
+            .where(Customer.organization_id == organization_id)
+            .order_by(Customer.code, Customer.id)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.all())
+
+    def add(self, customer: Customer) -> None:
+        self.session.add(customer)
