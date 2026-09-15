@@ -36,7 +36,8 @@ async def test_list_adds_active_filter_when_requested() -> None:
     statement = session.scalars.await_args.args[0]
     sql = str(statement)
     assert "customers.organization_id" in sql
-    assert "customers.is_active" in sql
+    assert "WHERE customers.organization_id" in sql
+    assert "customers.is_active =" in sql
 
 
 @pytest.mark.asyncio
@@ -53,4 +54,6 @@ async def test_list_does_not_add_active_filter_by_default() -> None:
     statement = session.scalars.await_args.args[0]
     sql = str(statement)
     assert "customers.organization_id" in sql
-    assert "customers.is_active" not in sql
+    assert "WHERE customers.organization_id" in sql
+    assert "WHERE customers.organization_id =" in sql
+    assert " AND customers.is_active =" not in sql
