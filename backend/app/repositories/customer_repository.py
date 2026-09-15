@@ -32,13 +32,19 @@ class CustomerRepository:
             )
         )
 
-    async def list(self, organization_id: str, skip: int = 0, limit: int = 100) -> list[Customer]:
+    async def list(
+        self,
+        organization_id: str,
+        skip: int = 0,
+        limit: int = 100,
+        is_active: bool | None = None,
+    ) -> list[Customer]:
+        statement = select(Customer).where(Customer.organization_id == organization_id)
+        if is_active is not None:
+            statement = statement.where(Customer.is_active == is_active)
+
         result = await self.session.scalars(
-            select(Customer)
-            .where(Customer.organization_id == organization_id)
-            .order_by(Customer.code, Customer.id)
-            .offset(skip)
-            .limit(limit)
+            statement.order_by(Customer.code, Customer.id).offset(skip).limit(limit)
         )
         return list(result.all())
 
