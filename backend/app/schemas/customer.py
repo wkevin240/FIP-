@@ -12,7 +12,7 @@ class CustomerBase(BaseModel):
     phone: str | None = Field(default=None, max_length=50)
     address: str | None = Field(default=None, max_length=500)
 
-    @field_validator("code", "legal_name", "trade_name", "tax_id", "phone", "address")
+    @field_validator("code", "trade_name", "tax_id", "phone", "address")
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -23,8 +23,6 @@ class CustomerBase(BaseModel):
     @field_validator("code")
     @classmethod
     def validate_code(cls, value: str) -> str:
-        if value is None:
-            raise ValueError("Customer code cannot be blank")
         if not value:
             raise ValueError("Customer code cannot be blank")
         if any(char.isspace() for char in value):
@@ -33,8 +31,9 @@ class CustomerBase(BaseModel):
 
     @field_validator("legal_name")
     @classmethod
-    def validate_legal_name(cls, value: str) -> str:
-        if value is None or not value:
+    def normalize_and_validate_legal_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
             raise ValueError("Customer legal name cannot be blank")
         return value
 
@@ -52,7 +51,7 @@ class CustomerUpdate(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
 
-    @field_validator("legal_name", "trade_name", "tax_id", "phone", "address")
+    @field_validator("trade_name", "tax_id", "phone", "address")
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -62,8 +61,11 @@ class CustomerUpdate(BaseModel):
 
     @field_validator("legal_name")
     @classmethod
-    def validate_legal_name(cls, value: str | None) -> str | None:
-        if value is not None and not value:
+    def normalize_and_validate_legal_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
             raise ValueError("Customer legal name cannot be blank")
         return value
 
