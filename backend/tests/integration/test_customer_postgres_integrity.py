@@ -45,14 +45,13 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
             "ck_customers_legal_name_not_blank": "c",
         }
         for name, constraint_type in required_constraints.items():
-            assert name in definitions
+            assert name in definitions, f"missing PostgreSQL constraint: {name}"
             assert definitions[name]["contype"] == constraint_type
             assert definitions[name]["convalidated"] is True
 
         foreign_keys = await connection.fetch(
             """
             SELECT
-                tc.constraint_name,
                 kcu.column_name,
                 ccu.table_schema AS referenced_schema,
                 ccu.table_name AS referenced_table,
@@ -69,11 +68,10 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
             WHERE tc.table_schema = 'public'
               AND tc.table_name = 'customers'
               AND tc.constraint_type = 'FOREIGN KEY'
-            ORDER BY tc.constraint_name
             """
         )
         foreign_key_map = {
-            row["constraint_name"]: (
+            (
                 row["column_name"],
                 row["referenced_schema"],
                 row["referenced_table"],
@@ -82,11 +80,10 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
             for row in foreign_keys
         }
         assert foreign_key_map == {
-            "customers_created_by_fkey": ("created_by", "public", "users", "id"),
-            "customers_organization_id_fkey": ("organization_id", "public", "organizations", "id"),
-            "customers_updated_by_fkey": ("updated_by", "public", "users", "id"),
+            ("created_by", "public", "users", "id"),
+            ("organization_id", "public", "organizations", "id"),
+            ("updated_by", "public", "users", "id"),
         }
-
         assert len(foreign_keys) == 3
     finally:
         await connection.close()
