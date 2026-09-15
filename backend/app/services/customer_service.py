@@ -34,7 +34,7 @@ class CustomerService:
         """Return a lifecycle-specific action when the active state changes."""
         if "is_active" in changes and changes["is_active"] is not None:
             requested_state = changes["is_active"]
-            if requested_state is not customer.is_active:
+            if requested_state != customer.is_active:
                 return "CUSTOMER_ACTIVATED" if requested_state else "CUSTOMER_DEACTIVATED"
         return "CUSTOMER_UPDATED"
 
@@ -44,8 +44,19 @@ class CustomerService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
         return customer
 
-    async def list(self, organization_id: str, skip: int = 0, limit: int = 100) -> list[Customer]:
-        return await self.repository.list(organization_id, skip=skip, limit=limit)
+    async def list(
+        self,
+        organization_id: str,
+        skip: int = 0,
+        limit: int = 100,
+        is_active: bool | None = None,
+    ) -> list[Customer]:
+        return await self.repository.list(
+            organization_id,
+            skip=skip,
+            limit=limit,
+            is_active=is_active,
+        )
 
     async def create(self, organization_id: str, actor_id: str, data: CustomerCreate) -> Customer:
         if await self.repository.get_by_code(organization_id, data.code):
