@@ -27,11 +27,17 @@ async def create_customer(
 async def read_customers(
     skip: int = 0,
     limit: int = 100,
+    is_active: bool | None = None,
     tenant: CurrentTenant = Depends(require_permission("customer:read")),
     service: CustomerService = Depends(get_customer_service),
 ):
     skip, limit = validate_pagination(skip, limit)
-    return await service.list(tenant.organization_id, skip=skip, limit=limit)
+    return await service.list(
+        tenant.organization_id,
+        skip=skip,
+        limit=limit,
+        is_active=is_active,
+    )
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
