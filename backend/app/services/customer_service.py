@@ -29,6 +29,15 @@ class CustomerService:
             "is_active": customer.is_active,
         }
 
+    @staticmethod
+    def _update_audit_action(customer: Customer, changes: dict) -> str:
+        """Return a lifecycle-specific action when the active state changes."""
+        if "is_active" in changes and changes["is_active"] is not None:
+            requested_state = changes["is_active"]
+            if requested_state is not customer.is_active:
+                return "CUSTOMER_ACTIVATED" if requested_state else "CUSTOMER_DEACTIVATED"
+        return "CUSTOMER_UPDATED"
+
     async def get(self, organization_id: str, customer_id: str) -> Customer:
         customer = await self.repository.get_by_id(organization_id, customer_id)
         if customer is None:
@@ -97,6 +106,7 @@ class CustomerService:
             if duplicate is not None and duplicate.id != customer.id:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Customer tax ID already exists")
 
+        audit_action = self._update_audit_action(customer, changes)
         for field, value in changes.items():
             if field == "email":
                 value = str(value) if value else None
@@ -109,7 +119,7 @@ class CustomerService:
                 AuditContext(
                     organization_id=organization_id,
                     actor_id=actor_id,
-                    action="CUSTOMER_UPDATED",
+                    action=audit_action,
                 ),
                 entity_type="customer",
                 entity_id=customer.id,
