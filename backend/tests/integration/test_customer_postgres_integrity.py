@@ -49,6 +49,7 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
             "uq_customer_organization_tax_id": "u",
             "ck_customers_code_not_blank": "c",
             "ck_customers_code_no_whitespace": "c",
+            "ck_customers_code_canonical": "c",
             "ck_customers_legal_name_not_blank": "c",
         }
         for name, constraint_type in required_constraints.items():
@@ -170,5 +171,48 @@ async def test_customer_postgres_unique_constraints_reject_conflicting_rows() ->
                         "TAX-001",
                         "customer-integrity-user",
                     )
+    finally:
+        await connection.close()
+
+
+@pytest.mark.asyncio
+async def test_customer_postgres_rejects_non_canonical_code() -> None:
+    connection = await _connect()
+    if connection is None:
+        pytest.skip("PostgreSQL integration environment is not configured")
+
+    try:
+        async with connection.transaction():
+            await connection.execute(
+                "INSERT INTO organizations (id, name, is_active) VALUES ($1, $2, TRUE)",
+                "customer-canonical-org",
+                "customer-canonical-org",
+            )
+            await connection.execute(
+                """
+                INSERT INTO users (id, email, full_name, hashed_password, is_active, is_superuser)
+                VALUES ($1, $2, $3, $4, TRUE, FALSE)
+                """,
+                "customer-canonical-user",
+                "customer-canonical@example.invalid",
+                "Customer Canonical Test",
+                "not-a-real-password-hash",
+            )
+
+            with pytest.raises(asyncpg.CheckViolationError):
+                await connection.execute(
+                    """
+                    INSERT INTO customers (
+                        id, organization_id, code, legal_name,
+                        is_active, created_by, updated_by
+                    )
+                    VALUES ($1, $2, $3, $4, TRUE, $5, $5)
+                    """,
+                    "customer-canonical-1",
+                    "customer-canonical-org",
+                    "c-001",
+                    "Customer Canonical Test",
+                    "customer-canonical-user",
+                )
     finally:
         await connection.close()
