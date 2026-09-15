@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -9,6 +9,7 @@ class Customer(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "code", name="uq_customer_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_customer_organization_tax_id"),
+        Index("ix_customers_organization_active_code", "organization_id", "is_active", "code"),
         CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank").ddl_if(dialect="postgresql"),
         CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace").ddl_if(dialect="postgresql"),
         CheckConstraint("btrim(code) = code AND code = upper(code)", name="ck_customers_code_canonical").ddl_if(dialect="postgresql"),
