@@ -9,10 +9,10 @@ class Customer(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "code", name="uq_customer_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_customer_organization_tax_id"),
-        CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank"),
+        CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank").ddl_if(dialect="postgresql"),
         CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace").ddl_if(dialect="postgresql"),
         CheckConstraint("btrim(code) = code AND code = upper(code)", name="ck_customers_code_canonical").ddl_if(dialect="postgresql"),
-        CheckConstraint("btrim(legal_name) <> ''", name="ck_customers_legal_name_not_blank"),
+        CheckConstraint("btrim(legal_name) <> ''", name="ck_customers_legal_name_not_blank").ddl_if(dialect="postgresql"),
     )
 
     organization_id = Column(
