@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from app.repositories.customer_repository import CustomerRepository
 
@@ -15,10 +16,10 @@ async def test_get_for_update_is_tenant_scoped_and_locks_customer_row() -> None:
 
     assert result is None
     statement = session.scalar.await_args.args[0]
-    sql = str(statement)
+    sql = str(statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
     assert "customers.organization_id" in sql
     assert "customers.id" in sql
-    assert "FOR UPDATE" in str(statement.compile(compile_kwargs={"literal_binds": True}))
+    assert "FOR UPDATE" in sql
 
 
 @pytest.mark.asyncio
