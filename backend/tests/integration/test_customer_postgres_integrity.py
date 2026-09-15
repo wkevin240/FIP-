@@ -52,17 +52,36 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
         foreign_keys = await connection.fetch(
             """
             SELECT
-                conname,
+                convalidated,
+                ARRAY(
+                    SELECT attname
+                    FROM pg_attribute
+                    WHERE attrelid = conrelid
+                      AND attnum = ANY (conkey)
+                    ORDER BY array_position(conkey, attnum)
+                ) AS columns,
                 confrelid::regclass::text AS referenced_table,
-                convalidated
+                ARRAY(
+                    SELECT attname
+                    FROM pg_attribute
+                    WHERE attrelid = confrelid
+                      AND attnum = ANY (confkey)
+                    ORDER BY array_position(confkey, attnum)
+                ) AS referenced_columns
             FROM pg_constraint
             WHERE conrelid = 'public.customers'::regclass
               AND contype = 'f'
             """
         )
-        foreign_key_targets = {row["referenced_table"] for row in foreign_keys}
-        assert foreign_key_targets == {"organizations", "users"}
-        assert len(foreign_keys) == 3
+        foreign_key_map = {
+            tuple(row["columns"]): (row["referenced_table"], tuple(row["referenced_columns"]))
+            for row in foreign_keys
+        }
+        assert foreign_key_map == {
+            ("organization_id",): ("organizations", ("id",)),
+            ("created_by",): ("users", ("id",)),
+            ("updated_by",): ("users", ("id",)),
+        }
         assert all(row["convalidated"] is True for row in foreign_keys)
     finally:
         await connection.close()
