@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 
 import httpx
@@ -16,10 +16,10 @@ from app.models.accounting.account import Account
 from app.models.accounting.fiscal_period import FiscalPeriod
 from app.models.accounting.fiscal_year import FiscalYear
 from app.models.accounting.journal_entry import JournalEntry, JournalEntryLine, JournalEntryStatus
-from app.models.accounting.ledger_posting import LedgerPosting
 from app.models.membership import OrganizationMembership
 from app.models.organization import Organization
 from app.models.user import User
+from app.services.accounting.journal_entry_service import JournalEntryService
 
 
 @pytest.mark.asyncio
@@ -39,6 +39,7 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
     organization_id = "ledger-reporting-org"
     other_organization_id = "ledger-reporting-other-org"
     reader_id = "ledger-reporting-reader"
+    poster_id = "ledger-reporting-poster"
     year_id = "ledger-reporting-year"
     other_year_id = "ledger-reporting-other-year"
     period_id = "ledger-reporting-period"
@@ -48,8 +49,6 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
     entry_id = "ledger-reporting-entry"
     debit_line_id = "ledger-reporting-debit-line"
     credit_line_id = "ledger-reporting-credit-line"
-    debit_posting_id = "ledger-reporting-debit-posting"
-    credit_posting_id = "ledger-reporting-credit-posting"
 
     async with engine.connect() as connection:
         transaction = await connection.begin()
@@ -72,6 +71,13 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                     User(
                         id=reader_id,
                         email="ledger-reporting-reader@example.invalid",
+                        hashed_password="integration-only",
+                        is_active=True,
+                        is_superuser=False,
+                    ),
+                    User(
+                        id=poster_id,
+                        email="ledger-reporting-poster@example.invalid",
                         hashed_password="integration-only",
                         is_active=True,
                         is_superuser=False,
@@ -134,11 +140,16 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                         role=MembershipRole.ACCOUNTANT.value,
                         is_active=True,
                     ),
+                    OrganizationMembership(
+                        user_id=poster_id,
+                        organization_id=organization_id,
+                        role=MembershipRole.ACCOUNTANT.value,
+                        is_active=True,
+                    ),
                 ]
             )
             await session.flush()
 
-            posted_at = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
             entry = JournalEntry(
                 id=entry_id,
                 organization_id=organization_id,
@@ -175,42 +186,14 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
             )
             await session.flush()
 
-            entry.status = JournalEntryStatus.POSTED
-            entry.posted_at = posted_at
-            entry.posted_by = "ledger-reporting-poster"
-            await session.flush()
-
-            session.add_all(
-                [
-                    LedgerPosting(
-                        id=debit_posting_id,
-                        organization_id=organization_id,
-                        fiscal_period_id=period_id,
-                        journal_entry_id=entry_id,
-                        journal_entry_line_id=debit_line_id,
-                        account_id=debit_account_id,
-                        posting_date=date(2026, 1, 15),
-                        line_number=1,
-                        description="Reporting integration entry",
-                        debit=Decimal("125.00"),
-                        credit=Decimal("0.00"),
-                    ),
-                    LedgerPosting(
-                        id=credit_posting_id,
-                        organization_id=organization_id,
-                        fiscal_period_id=period_id,
-                        journal_entry_id=entry_id,
-                        journal_entry_line_id=credit_line_id,
-                        account_id=credit_account_id,
-                        posting_date=date(2026, 1, 15),
-                        line_number=2,
-                        description="Reporting integration entry",
-                        debit=Decimal("0.00"),
-                        credit=Decimal("125.00"),
-                    ),
-                ]
+            posted_entry = await JournalEntryService(session).post(
+                organization_id,
+                entry_id,
+                poster_id,
             )
-            await session.flush()
+            assert posted_entry.status == JournalEntryStatus.POSTED
+            assert posted_entry.posted_by == poster_id
+            assert posted_entry.created_by == reader_id
 
             reader_token = create_access_token(reader_id, organization_id)
             headers = {"Authorization": f"Bearer {reader_token}"}
@@ -266,13 +249,15 @@ async def test_ledger_reporting_api_uses_migrated_postgres_contract() -> None:
                     params={"fiscal_period_id": other_period_id},
                     headers=headers,
                 )
-                assert cross_tenant_response.status_code == 404
+                assert cross_tenant_response.status_code == 404, cross_tenant_response.text
 
             persisted_entry = await session.scalar(
                 select(JournalEntry).where(JournalEntry.id == entry_id)
             )
             assert persisted_entry is not None
             assert persisted_entry.status == JournalEntryStatus.POSTED
+            assert persisted_entry.created_by == reader_id
+            assert persisted_entry.posted_by == poster_id
         finally:
             application.dependency_overrides.clear()
             await session.close()
