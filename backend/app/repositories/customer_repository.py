@@ -16,6 +16,17 @@ class CustomerRepository:
             )
         )
 
+    async def get_for_update(self, organization_id: str, customer_id: str) -> Customer | None:
+        """Load a customer while serializing concurrent mutations on its row."""
+        return await self.session.scalar(
+            select(Customer)
+            .where(
+                Customer.organization_id == organization_id,
+                Customer.id == customer_id,
+            )
+            .with_for_update()
+        )
+
     async def get_by_code(self, organization_id: str, code: str) -> Customer | None:
         return await self.session.scalar(
             select(Customer).where(
