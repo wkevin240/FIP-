@@ -98,6 +98,28 @@ async def test_customer_postgres_constraints_are_deployed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_customer_postgres_active_lookup_index_is_deployed() -> None:
+    connection = await _connect()
+    if connection is None:
+        pytest.skip("PostgreSQL integration environment is not configured")
+
+    try:
+        index = await connection.fetchrow(
+            """
+            SELECT indexdef
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'customers'
+              AND indexname = 'ix_customers_organization_active_code'
+            """
+        )
+        assert index is not None
+        assert '(organization_id, is_active, code)' in index["indexdef"]
+    finally:
+        await connection.close()
+
+
+@pytest.mark.asyncio
 async def test_customer_postgres_unique_constraints_reject_conflicting_rows() -> None:
     connection = await _connect()
     if connection is None:
