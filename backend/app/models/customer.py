@@ -10,7 +10,7 @@ class Customer(Base):
         UniqueConstraint("organization_id", "code", name="uq_customer_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_customer_organization_tax_id"),
         CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank"),
-        CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace"),
+        CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace").ddl_if(dialect="postgresql"),
         CheckConstraint("btrim(legal_name) <> ''", name="ck_customers_legal_name_not_blank"),
     )
 
