@@ -23,9 +23,20 @@ class CustomerBase(BaseModel):
     @field_validator("code")
     @classmethod
     def validate_code(cls, value: str) -> str:
+        if value is None:
+            raise ValueError("Customer code cannot be blank")
+        if not value:
+            raise ValueError("Customer code cannot be blank")
         if any(char.isspace() for char in value):
             raise ValueError("Customer code cannot contain whitespace")
         return value.upper()
+
+    @field_validator("legal_name")
+    @classmethod
+    def validate_legal_name(cls, value: str) -> str:
+        if value is None or not value:
+            raise ValueError("Customer legal name cannot be blank")
+        return value
 
 
 class CustomerCreate(CustomerBase):
@@ -48,6 +59,13 @@ class CustomerUpdate(BaseModel):
             return None
         value = value.strip()
         return value or None
+
+    @field_validator("legal_name")
+    @classmethod
+    def validate_legal_name(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Customer legal name cannot be blank")
+        return value
 
 
 class CustomerResponse(CustomerBase):
