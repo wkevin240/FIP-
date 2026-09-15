@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -9,6 +9,9 @@ class Customer(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "code", name="uq_customer_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_customer_organization_tax_id"),
+        CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank"),
+        CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace"),
+        CheckConstraint("btrim(legal_name) <> ''", name="ck_customers_legal_name_not_blank"),
     )
 
     organization_id = Column(
