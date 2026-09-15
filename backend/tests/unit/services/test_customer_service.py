@@ -64,7 +64,7 @@ async def test_create_customer_rejects_duplicate_code_without_mutation() -> None
 
 
 @pytest.mark.asyncio
-async def test_update_customer_is_tenant_scoped_and_records_updater() -> None:
+async def test_update_customer_locks_tenant_scoped_row_and_records_updater() -> None:
     session = AsyncMock()
     repository = AsyncMock()
     audit_repository = AsyncMock()
@@ -89,7 +89,7 @@ async def test_update_customer_is_tenant_scoped_and_records_updater() -> None:
             "updated_by": "user-1",
         },
     )()
-    repository.get_by_id.return_value = customer
+    repository.get_for_update.return_value = customer
     repository.get_by_tax_id.return_value = customer
 
     result = await service.update(
@@ -103,7 +103,8 @@ async def test_update_customer_is_tenant_scoped_and_records_updater() -> None:
     assert customer.legal_name == "New Name"
     assert customer.is_active is False
     assert customer.updated_by == "user-2"
-    repository.get_by_id.assert_awaited_once_with("org-1", "customer-1")
+    repository.get_for_update.assert_awaited_once_with("org-1", "customer-1")
+    repository.get_by_id.assert_not_awaited()
     audit_repository.append.assert_awaited_once()
     session.commit.assert_awaited_once()
 
