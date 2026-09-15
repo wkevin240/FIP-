@@ -107,7 +107,9 @@ class CustomerService:
         actor_id: str,
         data: CustomerUpdate,
     ) -> Customer:
-        customer = await self.get(organization_id, customer_id)
+        customer = await self.repository.get_for_update(organization_id, customer_id)
+        if customer is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
         changes = data.model_dump(exclude_unset=True)
         if not changes:
             return customer
