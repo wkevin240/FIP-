@@ -158,8 +158,8 @@ async def test_customer_postgres_unique_constraints_reject_conflicting_rows() ->
                 "customer-integrity-user",
             )
 
-            async with connection.transaction():
-                with pytest.raises(asyncpg.UniqueViolationError):
+            with pytest.raises(asyncpg.UniqueViolationError):
+                async with connection.transaction():
                     await connection.execute(
                         """
                         INSERT INTO customers (
@@ -176,8 +176,8 @@ async def test_customer_postgres_unique_constraints_reject_conflicting_rows() ->
                         "customer-integrity-user",
                     )
 
-            async with connection.transaction():
-                with pytest.raises(asyncpg.UniqueViolationError):
+            with pytest.raises(asyncpg.UniqueViolationError):
+                async with connection.transaction():
                     await connection.execute(
                         """
                         INSERT INTO customers (
@@ -222,19 +222,20 @@ async def test_customer_postgres_rejects_non_canonical_code() -> None:
             )
 
             with pytest.raises(asyncpg.CheckViolationError):
-                await connection.execute(
-                    """
-                    INSERT INTO customers (
-                        id, organization_id, code, legal_name,
-                        is_active, created_by, updated_by
+                async with connection.transaction():
+                    await connection.execute(
+                        """
+                        INSERT INTO customers (
+                            id, organization_id, code, legal_name,
+                            is_active, created_by, updated_by
+                        )
+                        VALUES ($1, $2, $3, $4, TRUE, $5, $5)
+                        """,
+                        "customer-canonical-1",
+                        "customer-canonical-org",
+                        "c-001",
+                        "Customer Canonical Test",
+                        "customer-canonical-user",
                     )
-                    VALUES ($1, $2, $3, $4, TRUE, $5, $5)
-                    """,
-                    "customer-canonical-1",
-                    "customer-canonical-org",
-                    "c-001",
-                    "Customer Canonical Test",
-                    "customer-canonical-user",
-                )
     finally:
         await connection.close()
