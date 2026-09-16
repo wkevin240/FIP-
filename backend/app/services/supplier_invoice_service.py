@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -189,7 +189,7 @@ class SupplierInvoiceService:
         await self._require_active_supplier(organization_id, invoice.supplier_id)
         invoice.status = SupplierInvoiceStatus.APPROVED
         invoice.approved_by = actor_id
-        invoice.approved_at = datetime.utcnow()
+        invoice.approved_at = datetime.now(timezone.utc)
         invoice.updated_by = actor_id
         try:
             await self.session.flush()
