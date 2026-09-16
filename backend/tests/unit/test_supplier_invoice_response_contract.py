@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -39,5 +39,10 @@ def test_approved_response_preserves_utc_timestamp() -> None:
 
 
 def test_approved_response_rejects_naive_timestamp() -> None:
-    with pytest.raises(ValidationError, match="timezone-aware"):
+    with pytest.raises(ValidationError, match="timezone-aware UTC"):
         _response(approved_at=datetime(2026, 9, 16, 20, 0))
+
+
+def test_approved_response_rejects_non_utc_timestamp() -> None:
+    with pytest.raises(ValidationError, match="must be UTC"):
+        _response(approved_at=datetime(2026, 9, 16, 21, 0, tzinfo=timezone(timedelta(hours=1))))
