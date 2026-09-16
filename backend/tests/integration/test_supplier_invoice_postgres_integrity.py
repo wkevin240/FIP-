@@ -1,16 +1,17 @@
 import os
 import re
 
-import psycopg2
+import asyncpg
+import pytest
 
 
-def _connection():
-    return psycopg2.connect(
+async def _connection() -> asyncpg.Connection:
+    return await asyncpg.connect(
         host=os.getenv("POSTGRES_SERVER", "localhost"),
         port=int(os.getenv("POSTGRES_PORT", "5432")),
         user=os.getenv("POSTGRES_USER", "fip_user"),
         password=os.getenv("POSTGRES_PASSWORD", "fip_password"),
-        dbname=os.getenv("POSTGRES_DB", "fip_db"),
+        database=os.getenv("POSTGRES_DB", "fip_db"),
     )
 
 
@@ -18,8 +19,8 @@ def _normalize_sql(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().lower()
 
 
-def _supplier_invoice_oid(cur) -> int:
-    cur.execute(
+async def _supplier_invoice_oid(conn: asyncpg.Connection) -> int:
+    row = await conn.fetchrow(
         """
         SELECT c.oid
         FROM pg_class AS c
@@ -29,24 +30,28 @@ def _supplier_invoice_oid(cur) -> int:
           AND c.relkind IN ('r', 'p')
         """
     )
-    row = cur.fetchone()
     assert row is not None, "supplier_invoices table is not deployed in the current schema"
-    return row[0]
+    return row["oid"]
 
 
-def test_supplier_invoice_schema_constraints_are_deployed() -> None:
-    with _connection() as conn, conn.cursor() as cur:
-        relation_oid = _supplier_invoice_oid(cur)
-        cur.execute(
+@pytest.mark.asyncio
+async def test_supplier_invoice_schema_constraints_are_deployed() -> None:
+    conn = await _connection()
+    try:
+        relation_oid = await _supplier_invoice_oid(conn)
+        rows = await conn.fetch(
             """
-            SELECT conname, contype::text, convalidated
+            SELECT conname, contype::text AS contype, convalidated
             FROM pg_constraint
-            WHERE conrelid = %s
+            WHERE conrelid = $1
             ORDER BY conname
             """,
-            (relation_oid,),
+            relation_oid,
         )
-        constraints = {name: (contype, validated) for name, contype, validated in cur.fetchall()}
+        constraints = {
+            row["conname"]: (row["contype"], row["convalidated"])
+            for row in rows
+        }
 
         expected_checks = {
             "ck_supplier_invoice_number_not_blank",
@@ -60,7 +65,7 @@ def test_supplier_invoice_schema_constraints_are_deployed() -> None:
         assert constraints["uq_supplier_invoice_org_supplier_number"] == ("u", True)
         assert constraints["fk_supplier_invoice_supplier_same_organization"] == ("f", True)
 
-        cur.execute(
+        index_rows = await conn.fetch(
             """
             SELECT indexname, indexdef
             FROM pg_indexes
@@ -68,27 +73,32 @@ def test_supplier_invoice_schema_constraints_are_deployed() -> None:
               AND tablename = 'supplier_invoices'
             """
         )
-        indexes = {name: definition for name, definition in cur.fetchall()}
+        indexes = {row["indexname"]: row["indexdef"] for row in index_rows}
         assert "ix_supplier_invoices_organization_status_date" in indexes
         assert "(organization_id, status, invoice_date)" in _normalize_sql(
             indexes["ix_supplier_invoices_organization_status_date"]
         )
+    finally:
+        await conn.close()
 
 
-def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
-    with _connection() as conn, conn.cursor() as cur:
-        relation_oid = _supplier_invoice_oid(cur)
-        cur.execute(
+@pytest.mark.asyncio
+async def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
+    conn = await _connection()
+    try:
+        relation_oid = await _supplier_invoice_oid(conn)
+        row = await conn.fetchrow(
             """
-            SELECT pg_get_constraintdef(oid)
+            SELECT pg_get_constraintdef(oid) AS definition
             FROM pg_constraint
             WHERE conname = 'fk_supplier_invoice_supplier_same_organization'
-              AND conrelid = %s
+              AND conrelid = $1
             """,
-            (relation_oid,),
+            relation_oid,
         )
-        row = cur.fetchone()
         assert row is not None
-        definition = _normalize_sql(row[0])
+        definition = _normalize_sql(row["definition"])
         assert "foreign key (organization_id, supplier_id)" in definition
         assert "references suppliers(organization_id, id)" in definition
+    finally:
+        await conn.close()
