@@ -163,6 +163,7 @@ class SupplierInvoiceService:
         if invoice.status == SupplierInvoiceStatus.CANCELLED:
             return invoice
         invoice.status = SupplierInvoiceStatus.CANCELLED
+        invoice.approved_by = None
         invoice.updated_by = actor_id
         try:
             await self.session.flush()
