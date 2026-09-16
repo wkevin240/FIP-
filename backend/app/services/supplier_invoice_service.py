@@ -1,13 +1,10 @@
-from datetime import date
-from decimal import Decimal
-
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.audit_context import AuditContext
-from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 from app.models.supplier import Supplier
+from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 from app.repositories.audit.audit_log_repository import AuditLogRepository
 from app.repositories.supplier_invoice_repository import SupplierInvoiceRepository
 from app.repositories.supplier_repository import SupplierRepository
@@ -140,6 +137,8 @@ class SupplierInvoiceService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier invoice not found")
         if invoice.status != SupplierInvoiceStatus.DRAFT:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft supplier invoices can be approved")
+        if actor_id == invoice.created_by:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invoice creator cannot approve the same invoice")
         await self._require_active_supplier(organization_id, invoice.supplier_id)
         invoice.status = SupplierInvoiceStatus.APPROVED
         invoice.approved_by = actor_id
