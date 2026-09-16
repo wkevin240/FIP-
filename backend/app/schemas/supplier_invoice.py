@@ -89,7 +89,7 @@ class SupplierInvoiceResponse(SupplierInvoiceBase):
     status: str
     created_by: str
     updated_by: str
-    approved_by: str | None
-    approved_at: datetime | None
-    created_at: datetime | None
-    updated_at: datetime | None
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
