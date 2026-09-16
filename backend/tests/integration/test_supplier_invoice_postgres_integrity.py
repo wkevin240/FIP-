@@ -58,6 +58,7 @@ async def test_supplier_invoice_schema_constraints_are_deployed() -> None:
             "ck_supplier_invoice_due_on_or_after_invoice",
             "ck_supplier_invoice_amounts_non_negative",
             "ck_supplier_invoice_total_matches_components",
+            "ck_supplier_invoice_currency_code_canonical",
             "ck_supplier_invoice_approval_identity",
         }
         for name in expected_checks:
@@ -125,5 +126,26 @@ async def test_supplier_invoice_approval_identity_constraint_definition() -> Non
         assert "approved_by is not null" in definition
         assert "status <> 'approved'" in definition
         assert "approved_by is null" in definition
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_supplier_invoice_currency_code_constraint_definition() -> None:
+    conn = await _connection()
+    try:
+        relation_oid = await _supplier_invoice_oid(conn)
+        row = await conn.fetchrow(
+            """
+            SELECT pg_get_constraintdef(oid) AS definition
+            FROM pg_constraint
+            WHERE conname = 'ck_supplier_invoice_currency_code_canonical'
+              AND conrelid = $1
+            """,
+            relation_oid,
+        )
+        assert row is not None
+        definition = _normalize_sql(row["definition"])
+        assert "currency_code ~ '^[a-z]{3}$'" in definition
     finally:
         await conn.close()
