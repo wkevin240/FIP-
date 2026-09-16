@@ -60,6 +60,7 @@ Priority is executable business capability, not empty module scaffolding.
 - [ ] Customer receivables lifecycle
 - [x] Supplier master data foundation
 - [x] Supplier invoice intake and approval boundary
+- [x] Approved supplier invoice exposure aging read model (not net of payments)
 - [ ] Supplier payables lifecycle and outstanding-obligation state
 - [ ] Invoice -> accounting entry boundary
 - [ ] Payment -> allocation -> ledger boundary
@@ -131,4 +132,4 @@ CI, migrations, authorization, audit, recovery and deployment checks must be ver
 
 ## Current focus
 
-The accounting financial core is now stable enough to expand into operational AR/AP boundaries. Supplier master data and supplier invoice intake are implemented as the AP capture foundation; the next financial boundary is to turn approved invoices into explicit payable obligations and only then connect those obligations to controlled accounting entry and payment allocation. The invoice-intake slice deliberately does not infer tax treatment, OHADA accounts, exchange rates or statutory compliance.
+The accounting financial core is now stable enough to expand into operational AR/AP boundaries. Supplier master data and supplier invoice intake are implemented as the AP capture foundation, and approved-invoice exposure aging now provides a read-only operational view grouped by supplier and currency. This view intentionally excludes payment allocation and therefore must not be described as a settled/unpaid balance. The next financial boundary is to turn approved invoices into explicit payable obligations and only then connect those obligations to controlled accounting entry and payment allocation. The invoice-intake and exposure slices deliberately do not infer tax treatment, OHADA accounts, exchange rates or statutory compliance.

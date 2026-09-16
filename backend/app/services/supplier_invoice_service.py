@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.audit_context import AuditContext
+from app.domain.ap_aging import ApprovedExposureBucket, add_exposure, empty_bucket_totals
 from app.models.supplier import Supplier
 from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 from app.repositories.audit.audit_log_repository import AuditLogRepository
@@ -43,6 +49,46 @@ class SupplierInvoiceService:
 
     async def list(self, organization_id: str, skip: int = 0, limit: int = 100, status_value: str | None = None, supplier_id: str | None = None) -> list[SupplierInvoice]:
         return await self.repository.list(organization_id, skip=skip, limit=limit, status=status_value, supplier_id=supplier_id)
+
+    async def approved_exposure_aging(self, organization_id: str, as_of_date: date) -> list[dict]:
+        invoices = await self.repository.list_approved_for_exposure(organization_id)
+        grouped: dict[tuple[str, str], dict] = {}
+
+        for invoice in invoices:
+            key = (invoice.supplier_id, invoice.currency_code)
+            row = grouped.setdefault(
+                key,
+                {
+                    "supplier_id": invoice.supplier_id,
+                    "supplier_name": invoice.supplier.legal_name,
+                    "currency_code": invoice.currency_code,
+                    "buckets": empty_bucket_totals(),
+                },
+            )
+            add_exposure(
+                row["buckets"],
+                due_date=invoice.due_date,
+                as_of_date=as_of_date,
+                amount=Decimal(invoice.total_amount),
+            )
+
+        result = []
+        for row in grouped.values():
+            buckets = row["buckets"]
+            result.append(
+                {
+                    "supplier_id": row["supplier_id"],
+                    "supplier_name": row["supplier_name"],
+                    "currency_code": row["currency_code"],
+                    "current_amount": buckets[ApprovedExposureBucket.CURRENT],
+                    "overdue_1_30_amount": buckets[ApprovedExposureBucket.OVERDUE_1_30],
+                    "overdue_31_60_amount": buckets[ApprovedExposureBucket.OVERDUE_31_60],
+                    "overdue_61_90_amount": buckets[ApprovedExposureBucket.OVERDUE_61_90],
+                    "overdue_90_plus_amount": buckets[ApprovedExposureBucket.OVERDUE_90_PLUS],
+                    "total_amount": sum(buckets.values(), Decimal("0.00")),
+                }
+            )
+        return sorted(result, key=lambda row: (row["supplier_id"], row["currency_code"]))
 
     async def _require_active_supplier(self, organization_id: str, supplier_id: str) -> Supplier:
         supplier = await self.supplier_repository.get_by_id(organization_id, supplier_id)
