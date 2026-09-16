@@ -18,15 +18,33 @@ def _normalize_sql(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().lower()
 
 
+def _supplier_invoice_regclass(cur):
+    cur.execute(
+        """
+        SELECT c.oid::regclass
+        FROM pg_class AS c
+        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = current_schema()
+          AND c.relname = 'supplier_invoices'
+          AND c.relkind IN ('r', 'p')
+        """
+    )
+    row = cur.fetchone()
+    assert row is not None, "supplier_invoices table is not deployed in the current schema"
+    return row[0]
+
+
 def test_supplier_invoice_schema_constraints_are_deployed() -> None:
     with _connection() as conn, conn.cursor() as cur:
+        relation = _supplier_invoice_regclass(cur)
         cur.execute(
             """
             SELECT conname, contype::text, convalidated
             FROM pg_constraint
-            WHERE conrelid = to_regclass(format('%I.%I', current_schema(), 'supplier_invoices'))
+            WHERE conrelid = %s::regclass
             ORDER BY conname
-            """
+            """,
+            (relation,),
         )
         constraints = {name: (contype, validated) for name, contype, validated in cur.fetchall()}
 
@@ -59,13 +77,15 @@ def test_supplier_invoice_schema_constraints_are_deployed() -> None:
 
 def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
     with _connection() as conn, conn.cursor() as cur:
+        relation = _supplier_invoice_regclass(cur)
         cur.execute(
             """
             SELECT pg_get_constraintdef(oid)
             FROM pg_constraint
             WHERE conname = 'fk_supplier_invoice_supplier_same_organization'
-              AND conrelid = to_regclass(format('%I.%I', current_schema(), 'supplier_invoices'))
-            """
+              AND conrelid = %s::regclass
+            """,
+            (relation,),
         )
         row = cur.fetchone()
         assert row is not None
