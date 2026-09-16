@@ -90,5 +90,6 @@ class SupplierInvoiceResponse(SupplierInvoiceBase):
     created_by: str
     updated_by: str
     approved_by: str | None
+    approved_at: datetime | None
     created_at: datetime | None
     updated_at: datetime | None
