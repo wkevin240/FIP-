@@ -1,4 +1,5 @@
 import os
+import re
 
 import psycopg2
 
@@ -11,6 +12,10 @@ def _connection():
         password=os.getenv("POSTGRES_PASSWORD", "fip_password"),
         dbname=os.getenv("POSTGRES_DB", "fip_db"),
     )
+
+
+def _normalize_sql(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().lower()
 
 
 def test_supplier_invoice_schema_constraints_are_deployed() -> None:
@@ -41,12 +46,15 @@ def test_supplier_invoice_schema_constraints_are_deployed() -> None:
             """
             SELECT indexname, indexdef
             FROM pg_indexes
-            WHERE tablename = 'supplier_invoices'
+            WHERE schemaname = current_schema()
+              AND tablename = 'supplier_invoices'
             """
         )
         indexes = {name: definition for name, definition in cur.fetchall()}
         assert "ix_supplier_invoices_organization_status_date" in indexes
-        assert "organization_id, status, invoice_date" in indexes["ix_supplier_invoices_organization_status_date"]
+        assert "(organization_id, status, invoice_date)" in _normalize_sql(
+            indexes["ix_supplier_invoices_organization_status_date"]
+        )
 
 
 def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
@@ -56,8 +64,11 @@ def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
             SELECT pg_get_constraintdef(oid)
             FROM pg_constraint
             WHERE conname = 'fk_supplier_invoice_supplier_same_organization'
+              AND conrelid = 'supplier_invoices'::regclass
             """
         )
-        definition = cur.fetchone()[0]
-        assert "FOREIGN KEY (organization_id, supplier_id)" in definition
-        assert "REFERENCES suppliers(organization_id, id)" in definition
+        row = cur.fetchone()
+        assert row is not None
+        definition = _normalize_sql(row[0])
+        assert "foreign key (organization_id, supplier_id)" in definition
+        assert "references suppliers(organization_id, id)" in definition
