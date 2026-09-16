@@ -21,6 +21,7 @@ class SupplierInvoice(Base):
         CheckConstraint("invoice_date <= due_date", name="ck_supplier_invoice_due_on_or_after_invoice"),
         CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount >= 0", name="ck_supplier_invoice_amounts_non_negative"),
         CheckConstraint("total_amount = subtotal + tax_amount", name="ck_supplier_invoice_total_matches_components"),
+        CheckConstraint("currency_code ~ '^[A-Z]{3}$'", name="ck_supplier_invoice_currency_code_canonical"),
         CheckConstraint(
             "(status = 'APPROVED' AND approved_by IS NOT NULL) OR (status <> 'APPROVED' AND approved_by IS NULL)",
             name="ck_supplier_invoice_approval_identity",
@@ -50,7 +51,7 @@ class SupplierInvoice(Base):
     approved_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True)
 
     organization = relationship("Organization")
-    supplier = relationship("Supplier")
+    supplier = relationship("Supplier", overlaps="organization")
     creator = relationship("User", foreign_keys=[created_by])
     updater = relationship("User", foreign_keys=[updated_by])
     approver = relationship("User", foreign_keys=[approved_by])
