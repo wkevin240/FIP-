@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
@@ -7,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.audit_context import AuditContext
-from app.domain.ap_aging import ApprovedExposureBucket, empty_bucket_totals, add_exposure
+from app.domain.ap_aging import ApprovedExposureBucket, add_exposure, empty_bucket_totals
 from app.models.supplier import Supplier
 from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 from app.repositories.audit.audit_log_repository import AuditLogRepository
