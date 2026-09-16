@@ -58,7 +58,8 @@ Priority is executable business capability, not empty module scaffolding.
 
 - [x] Customer master data foundation
 - [ ] Customer receivables lifecycle
-- [ ] Supplier master data and payables lifecycle
+- [x] Supplier master data foundation
+- [ ] Supplier payables lifecycle
 - [ ] Invoice -> accounting entry boundary
 - [ ] Payment -> allocation -> ledger boundary
 - [ ] Bank transaction import boundary
@@ -129,4 +130,4 @@ CI, migrations, authorization, audit, recovery and deployment checks must be ver
 
 ## Current focus
 
-The current branch is completing the accounting financial core. The next work should move outward into operational slices while continuing to strengthen the shared controls and kernel. Avoid adding generic abstractions that do not unlock a concrete December delivery capability.
+The accounting financial core is now stable enough to expand into operational AR/AP master-data boundaries. Supplier master data is the next AP foundation; payables must later connect supplier obligations to invoice, approval, payment and posted-ledger boundaries without creating a parallel financial source of truth.
