@@ -21,6 +21,7 @@ from app.models import (
     Permission,
     ProfitabilityAccountMapping,
     Role,
+    Supplier,
     User,
 )
 
