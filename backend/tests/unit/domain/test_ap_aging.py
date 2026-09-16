@@ -13,8 +13,9 @@ def test_due_on_as_of_date_is_current() -> None:
 
 def test_overdue_boundaries_are_inclusive() -> None:
     assert classify_due_date(date(2026, 9, 15), AS_OF) == ApprovedExposureBucket.OVERDUE_1_30
-    assert classify_due_date(date(2026, 8, 17), AS_OF) == ApprovedExposureBucket.OVERDUE_31_60
-    assert classify_due_date(date(2026, 7, 18), AS_OF) == ApprovedExposureBucket.OVERDUE_61_90
+    assert classify_due_date(date(2026, 8, 17), AS_OF) == ApprovedExposureBucket.OVERDUE_1_30
+    assert classify_due_date(date(2026, 7, 18), AS_OF) == ApprovedExposureBucket.OVERDUE_31_60
+    assert classify_due_date(date(2026, 6, 18), AS_OF) == ApprovedExposureBucket.OVERDUE_61_90
     assert classify_due_date(date(2026, 6, 17), AS_OF) == ApprovedExposureBucket.OVERDUE_90_PLUS
 
 
