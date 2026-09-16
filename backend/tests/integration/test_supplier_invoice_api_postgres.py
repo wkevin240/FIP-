@@ -1,5 +1,4 @@
 import os
-from datetime import date
 from decimal import Decimal
 
 import httpx
@@ -35,8 +34,8 @@ async def test_supplier_invoice_api_preserves_workflow_and_tenant_boundary() -> 
     other_organization_id = "supplier-invoice-api-other-org"
     creator_id = "supplier-invoice-api-creator"
     approver_id = "supplier-invoice-api-approver"
+    other_actor_id = "supplier-invoice-api-other-actor"
     supplier_id = "supplier-invoice-api-supplier"
-    other_supplier_id = "supplier-invoice-api-other-supplier"
 
     application = create_application()
 
@@ -72,6 +71,13 @@ async def test_supplier_invoice_api_preserves_workflow_and_tenant_boundary() -> 
                         is_active=True,
                         is_superuser=False,
                     ),
+                    User(
+                        id=other_actor_id,
+                        email="supplier-invoice-api-other-actor@example.invalid",
+                        hashed_password="integration-only",
+                        is_active=True,
+                        is_superuser=False,
+                    ),
                     OrganizationMembership(
                         user_id=creator_id,
                         organization_id=organization_id,
@@ -84,20 +90,17 @@ async def test_supplier_invoice_api_preserves_workflow_and_tenant_boundary() -> 
                         role=MembershipRole.MANAGER.value,
                         is_active=True,
                     ),
+                    OrganizationMembership(
+                        user_id=other_actor_id,
+                        organization_id=other_organization_id,
+                        role=MembershipRole.MANAGER.value,
+                        is_active=True,
+                    ),
                     Supplier(
                         id=supplier_id,
                         organization_id=organization_id,
                         code="API-SUP-001",
                         legal_name="API Contract Supplier",
-                        is_active=True,
-                        created_by=creator_id,
-                        updated_by=creator_id,
-                    ),
-                    Supplier(
-                        id=other_supplier_id,
-                        organization_id=other_organization_id,
-                        code="API-SUP-OTHER",
-                        legal_name="Other Tenant Supplier",
                         is_active=True,
                         created_by=creator_id,
                         updated_by=creator_id,
@@ -108,7 +111,7 @@ async def test_supplier_invoice_api_preserves_workflow_and_tenant_boundary() -> 
 
             creator_token = create_access_token(creator_id, organization_id)
             approver_token = create_access_token(approver_id, organization_id)
-            other_tenant_token = create_access_token(approver_id, other_organization_id)
+            other_tenant_token = create_access_token(other_actor_id, other_organization_id)
             payload = {
                 "supplier_id": supplier_id,
                 "invoice_number": "API-INV-001",
