@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 
@@ -56,6 +57,7 @@ class SupplierInvoiceRepository:
     async def list_approved_for_exposure(self, organization_id: str) -> list[SupplierInvoice]:
         result = await self.session.scalars(
             select(SupplierInvoice)
+            .options(selectinload(SupplierInvoice.supplier))
             .where(
                 SupplierInvoice.organization_id == organization_id,
                 SupplierInvoice.status == SupplierInvoiceStatus.APPROVED,
