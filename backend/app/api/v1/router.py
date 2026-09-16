@@ -12,6 +12,7 @@ from app.api.v1.accounting.profitability_mappings import router as profitability
 from app.api.v1.audit import router as audit_router
 from app.api.v1.customers import router as customers_router
 from app.api.v1.suppliers import router as suppliers_router
+from app.api.v1.supplier_invoices import router as supplier_invoices_router
 
 api_router = APIRouter()
 api_router.include_router(accounts_router, prefix="/accounting/accounts", tags=["Accounting - Accounts"])
@@ -26,3 +27,4 @@ api_router.include_router(balance_sheet_mappings_router, prefix="/accounting/bal
 api_router.include_router(audit_router, prefix="/accounting/audit", tags=["Accounting - Audit"])
 api_router.include_router(customers_router, prefix="/customers", tags=["Customers"])
 api_router.include_router(suppliers_router, prefix="/suppliers", tags=["Suppliers"])
+api_router.include_router(supplier_invoices_router, prefix="/supplier-invoices", tags=["Supplier Invoices"])
