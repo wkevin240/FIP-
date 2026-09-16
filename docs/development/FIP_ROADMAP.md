@@ -50,13 +50,14 @@ The kernel is shared infrastructure for deterministic financial calculations. Do
 - [ ] Resolve and merge the calculation-kernel branch cleanly into the accounting hardening line
 - [x] Controlled period reopening with mandatory reason and audit trail
 - [x] Durable audit-event persistence
-- [ ] Accounting API integration verification against PostgreSQL migrations
+- [x] Accounting API integration verification against PostgreSQL migrations
 
 ### October 2026 — First operational financial slices
 
 Priority is executable business capability, not empty module scaffolding.
 
-- [ ] Customer master data and receivables lifecycle
+- [x] Customer master data foundation
+- [ ] Customer receivables lifecycle
 - [ ] Supplier master data and payables lifecycle
 - [ ] Invoice -> accounting entry boundary
 - [ ] Payment -> allocation -> ledger boundary

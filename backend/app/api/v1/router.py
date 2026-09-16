@@ -10,6 +10,7 @@ from app.api.v1.accounting.ledger import router as ledger_router
 from app.api.v1.accounting.profitability import router as profitability_router
 from app.api.v1.accounting.profitability_mappings import router as profitability_mappings_router
 from app.api.v1.audit import router as audit_router
+from app.api.v1.customers import router as customers_router
 
 api_router = APIRouter()
 api_router.include_router(accounts_router, prefix="/accounting/accounts", tags=["Accounting - Accounts"])
@@ -22,3 +23,4 @@ api_router.include_router(profitability_mappings_router, prefix="/accounting/pro
 api_router.include_router(balance_sheet_router, prefix="/accounting/balance-sheet", tags=["Accounting - Balance Sheet"])
 api_router.include_router(balance_sheet_mappings_router, prefix="/accounting/balance-sheet/mappings", tags=["Accounting - Balance Sheet Mappings"])
 api_router.include_router(audit_router, prefix="/accounting/audit", tags=["Accounting - Audit"])
+api_router.include_router(customers_router, prefix="/customers", tags=["Customers"])
