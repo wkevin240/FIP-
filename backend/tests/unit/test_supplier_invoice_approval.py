@@ -10,9 +10,7 @@ from app.services.supplier_invoice_service import SupplierInvoiceService
 @pytest.mark.asyncio
 async def test_creator_cannot_approve_own_invoice() -> None:
     service = SupplierInvoiceService.__new__(SupplierInvoiceService)
-    service.repository = SimpleNamespace(
-        get_for_update=lambda organization_id, invoice_id: _invoice("actor-1")
-    )
+    service.repository = SimpleNamespace(get_for_update=_get_invoice)
 
     with pytest.raises(HTTPException) as exc_info:
         await service.approve("org-1", "invoice-1", "actor-1")
@@ -21,10 +19,10 @@ async def test_creator_cannot_approve_own_invoice() -> None:
     assert "cannot approve" in exc_info.value.detail
 
 
-def _invoice(created_by: str):
+async def _get_invoice(organization_id: str, invoice_id: str):
     return SimpleNamespace(
         id="invoice-1",
-        created_by=created_by,
+        created_by="actor-1",
         supplier_id="supplier-1",
         status=SupplierInvoiceStatus.DRAFT,
     )
