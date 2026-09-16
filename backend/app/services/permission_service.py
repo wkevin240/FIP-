@@ -18,19 +18,21 @@ class PermissionService:
             "balance_sheet_mapping:create", "balance_sheet_mapping:read",
             "customer:create", "customer:read", "customer:update",
             "supplier:create", "supplier:read", "supplier:update",
+            "supplier_invoice:create", "supplier_invoice:read", "supplier_invoice:update",
+            "supplier_invoice:approve", "supplier_invoice:cancel",
         }),
         MembershipRole.MANAGER.value: frozenset({
             "account:read", "fiscal_year:read", "fiscal_period:read",
             "journal:read", "journal_entry:read", "ledger:read",
             "profitability_mapping:read", "balance_sheet_mapping:read",
-            "customer:read", "supplier:read",
+            "customer:read", "supplier:read", "supplier_invoice:read", "supplier_invoice:approve", "supplier_invoice:cancel",
         }),
         MembershipRole.USER.value: frozenset(),
         MembershipRole.AUDITOR.value: frozenset({
             "account:read", "fiscal_year:read", "fiscal_period:read",
             "journal:read", "journal_entry:read", "ledger:read",
             "profitability_mapping:read", "balance_sheet_mapping:read", "audit:read",
-            "customer:read", "supplier:read",
+            "customer:read", "supplier:read", "supplier_invoice:read",
         }),
     }
 

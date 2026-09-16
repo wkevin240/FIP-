@@ -59,7 +59,8 @@ Priority is executable business capability, not empty module scaffolding.
 - [x] Customer master data foundation
 - [ ] Customer receivables lifecycle
 - [x] Supplier master data foundation
-- [ ] Supplier payables lifecycle
+- [x] Supplier invoice intake and approval boundary
+- [ ] Supplier payables lifecycle and outstanding-obligation state
 - [ ] Invoice -> accounting entry boundary
 - [ ] Payment -> allocation -> ledger boundary
 - [ ] Bank transaction import boundary
@@ -130,4 +131,4 @@ CI, migrations, authorization, audit, recovery and deployment checks must be ver
 
 ## Current focus
 
-The accounting financial core is now stable enough to expand into operational AR/AP master-data boundaries. Supplier master data is the next AP foundation; payables must later connect supplier obligations to invoice, approval, payment and posted-ledger boundaries without creating a parallel financial source of truth.
+The accounting financial core is now stable enough to expand into operational AR/AP boundaries. Supplier master data and supplier invoice intake are implemented as the AP capture foundation; the next financial boundary is to turn approved invoices into explicit payable obligations and only then connect those obligations to controlled accounting entry and payment allocation. The invoice-intake slice deliberately does not infer tax treatment, OHADA accounts, exchange rates or statutory compliance.

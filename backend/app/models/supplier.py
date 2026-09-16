@@ -7,6 +7,7 @@ from app.db.base import Base
 class Supplier(Base):
     __tablename__ = "suppliers"
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_supplier_organization_id"),
         UniqueConstraint("organization_id", "code", name="uq_supplier_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_supplier_organization_tax_id"),
         Index("ix_suppliers_organization_active_code", "organization_id", "is_active", "code"),
