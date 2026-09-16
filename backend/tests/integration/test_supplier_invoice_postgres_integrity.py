@@ -149,3 +149,28 @@ async def test_supplier_invoice_currency_code_constraint_definition() -> None:
         assert "currency_code ~ '^[a-z]{3}$'" in definition
     finally:
         await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_supplier_invoice_approval_timestamp_trigger_is_deployed() -> None:
+    conn = await _connection()
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT pg_get_triggerdef(t.oid) AS definition
+            FROM pg_trigger AS t
+            JOIN pg_class AS c ON c.oid = t.tgrelid
+            JOIN pg_namespace AS n ON n.oid = c.relnamespace
+            WHERE n.nspname = current_schema()
+              AND c.relname = 'supplier_invoices'
+              AND t.tgname = 'trg_supplier_invoice_approval_timestamp'
+              AND NOT t.tgisinternal
+            """
+        )
+        assert row is not None
+        definition = _normalize_sql(row["definition"])
+        assert "before insert or update of status, approved_at" in definition
+        assert "on supplier_invoices" in definition
+        assert "execute function enforce_supplier_invoice_approval_timestamp()" in definition
+    finally:
+        await conn.close()
