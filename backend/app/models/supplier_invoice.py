@@ -21,6 +21,10 @@ class SupplierInvoice(Base):
         CheckConstraint("invoice_date <= due_date", name="ck_supplier_invoice_due_on_or_after_invoice"),
         CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount >= 0", name="ck_supplier_invoice_amounts_non_negative"),
         CheckConstraint("total_amount = subtotal + tax_amount", name="ck_supplier_invoice_total_matches_components"),
+        CheckConstraint(
+            "(status = 'APPROVED' AND approved_by IS NOT NULL) OR (status <> 'APPROVED' AND approved_by IS NULL)",
+            name="ck_supplier_invoice_approval_identity",
+        ),
         ForeignKeyConstraint(
             ["organization_id", "supplier_id"],
             ["suppliers.organization_id", "suppliers.id"],

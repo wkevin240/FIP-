@@ -58,6 +58,7 @@ async def test_supplier_invoice_schema_constraints_are_deployed() -> None:
             "ck_supplier_invoice_due_on_or_after_invoice",
             "ck_supplier_invoice_amounts_non_negative",
             "ck_supplier_invoice_total_matches_components",
+            "ck_supplier_invoice_approval_identity",
         }
         for name in expected_checks:
             assert constraints[name] == ("c", True)
@@ -100,5 +101,29 @@ async def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
         definition = _normalize_sql(row["definition"])
         assert "foreign key (organization_id, supplier_id)" in definition
         assert "references suppliers(organization_id, id)" in definition
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_supplier_invoice_approval_identity_constraint_definition() -> None:
+    conn = await _connection()
+    try:
+        relation_oid = await _supplier_invoice_oid(conn)
+        row = await conn.fetchrow(
+            """
+            SELECT pg_get_constraintdef(oid) AS definition
+            FROM pg_constraint
+            WHERE conname = 'ck_supplier_invoice_approval_identity'
+              AND conrelid = $1
+            """,
+            relation_oid,
+        )
+        assert row is not None
+        definition = _normalize_sql(row["definition"])
+        assert "status = 'approved'" in definition
+        assert "approved_by is not null" in definition
+        assert "status <> 'approved'" in definition
+        assert "approved_by is null" in definition
     finally:
         await conn.close()
