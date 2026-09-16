@@ -49,7 +49,7 @@ class SupplierInvoice(Base):
     created_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     updated_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     approved_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True)
-    approved_at = Column(DateTime, nullable=True, index=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     organization = relationship("Organization")
     supplier = relationship("Supplier", overlaps="organization")

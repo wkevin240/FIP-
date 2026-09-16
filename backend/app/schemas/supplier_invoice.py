@@ -1,8 +1,10 @@
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.models.supplier_invoice import SupplierInvoiceStatus
 
 
 class SupplierInvoiceBase(BaseModel):
@@ -86,10 +88,19 @@ class SupplierInvoiceResponse(SupplierInvoiceBase):
 
     id: str
     organization_id: str
-    status: str
+    status: SupplierInvoiceStatus
     created_by: str
     updated_by: str
     approved_by: str | None = None
     approved_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_validator("approved_at")
+    @classmethod
+    def require_timezone_aware_approval_timestamp(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            raise ValueError("Approval timestamp must be timezone-aware")
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("Approval timestamp must be timezone-aware")
+        return value
