@@ -79,7 +79,6 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PORT: "5432"
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_balance_postgres_integrity.py
@@ -160,6 +159,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
+          POSTGRES_PORT: "5432"
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_creator_segregation_postgres_integrity.py
