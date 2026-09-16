@@ -2,12 +2,18 @@ name: FIP CI
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "test/**", "fix/**"]
   pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: fip_user
+      POSTGRES_PASSWORD: fip_password
+      POSTGRES_DB: fip_db
     services:
       postgres:
         image: postgres:15
@@ -35,179 +41,30 @@ jobs:
       - name: Run unit tests
         run: pytest -q backend/tests/unit
       - name: Apply database migrations
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
         run: alembic upgrade head
-      - name: Verify balance-sheet PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_balance_sheet_postgres_integrity.py
-      - name: Verify audit-log PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_audit_log_postgres_integrity.py
-      - name: Verify ledger PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_ledger_postgres_integrity.py
-      - name: Verify ledger provenance PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_ledger_provenance_postgres_integrity.py
-      - name: Verify posted journal PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_balance_postgres_integrity.py
-      - name: Verify fiscal-period PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_fiscal_period_postgres_integrity.py
-      - name: Verify journal fiscal-period PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_fiscal_period_postgres_integrity.py
-      - name: Verify journal-entry date PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_entry_date_postgres_integrity.py
-      - name: Verify account hierarchy PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_account_hierarchy_postgres_integrity.py
-      - name: Verify journal-entry-line account tenant PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_entry_line_account_tenant_postgres_integrity.py
-      - name: Verify fiscal-year PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_fiscal_year_postgres_integrity.py
-      - name: Verify journal reversal tenant PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_reversal_tenant_postgres_integrity.py
-      - name: Verify journal reversal status PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_reversal_status_postgres_integrity.py
-      - name: Verify posted journal metadata PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_posted_metadata_postgres_integrity.py
-      - name: Verify journal creator segregation PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PORT: "5432"
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_journal_creator_segregation_postgres_integrity.py
-      - name: Verify accounting journal API PostgreSQL contract
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_accounting_api_postgres.py
-      - name: Verify ledger reporting PostgreSQL contract
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_ledger_reporting_postgres.py
-      - name: Verify customer PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_customer_postgres_integrity.py
-      - name: Verify supplier invoice PostgreSQL invariants
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_supplier_invoice_postgres_integrity.py
-      - name: Verify supplier invoice API PostgreSQL contract
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
-        run: pytest -q backend/tests/integration/test_supplier_invoice_api_postgres.py
+      - name: Verify PostgreSQL integration contracts
+        run: |
+          set -euo pipefail
+          pytest -q \
+            backend/tests/integration/test_balance_sheet_postgres_integrity.py \
+            backend/tests/integration/test_audit_log_postgres_integrity.py \
+            backend/tests/integration/test_ledger_postgres_integrity.py \
+            backend/tests/integration/test_ledger_provenance_postgres_integrity.py \
+            backend/tests/integration/test_journal_balance_postgres_integrity.py \
+            backend/tests/integration/test_fiscal_period_postgres_integrity.py \
+            backend/tests/integration/test_journal_fiscal_period_postgres_integrity.py \
+            backend/tests/integration/test_journal_entry_date_postgres_integrity.py \
+            backend/tests/integration/test_account_hierarchy_postgres_integrity.py \
+            backend/tests/integration/test_journal_entry_line_account_tenant_postgres_integrity.py \
+            backend/tests/integration/test_fiscal_year_postgres_integrity.py \
+            backend/tests/integration/test_journal_reversal_tenant_postgres_integrity.py \
+            backend/tests/integration/test_journal_reversal_status_postgres_integrity.py \
+            backend/tests/integration/test_journal_posted_metadata_postgres_integrity.py \
+            backend/tests/integration/test_journal_creator_segregation_postgres_integrity.py \
+            backend/tests/integration/test_accounting_api_postgres.py \
+            backend/tests/integration/test_ledger_reporting_postgres.py \
+            backend/tests/integration/test_customer_postgres_integrity.py \
+            backend/tests/integration/test_supplier_invoice_postgres_integrity.py \
+            backend/tests/integration/test_supplier_invoice_api_postgres.py
       - name: Verify migration drift
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
-          POSTGRES_DB: fip_db
         run: alembic check
