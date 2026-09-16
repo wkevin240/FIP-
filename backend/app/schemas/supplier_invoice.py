@@ -36,7 +36,7 @@ class SupplierInvoiceBase(BaseModel):
     def normalize_currency_code(cls, value: str) -> str:
         value = value.strip().upper()
         if not re.fullmatch(r"[A-Z]{3}", value):
-            raise ValueError("Currency code must be three ASCII letters")
+            raise ValueError("Currency code must be a three-letter code")
         return value
 
     @model_validator(mode="after")
@@ -77,7 +77,7 @@ class SupplierInvoiceUpdate(BaseModel):
             return None
         value = value.strip().upper()
         if not re.fullmatch(r"[A-Z]{3}", value):
-            raise ValueError("Currency code must be three ASCII letters")
+            raise ValueError("Currency code must be a three-letter code")
         return value
 
 
@@ -89,6 +89,7 @@ class SupplierInvoiceResponse(SupplierInvoiceBase):
     status: str
     created_by: str
     updated_by: str
-    approved_by: str | None
-    created_at: datetime | None
-    updated_at: datetime | None
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import CheckConstraint, Column, Date, Enum as SQLEnum, ForeignKey, ForeignKeyConstraint, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, ForeignKeyConstraint, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -49,6 +49,7 @@ class SupplierInvoice(Base):
     created_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     updated_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     approved_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True)
+    approved_at = Column(DateTime, nullable=True, index=True)
 
     organization = relationship("Organization")
     supplier = relationship("Supplier", overlaps="organization")

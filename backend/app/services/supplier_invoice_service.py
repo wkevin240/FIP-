@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -39,6 +39,7 @@ class SupplierInvoiceService:
             "description": invoice.description,
             "status": invoice.status.value if hasattr(invoice.status, "value") else invoice.status,
             "approved_by": invoice.approved_by,
+            "approved_at": invoice.approved_at,
         }
 
     async def get(self, organization_id: str, invoice_id: str) -> SupplierInvoice:
@@ -188,6 +189,7 @@ class SupplierInvoiceService:
         await self._require_active_supplier(organization_id, invoice.supplier_id)
         invoice.status = SupplierInvoiceStatus.APPROVED
         invoice.approved_by = actor_id
+        invoice.approved_at = datetime.utcnow()
         invoice.updated_by = actor_id
         try:
             await self.session.flush()
@@ -210,6 +212,7 @@ class SupplierInvoiceService:
             return invoice
         invoice.status = SupplierInvoiceStatus.CANCELLED
         invoice.approved_by = None
+        invoice.approved_at = None
         invoice.updated_by = actor_id
         try:
             await self.session.flush()

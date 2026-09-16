@@ -24,10 +24,10 @@ def test_supplier_invoice_currency_code_is_canonicalized_to_uppercase() -> None:
 
 
 def test_supplier_invoice_currency_code_rejects_non_ascii_letters() -> None:
-    with pytest.raises(ValidationError, match="three ASCII letters"):
+    with pytest.raises(ValidationError, match="three-letter code"):
         SupplierInvoiceCreate(**_payload("ÉUR"))
 
 
 def test_supplier_invoice_update_currency_code_rejects_non_ascii_letters() -> None:
-    with pytest.raises(ValidationError, match="three ASCII letters"):
+    with pytest.raises(ValidationError, match="three-letter code"):
         SupplierInvoiceUpdate(currency_code="ÉUR")
