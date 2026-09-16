@@ -79,6 +79,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
+          POSTGRES_PORT: "5432"
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_balance_postgres_integrity.py
@@ -103,7 +104,6 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PORT: "5432"
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_entry_date_postgres_integrity.py
@@ -120,7 +120,6 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PORT: "5432"
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_entry_line_account_tenant_postgres_integrity.py
@@ -159,6 +158,8 @@ jobs:
       - name: Verify journal creator segregation PostgreSQL invariants
         env:
           POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
           POSTGRES_PASSWORD: fip_password
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_creator_segregation_postgres_integrity.py
