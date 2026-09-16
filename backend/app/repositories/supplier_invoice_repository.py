@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.supplier_invoice import SupplierInvoice
+from app.models.supplier_invoice import SupplierInvoice, SupplierInvoiceStatus
 
 
 class SupplierInvoiceRepository:
@@ -50,6 +50,17 @@ class SupplierInvoiceRepository:
             statement = statement.where(SupplierInvoice.supplier_id == supplier_id)
         result = await self.session.scalars(
             statement.order_by(SupplierInvoice.invoice_date.desc(), SupplierInvoice.id).offset(skip).limit(limit)
+        )
+        return list(result.all())
+
+    async def list_approved_for_exposure(self, organization_id: str) -> list[SupplierInvoice]:
+        result = await self.session.scalars(
+            select(SupplierInvoice)
+            .where(
+                SupplierInvoice.organization_id == organization_id,
+                SupplierInvoice.status == SupplierInvoiceStatus.APPROVED,
+            )
+            .order_by(SupplierInvoice.supplier_id, SupplierInvoice.currency_code, SupplierInvoice.due_date, SupplierInvoice.id)
         )
         return list(result.all())
 
