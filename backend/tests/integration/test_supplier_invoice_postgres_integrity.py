@@ -24,7 +24,7 @@ def test_supplier_invoice_schema_constraints_are_deployed() -> None:
             """
             SELECT conname, contype::text, convalidated
             FROM pg_constraint
-            WHERE conrelid = 'supplier_invoices'::regclass
+            WHERE conrelid = to_regclass(format('%I.%I', current_schema(), 'supplier_invoices'))
             ORDER BY conname
             """
         )
@@ -64,7 +64,7 @@ def test_supplier_invoice_supplier_fk_is_tenant_scoped() -> None:
             SELECT pg_get_constraintdef(oid)
             FROM pg_constraint
             WHERE conname = 'fk_supplier_invoice_supplier_same_organization'
-              AND conrelid = 'supplier_invoices'::regclass
+              AND conrelid = to_regclass(format('%I.%I', current_schema(), 'supplier_invoices'))
             """
         )
         row = cur.fetchone()
