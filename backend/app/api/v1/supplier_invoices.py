@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +7,7 @@ from app.api.dependencies import CurrentTenant, require_permission
 from app.core.validation import validate_pagination
 from app.db.session import get_db
 from app.schemas.supplier_invoice import SupplierInvoiceCreate, SupplierInvoiceResponse, SupplierInvoiceUpdate
+from app.schemas.supplier_invoice_aging import SupplierApprovedExposureAgingResponse
 from app.services.supplier_invoice_service import SupplierInvoiceService
 
 router = APIRouter()
@@ -21,6 +24,18 @@ async def create_supplier_invoice(
     service: SupplierInvoiceService = Depends(get_supplier_invoice_service),
 ):
     return await service.create(tenant.organization_id, tenant.user_id, invoice_in)
+
+
+@router.get("/aging", response_model=SupplierApprovedExposureAgingResponse)
+async def read_supplier_invoice_aging(
+    as_of_date: date,
+    tenant: CurrentTenant = Depends(require_permission("supplier_invoice:read")),
+    service: SupplierInvoiceService = Depends(get_supplier_invoice_service),
+):
+    return {
+        "as_of_date": as_of_date,
+        "rows": await service.approved_exposure_aging(tenant.organization_id, as_of_date),
+    }
 
 
 @router.get("/", response_model=list[SupplierInvoiceResponse])
