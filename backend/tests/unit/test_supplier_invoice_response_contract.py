@@ -35,7 +35,7 @@ def test_approved_response_preserves_utc_timestamp() -> None:
 
     assert response.status is SupplierInvoiceStatus.APPROVED
     assert response.approved_at is not None
-    assert response.approved_at.tzinfo is timezone.utc
+    assert response.approved_at.utcoffset() == timezone.utc.utcoffset(None)
 
 
 def test_approved_response_rejects_naive_timestamp() -> None:
