@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, String, UniqueConstraint, true
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -29,7 +29,7 @@ class Customer(Base):
     email = Column(String(320), nullable=True)
     phone = Column(String(50), nullable=True)
     address = Column(String(500), nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    is_active = Column(Boolean, default=True, server_default=true(), nullable=False)
     created_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     updated_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
 
