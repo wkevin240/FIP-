@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -34,8 +35,8 @@ class SupplierInvoiceBase(BaseModel):
     @classmethod
     def normalize_currency_code(cls, value: str) -> str:
         value = value.strip().upper()
-        if len(value) != 3 or not value.isalpha():
-            raise ValueError("Currency code must be a three-letter code")
+        if not re.fullmatch(r"[A-Z]{3}", value):
+            raise ValueError("Currency code must be three ASCII letters")
         return value
 
     @model_validator(mode="after")
@@ -75,8 +76,8 @@ class SupplierInvoiceUpdate(BaseModel):
         if value is None:
             return None
         value = value.strip().upper()
-        if len(value) != 3 or not value.isalpha():
-            raise ValueError("Currency code must be a three-letter code")
+        if not re.fullmatch(r"[A-Z]{3}", value):
+            raise ValueError("Currency code must be three ASCII letters")
         return value
 
 
