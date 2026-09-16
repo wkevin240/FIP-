@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "supplier_invoices",
-        sa.Column("approved_at", sa.DateTime(), nullable=True),
+        sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.execute(
         """
