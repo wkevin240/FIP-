@@ -1,6 +1,8 @@
 # FIP - Financial Operating System
 
-> **Financial, Inventory & Payroll System** — Système modulaire multi-organisations conforme OHADA
+> Financial, Inventory & Payroll System, en développement actif.
+>
+> **Statut : préversion technique.** FIP n'est pas prêt pour la production. La couverture OHADA et les fonctions listées ci-dessous ne sont ni complètes ni certifiées. Ne pas l'utiliser pour produire des comptes, déclarations fiscales ou bulletins réglementaires. Suivre l'avancement dans [la feuille de route](docs/development/FIP_ROADMAP.md).
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com/)
@@ -301,19 +303,9 @@ pytest tests/integration/
 
 ## Déploiement
 
-### Docker
+### Docker et production
 
-```bash
-# Build de l'image
-docker build -t fip-backend .
-
-# Lancement avec Docker Compose
-docker-compose up -d
-```
-
-### Configuration production
-
-Voir `/docs/development/DEPLOYMENT.md` pour les détails sur :
+Le Dockerfile et le fichier Docker Compose de `deployments/docker` sont encore vides. Le déploiement Docker et la mise en production ne sont donc pas prêts. Les étapes de durcissement, de sauvegarde et de reprise restent dans la [feuille de route](docs/development/FIP_ROADMAP.md).
 
 - Nginx + Gunicorn
 - Configuration HTTPS
