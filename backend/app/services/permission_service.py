@@ -17,12 +17,14 @@ class PermissionService:
             "profitability_mapping:create", "profitability_mapping:read",
             "balance_sheet_mapping:create", "balance_sheet_mapping:read",
             "customer:create", "customer:read", "customer:update",
+            "customer_invoice:create", "customer_invoice:read", "customer_invoice:update", "customer_invoice:issue",
         }),
         MembershipRole.MANAGER.value: frozenset({
             "account:read", "fiscal_year:read", "fiscal_period:read",
             "journal:read", "journal_entry:read", "ledger:read",
             "profitability_mapping:read", "balance_sheet_mapping:read",
             "customer:read",
+            "customer_invoice:read",
         }),
         MembershipRole.USER.value: frozenset(),
         MembershipRole.AUDITOR.value: frozenset({
@@ -30,6 +32,7 @@ class PermissionService:
             "journal:read", "journal_entry:read", "ledger:read",
             "profitability_mapping:read", "balance_sheet_mapping:read", "audit:read",
             "customer:read",
+            "customer_invoice:read",
         }),
     }
 
@@ -39,3 +42,4 @@ class PermissionService:
         normalized_role = role.upper() if isinstance(role, str) else role
         allowed = cls._ROLE_PERMISSIONS.get(normalized_role, frozenset())
         return is_superuser or "*" in allowed or permission in allowed
+
