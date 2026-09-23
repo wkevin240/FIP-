@@ -9,6 +9,7 @@ class Customer(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "code", name="uq_customer_organization_code"),
         UniqueConstraint("organization_id", "tax_id", name="uq_customer_organization_tax_id"),
+        UniqueConstraint("organization_id", "id", name="uq_customers_organization_id_id"),
         Index("ix_customers_organization_active_code", "organization_id", "is_active", "code"),
         CheckConstraint("btrim(code) <> ''", name="ck_customers_code_not_blank").ddl_if(dialect="postgresql"),
         CheckConstraint("code !~ '\\s'", name="ck_customers_code_no_whitespace").ddl_if(dialect="postgresql"),
@@ -36,3 +37,4 @@ class Customer(Base):
     organization = relationship("Organization")
     creator = relationship("User", foreign_keys=[created_by])
     updater = relationship("User", foreign_keys=[updated_by])
+
