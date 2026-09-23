@@ -5,6 +5,13 @@ on:
     branches: [main, "feat/**"]
   pull_request:
 
+env:
+  SECRET_KEY: "ci-only-signing-key-not-for-deployment-00000001"
+  POSTGRES_PASSWORD: "ci-only-database-password"
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,7 +20,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         ports:
           - 5432:5432
@@ -39,7 +46,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: alembic upgrade head
       - name: Verify balance-sheet PostgreSQL invariants
@@ -47,7 +54,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_balance_sheet_postgres_integrity.py
       - name: Verify audit-log PostgreSQL invariants
@@ -55,7 +62,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_audit_log_postgres_integrity.py
       - name: Verify ledger PostgreSQL invariants
@@ -63,7 +70,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_ledger_postgres_integrity.py
       - name: Verify ledger provenance PostgreSQL invariants
@@ -71,7 +78,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_ledger_provenance_postgres_integrity.py
       - name: Verify posted journal PostgreSQL invariants
@@ -79,7 +86,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_balance_postgres_integrity.py
       - name: Verify fiscal-period PostgreSQL invariants
@@ -87,7 +94,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_fiscal_period_postgres_integrity.py
       - name: Verify journal fiscal-period PostgreSQL invariants
@@ -95,7 +102,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_fiscal_period_postgres_integrity.py
       - name: Verify journal-entry date PostgreSQL invariants
@@ -103,7 +110,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_entry_date_postgres_integrity.py
       - name: Verify account hierarchy PostgreSQL invariants
@@ -111,7 +118,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_account_hierarchy_postgres_integrity.py
       - name: Verify journal-entry-line account tenant PostgreSQL invariants
@@ -119,7 +126,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_entry_line_account_tenant_postgres_integrity.py
       - name: Verify fiscal-year PostgreSQL invariants
@@ -127,7 +134,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_fiscal_year_postgres_integrity.py
       - name: Verify journal reversal tenant PostgreSQL invariants
@@ -135,7 +142,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_reversal_tenant_postgres_integrity.py
       - name: Verify journal reversal status PostgreSQL invariants
@@ -143,7 +150,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_reversal_status_postgres_integrity.py
       - name: Verify posted journal metadata PostgreSQL invariants
@@ -151,7 +158,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_posted_metadata_postgres_integrity.py
       - name: Verify journal creator segregation PostgreSQL invariants
@@ -159,7 +166,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_journal_creator_segregation_postgres_integrity.py
       - name: Verify accounting journal API PostgreSQL contract
@@ -167,7 +174,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_accounting_api_postgres.py
       - name: Verify ledger reporting PostgreSQL contract
@@ -175,7 +182,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_ledger_reporting_postgres.py
       - name: Verify customer PostgreSQL invariants
@@ -183,7 +190,7 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_customer_postgres_integrity.py
       - name: Verify migration drift
@@ -191,6 +198,6 @@ jobs:
           POSTGRES_SERVER: localhost
           POSTGRES_PORT: "5432"
           POSTGRES_USER: fip_user
-          POSTGRES_PASSWORD: fip_password
+          POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: alembic check

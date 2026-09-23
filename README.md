@@ -165,11 +165,10 @@ source .venv/bin/activate  # Linux/Mac
 ### Installer les dépendances
 
 ```bash
-cd backend
-pip install -r requirements.txt
+pip install .
 ```
 
-Ou avec Poetry :
+Depuis la racine du dépôt. Avec Poetry :
 
 ```bash
 poetry install
@@ -181,28 +180,16 @@ poetry install
 
 ### Variables d'environnement
 
-Créer un fichier `.env` à la racine du backend :
+Copier `.env.example` vers `backend/.env`, puis remplacer les valeurs de démonstration par celles de ton environnement. Générer une clé `SECRET_KEY` aléatoire d'au moins 32 caractères. Le dépôt exige cette clé et le mot de passe PostgreSQL, il ne fournit plus de valeurs par défaut.
 
-```env
-# Application
-PROJECT_NAME="FIP - Financial, Inventory and Payroll System"
-VERSION="1.0.0"
-API_V1_STR="/api/v1"
+```powershell
+Copy-Item .env.example backend/.env
+```
 
-# Base de données
-POSTGRES_SERVER=localhost
-POSTGRES_USER=fip_user
-POSTGRES_PASSWORD=your_secure_password
-POSTGRES_DB=fip_db
-POSTGRES_PORT=5432
+Sur Linux ou macOS :
 
-# Sécurité
-SECRET_KEY=your-very-secret-key-min-32-chars
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=11520
-
-# CORS
-CORS_ORIGINS=["http://localhost:3000","http://localhost:8080"]
+```bash
+cp .env.example backend/.env
 ```
 
 ### Configuration de la base de données

@@ -1,3 +1,9 @@
+import os
+
+# These credentials are only for isolated tests and must not be deployed.
+os.environ.setdefault("POSTGRES_PASSWORD", "unit-test-database-password")
+os.environ.setdefault("SECRET_KEY", "unit-test-signing-key-not-for-deployment-0001")
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 

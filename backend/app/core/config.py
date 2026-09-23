@@ -10,11 +10,11 @@ class Settings(BaseSettings):
 
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_USER: str = "fip_user"
-    POSTGRES_PASSWORD: str = "fip_password"
+    POSTGRES_PASSWORD: str
     POSTGRES_DB: str = "fip_db"
     POSTGRES_PORT: str = "5432"
 
-    SECRET_KEY: str = "super-secret-key-change-this-in-production"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
 
@@ -30,8 +30,8 @@ class Settings(BaseSettings):
         return value
 
     def model_post_init(self, __context: object) -> None:
-        if self.ENVIRONMENT == "production" and self.SECRET_KEY == "super-secret-key-change-this-in-production":
-            raise ValueError("SECRET_KEY must be explicitly configured in production")
+        if len(self.SECRET_KEY) < 32:
+            raise ValueError("SECRET_KEY must contain at least 32 characters")
         if self.ENVIRONMENT == "production" and self.ACCESS_TOKEN_EXPIRE_MINUTES > 24 * 60:
             raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES cannot exceed 24 hours in production")
 

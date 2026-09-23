@@ -2,7 +2,7 @@
 name = "fip-backend"
 version = "0.1.0"
 description = "Financial, Inventory and Payroll System (FIP)"
-authors = ["Admin <admin@example.com>"]
+authors = ["Kevin WANSI"]
 packages = [{ include = "app", from = "backend" }]
 
 [tool.poetry.dependencies]
