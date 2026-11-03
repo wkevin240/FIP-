@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 
@@ -56,7 +57,12 @@ class CustomerInvoice(Base):
     subtotal = Column(Numeric(20, 2), nullable=False)
     tax_amount = Column(Numeric(20, 2), nullable=False)
     total_amount = Column(Numeric(20, 2), nullable=False)
-    status = Column(SQLEnum(CustomerInvoiceStatus, native_enum=False, length=16), nullable=False, default=CustomerInvoiceStatus.DRAFT)
+    status = Column(
+        SQLEnum(CustomerInvoiceStatus, native_enum=False, length=16),
+        nullable=False,
+        default=CustomerInvoiceStatus.DRAFT,
+        server_default=text("'DRAFT'"),
+    )
     issued_at = Column(DateTime(timezone=True), nullable=True)
     issued_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
     created_by = Column(String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
@@ -66,4 +72,3 @@ class CustomerInvoice(Base):
     issuer = relationship("User", foreign_keys=[issued_by])
     creator = relationship("User", foreign_keys=[created_by])
     updater = relationship("User", foreign_keys=[updated_by])
-
