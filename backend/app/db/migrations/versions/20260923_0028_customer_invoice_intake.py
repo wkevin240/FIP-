@@ -41,8 +41,43 @@ def upgrade() -> None:
         sa.Column("issued_by", sa.String(), nullable=True),
         sa.Column("created_by", sa.String(), nullable=False),
         sa.Column("updated_by", sa.String(), nullable=False),
-        sa.CheckConstraint("length(trim(invoice_number)) > 0", name="ck_customer_invoices_number_not_blank"),
-        sa.CheckConstraint("length(currency_code) = 3 AND currency_code = upper(currency_code) AND currency_code NOT GLOB '*[^A-Z]*'", name="ck_customer_invoices_currency_canonical"),
+        sa.CheckConstraint("btrim(invoice_number) <> ''", name="ck_customer_invoices_number_not_blank"),
+        sa.CheckConstraint("currency_code ~ '^[A-Z]{3}
+        sa.CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative"),
+        sa.CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components"),
+        sa.CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date"),
+        sa.CheckConstraint(
+            "(status = 'DRAFT' AND issued_by IS NULL AND issued_at IS NULL) OR "
+            "(status = 'ISSUED' AND issued_by IS NOT NULL AND issued_at IS NOT NULL)",
+            name="ck_customer_invoices_issue_metadata",
+        ),
+        sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(
+            ["organization_id", "customer_id"],
+            ["customers.organization_id", "customers.id"],
+            name="fk_customer_invoices_organization_customer",
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(["issued_by"], ["users.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["updated_by"], ["users.id"], ondelete="RESTRICT"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("organization_id", "invoice_number", name="uq_customer_invoice_organization_number"),
+        sa.UniqueConstraint("organization_id", "id", name="uq_customer_invoices_organization_id_id"),
+    )
+    op.create_index(
+        "ix_customer_invoices_org_status_due_date",
+        "customer_invoices",
+        ["organization_id", "status", "due_date"],
+        unique=False,
+    )
+
+
+def downgrade() -> None:
+    op.drop_index("ix_customer_invoices_org_status_due_date", table_name="customer_invoices")
+    op.drop_table("customer_invoices")
+    op.drop_constraint("uq_customers_organization_id_id", "customers", type_="unique")
+", name="ck_customer_invoices_currency_canonical"),
         sa.CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative"),
         sa.CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components"),
         sa.CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date"),
