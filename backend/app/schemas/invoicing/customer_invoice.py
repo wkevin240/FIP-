@@ -17,6 +17,8 @@ class CustomerInvoiceCreate(BaseModel):
     tax_amount: Decimal = Field(ge=0, max_digits=20, decimal_places=2)
     total_amount: Decimal = Field(gt=0, max_digits=20, decimal_places=2)
 
+    model_config = ConfigDict(extra="forbid")
+
     @field_validator("customer_id", "invoice_number")
     @classmethod
     def trim_required_text(cls, value: str) -> str:
@@ -50,6 +52,8 @@ class CustomerInvoiceUpdate(BaseModel):
     subtotal: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=2)
     tax_amount: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=2)
     total_amount: Decimal | None = Field(default=None, gt=0, max_digits=20, decimal_places=2)
+
+    model_config = ConfigDict(extra="forbid")
 
     @field_validator("invoice_number")
     @classmethod
@@ -92,5 +96,3 @@ class CustomerInvoiceResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
