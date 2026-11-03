@@ -193,6 +193,14 @@ jobs:
           POSTGRES_PASSWORD: "ci-only-database-password"
           POSTGRES_DB: fip_db
         run: pytest -q backend/tests/integration/test_customer_postgres_integrity.py
+      - name: Verify customer invoice PostgreSQL invariants
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: fip_user
+          POSTGRES_PASSWORD: "ci-only-database-password"
+          POSTGRES_DB: fip_db
+        run: pytest -q backend/tests/integration/test_customer_invoice_postgres_integrity.py
       - name: Verify migration drift
         env:
           POSTGRES_SERVER: localhost
