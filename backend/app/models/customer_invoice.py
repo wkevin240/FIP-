@@ -36,7 +36,7 @@ class CustomerInvoice(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint("btrim(invoice_number) <> ''", name="ck_customer_invoices_number_not_blank").ddl_if(dialect="postgresql"),
-        CheckConstraint("currency_code ~ '^[A-Z]{3}
+        CheckConstraint("currency_code ~ '^[A-Z]{3}$'", name="ck_customer_invoices_currency_canonical").ddl_if(dialect="postgresql"),
         CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative").ddl_if(dialect="postgresql"),
         CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components").ddl_if(dialect="postgresql"),
         CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date").ddl_if(dialect="postgresql"),
