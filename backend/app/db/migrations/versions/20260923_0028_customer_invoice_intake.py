@@ -77,7 +77,6 @@ def downgrade() -> None:
     op.drop_index("ix_customer_invoices_org_status_due_date", table_name="customer_invoices")
     op.drop_table("customer_invoices")
     op.drop_constraint("uq_customers_organization_id_id", "customers", type_="unique")
-", name="ck_customer_invoices_currency_canonical"),
         sa.CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative"),
         sa.CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components"),
         sa.CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date"),
