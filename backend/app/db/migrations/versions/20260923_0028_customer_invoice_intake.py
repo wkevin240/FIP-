@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("subtotal", sa.Numeric(precision=20, scale=2), nullable=False),
         sa.Column("tax_amount", sa.Numeric(precision=20, scale=2), nullable=False),
         sa.Column("total_amount", sa.Numeric(precision=20, scale=2), nullable=False),
-        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("status", sa.String(length=16), server_default=sa.text("'DRAFT'"), nullable=False),
         sa.Column("issued_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("issued_by", sa.String(), nullable=True),
         sa.Column("created_by", sa.String(), nullable=False),
@@ -77,4 +77,3 @@ def downgrade() -> None:
     op.drop_index("ix_customer_invoices_org_status_due_date", table_name="customer_invoices")
     op.drop_table("customer_invoices")
     op.drop_constraint("uq_customers_organization_id_id", "customers", type_="unique")
-
