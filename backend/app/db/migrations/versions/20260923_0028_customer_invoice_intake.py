@@ -42,7 +42,7 @@ def upgrade() -> None:
         sa.Column("created_by", sa.String(), nullable=False),
         sa.Column("updated_by", sa.String(), nullable=False),
         sa.CheckConstraint("btrim(invoice_number) <> ''", name="ck_customer_invoices_number_not_blank"),
-        sa.CheckConstraint("currency_code ~ '^[A-Z]{3}
+        sa.CheckConstraint("currency_code ~ '^[A-Z]{3}$'", name="ck_customer_invoices_currency_canonical"),
         sa.CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative"),
         sa.CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components"),
         sa.CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date"),
