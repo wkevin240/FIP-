@@ -12,7 +12,7 @@ class CustomerInvoiceCreate(BaseModel):
     invoice_number: str = Field(min_length=1, max_length=100)
     invoice_date: date
     due_date: date
-    currency_code: str = Field(min_length=3, max_length=3)
+    currency_code: str
     subtotal: Decimal = Field(ge=0, max_digits=20, decimal_places=2)
     tax_amount: Decimal = Field(ge=0, max_digits=20, decimal_places=2)
     total_amount: Decimal = Field(gt=0, max_digits=20, decimal_places=2)
@@ -48,7 +48,7 @@ class CustomerInvoiceUpdate(BaseModel):
     invoice_number: str | None = Field(default=None, min_length=1, max_length=100)
     invoice_date: date | None = None
     due_date: date | None = None
-    currency_code: str | None = Field(default=None, min_length=3, max_length=3)
+    currency_code: str | None = None
     subtotal: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=2)
     tax_amount: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=2)
     total_amount: Decimal | None = Field(default=None, gt=0, max_digits=20, decimal_places=2)
