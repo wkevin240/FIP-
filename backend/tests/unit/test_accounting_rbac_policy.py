@@ -53,3 +53,13 @@ def test_unknown_role_fails_closed() -> None:
 
 def test_superuser_override_is_explicit() -> None:
     assert PermissionService.role_allows("UNKNOWN_ROLE", "journal_entry:reverse", is_superuser=True)
+
+
+def test_supplier_master_permissions_follow_role_boundary() -> None:
+    assert PermissionService.role_allows(MembershipRole.ACCOUNTANT.value, "supplier:create")
+    assert PermissionService.role_allows(MembershipRole.ACCOUNTANT.value, "supplier:update")
+    for role in (MembershipRole.MANAGER.value, MembershipRole.AUDITOR.value):
+        assert PermissionService.role_allows(role, "supplier:read")
+        assert not PermissionService.role_allows(role, "supplier:create")
+        assert not PermissionService.role_allows(role, "supplier:update")
+    assert not PermissionService.role_allows(MembershipRole.USER.value, "supplier:read")
