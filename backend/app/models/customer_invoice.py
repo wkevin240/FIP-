@@ -72,7 +72,6 @@ class CustomerInvoice(Base):
     issuer = relationship("User", foreign_keys=[issued_by])
     creator = relationship("User", foreign_keys=[created_by])
     updater = relationship("User", foreign_keys=[updated_by])
-", name="ck_customer_invoices_currency_canonical").ddl_if(dialect="postgresql"),
         CheckConstraint("subtotal >= 0 AND tax_amount >= 0 AND total_amount > 0", name="ck_customer_invoices_amounts_nonnegative"),
         CheckConstraint("subtotal + tax_amount = total_amount", name="ck_customer_invoices_total_matches_components"),
         CheckConstraint("due_date >= invoice_date", name="ck_customer_invoices_due_date"),
